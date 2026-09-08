@@ -1,0 +1,81 @@
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 91.0.0 (97.0.0 available)
+  _flutterfire_internals 1.3.66 (1.3.67 available)
+  analyzer 8.4.1 (11.0.0 available)
+  characters 1.4.0 (1.4.1 available)
+  cloud_firestore 6.1.2 (6.1.3 available)
+  cloud_firestore_platform_interface 7.0.6 (7.0.7 available)
+  cloud_firestore_web 5.1.2 (5.1.3 available)
+  dio 5.9.1 (5.9.2 available)
+  dio_web_adapter 2.1.1 (2.1.2 available)
+  file_picker 8.3.7 (10.3.10 available)
+  firebase_auth 6.1.4 (6.2.0 available)
+  firebase_auth_platform_interface 8.1.6 (8.1.7 available)
+  firebase_auth_web 6.1.2 (6.1.3 available)
+  firebase_core 4.4.0 (4.5.0 available)
+  firebase_core_web 3.4.0 (3.5.0 available)
+  firebase_database 12.1.3 (12.1.4 available)
+  firebase_database_platform_interface 0.3.0+2 (0.3.0+3 available)
+  firebase_database_web 0.2.7+3 (0.2.7+4 available)
+  firebase_storage 13.0.6 (13.1.0 available)
+  firebase_storage_platform_interface 5.2.17 (5.2.18 available)
+  firebase_storage_web 3.11.2 (3.11.3 available)
+  flutter_dotenv 5.2.1 (6.0.0 available)
+  flutter_riverpod 3.2.1 (3.3.1 available)
+  flutter_secure_storage 9.2.4 (10.0.0 available)
+  flutter_secure_storage_linux 1.2.3 (3.0.0 available)
+  flutter_secure_storage_macos 3.1.3 (4.0.0 available)
+  flutter_secure_storage_platform_interface 1.1.2 (2.0.1 available)
+  flutter_secure_storage_web 1.2.1 (2.1.0 available)
+  flutter_secure_storage_windows 3.1.2 (4.1.0 available)
+  google_maps_flutter 2.14.2 (2.15.0 available)
+  google_maps_flutter_android 2.19.1 (2.19.2 available)
+  google_maps_flutter_ios 2.17.5 (2.18.0 available)
+  google_maps_flutter_platform_interface 2.14.1 (2.14.2 available)
+  google_maps_flutter_web 0.5.14+3 (0.6.1 available)
+  google_sign_in 6.3.0 (7.2.0 available)
+  google_sign_in_android 6.2.1 (7.2.9 available)
+  google_sign_in_ios 5.9.0 (6.3.0 available)
+  google_sign_in_platform_interface 2.5.0 (3.1.0 available)
+  google_sign_in_web 0.12.4+4 (1.1.2 available)
+  hooks 1.0.1 (1.0.2 available)
+  js 0.6.7 (0.7.2 available)
+  matcher 0.12.17 (0.12.19 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.17.0 (1.18.1 available)
+  mgrs_dart 2.0.0 (3.0.0 available)
+  native_toolchain_c 0.17.4 (0.17.5 available)
+  proj4dart 2.1.0 (3.0.0 available)
+  shared_preferences_android 2.4.20 (2.4.21 available)
+  test 1.26.3 (1.30.0 available)
+  test_api 0.7.7 (0.7.10 available)
+  test_core 0.6.12 (0.6.16 available)
+  unicode 0.3.1 (1.1.9 available)
+  uuid 4.5.2 (4.5.3 available)
+  win32 5.15.0 (6.0.0 available)
+Got dependencies!
+54 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Upgrading build.gradle.kts
+Running Gradle task 'assembleDebug'...                          
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+Note: Some input files use or override a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+warning: [options] source value 8 is obsolete and will be removed in a future release
+warning: [options] target value 8 is obsolete and will be removed in a future release
+warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
+3 warnings
+Running Gradle task 'assembleDebug'...                             41.3s
+✓ Built build/app/outputs/flutter-apk/app-debug.apk

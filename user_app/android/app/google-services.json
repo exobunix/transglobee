@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "266071218633",
+    "project_id": "transgloble-2d53d",
+    "storage_bucket": "transgloble-2d53d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:266071218633:android:dc6c9fafd16cca945db018",
+        "android_client_info": {
+          "package_name": "com.example.user_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3suEAfzSRXM1swoe9bdjEEQhcXSeTy9g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:266071218633:android:3cd306d56d296b455db018",
+        "android_client_info": {
+          "package_name": "com.transglobe.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3suEAfzSRXM1swoe9bdjEEQhcXSeTy9g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
