@@ -50,6 +50,7 @@ router.post('/drivers/:driverId/suspend', requireStrictAdmin, (req, res, next) =
   return adminController.updateDriverStatus(req, res, next);
 });
 router.put('/drivers/:driverId/status', requireStrictAdmin, adminController.updateDriverStatus);
+router.put('/drivers/:driverId/password', requireStrictAdmin, adminController.resetDriverPassword);
 router.put('/drivers/:driverId/warn', requireStrictAdmin, adminController.warnDriver);
 router.delete('/drivers/:driverId', requireStrictAdmin, adminController.deleteDriver);
 
@@ -122,6 +123,11 @@ router.delete('/shifts/:id', requireStrictAdmin, adminController.deleteShift);
 // Settlements & Reports
 router.get('/reports/transactions', requireSupervisorRole, adminController.getTransactionReports);
 router.get('/stats', requireSupervisorRole, adminController.getPlatformStats);
+
+// Wallet Top-Up Requests Management
+router.get('/wallet-requests', requireSupervisorRole, adminController.getWalletRequests);
+router.put('/wallet-requests/:id/approve', requireStrictAdmin, adminController.approveWalletRequest);
+router.put('/wallet-requests/:id/reject', requireStrictAdmin, adminController.rejectWalletRequest);
 
 // CMS & Notifications
 router.post('/cms', requireStrictAdmin, adminController.updateCMSContent);

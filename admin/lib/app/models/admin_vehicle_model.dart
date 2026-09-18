@@ -17,6 +17,12 @@ class AdminVehicleModel {
   bool? isEnabled;
   String? vehicleImage;
 
+  String? vehicleStatus;
+  String? vendorDetail;
+  String? insuranceDetails;
+  String? pucDetails;
+  String? permitDetails;
+
   List<AdminVehicleRoute>? routes;
 
   AdminVehicleModel({
@@ -35,6 +41,11 @@ class AdminVehicleModel {
     this.status,
     this.isEnabled,
     this.vehicleImage,
+    this.vehicleStatus,
+    this.vendorDetail,
+    this.insuranceDetails,
+    this.pucDetails,
+    this.permitDetails,
     this.routes,
   });
 
@@ -75,6 +86,11 @@ class AdminVehicleModel {
       status: json['status']?.toString(),
       isEnabled: json['isEnabled'] is bool ? json['isEnabled'] : (json['isEnabled']?.toString() == 'true'),
       vehicleImage: json['vehicleImage']?.toString(),
+      vehicleStatus: json['vehicleStatus']?.toString(),
+      vendorDetail: json['vendorDetail']?.toString(),
+      insuranceDetails: json['insuranceDetails']?.toString(),
+      pucDetails: json['pucDetails']?.toString(),
+      permitDetails: json['permitDetails']?.toString(),
       routes: routesList,
     );
   }
@@ -96,6 +112,11 @@ class AdminVehicleModel {
       'status': status,
       'isEnabled': isEnabled,
       'vehicleImage': vehicleImage,
+      'vehicleStatus': vehicleStatus,
+      'vendorDetail': vendorDetail,
+      'insuranceDetails': insuranceDetails,
+      'pucDetails': pucDetails,
+      'permitDetails': permitDetails,
     };
   }
 }

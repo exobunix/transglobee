@@ -269,6 +269,19 @@ class WalletController
       state = state.copyWith(status: ApiStatus.error, message: e.toString());
     }
   }
+
+  Future<bool> topupWallet(double amount, {String method = 'upi'}) async {
+    try {
+      final response = await _repository.topupWallet(amount, method: method);
+      if (response.success) {
+        await getDriverWallet();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
 }
 
 // Notification Controller

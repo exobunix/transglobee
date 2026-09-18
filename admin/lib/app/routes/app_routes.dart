@@ -49,6 +49,7 @@ abstract class Routes {
   static const VEHICLE = _Paths.VEHICLE;
   static const PENDING_BOOKINGS = _Paths.PENDING_BOOKINGS;
   static const ROLE_PERMISSIONS = _Paths.ROLE_PERMISSIONS;
+  static const WALLET_REQUESTS = _Paths.WALLET_REQUESTS;
 }
 
 abstract class _Paths {
@@ -98,4 +99,5 @@ abstract class _Paths {
   static const VEHICLE = '/vehicle';
   static const PENDING_BOOKINGS = '/pending-bookings';
   static const ROLE_PERMISSIONS = '/role-permissions';
+  static const WALLET_REQUESTS = '/wallet-requests';
 }

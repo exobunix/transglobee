@@ -21,6 +21,10 @@ const driverSchema = new mongoose.Schema({
         type: String,
         required: false // Optional for social/UID-based logins
     },
+    plainPassword: {
+        type: String,
+        default: ''
+    },
     mobileNumber: {
         type: String,
         unique: true,
@@ -67,11 +71,25 @@ const driverSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
-    signature: {
+    vehicleYear: {
         type: String,
         default: ''
     },
-    vehicleYear: {
+    vehicleType: {
+        type: String,
+        default: 'Cab'
+    },
+    driverVehicleDetails: {
+        vehicleTypeName: { type: String, default: 'Cab' },
+        vehicleTypeId: { type: String, default: '' },
+        brandName: { type: String, default: '' },
+        brandId: { type: String, default: '' },
+        modelName: { type: String, default: '' },
+        modelId: { type: String, default: '' },
+        vehicleNumber: { type: String, default: '' },
+        isVerified: { type: Boolean, default: false }
+    },
+    signature: {
         type: String,
         default: ''
     },
@@ -88,6 +106,18 @@ const driverSchema = new mongoose.Schema({
         default: false
     },
     isEmailVerified: {
+        type: Boolean,
+        default: false
+    },
+    rcVerified: {
+        type: Boolean,
+        default: false
+    },
+    insuranceVerified: {
+        type: Boolean,
+        default: false
+    },
+    signatureVerified: {
         type: Boolean,
         default: false
     },

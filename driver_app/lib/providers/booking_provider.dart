@@ -184,8 +184,6 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
         'completed',
         'delivered',
         'cancelled',
-        'accepted',
-        'confirmed'
       };
       final localHistoryOrders = state.where((b) {
         if (!historyStatuses.contains(b.status)) return false;
@@ -410,8 +408,6 @@ final historyBookingsProvider = Provider<List<BookingModel>>((ref) {
             'cancelled',
             'rejected',
             'delivered',
-            'accepted',
-            'confirmed'
           ].contains(b.status))
       .toList();
 });

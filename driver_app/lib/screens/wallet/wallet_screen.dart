@@ -83,21 +83,45 @@ class WalletScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Payout button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => Navigator.pushNamed(context, AppRouter.payout),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.darkCard,
-                            foregroundColor: AppTheme.earningsAmber,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: AppTheme.earningsAmber.withValues(alpha: 0.3))),
-                            elevation: 0,
+                      // Action buttons: Add Money & Request Payout
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _showTopUpSheet(context, ref),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.neonGreen.withValues(alpha: 0.15),
+                                foregroundColor: AppTheme.neonGreen,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(color: AppTheme.neonGreen.withValues(alpha: 0.4)),
+                                ),
+                                elevation: 0,
+                              ),
+                              icon: const Icon(Icons.add_circle_outline, size: 20),
+                              label: const Text('Add Money', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                            ),
                           ),
-                          icon: const Icon(Icons.account_balance, size: 20),
-                          label: const Text('Request Payout', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => Navigator.pushNamed(context, AppRouter.payout),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.darkCard,
+                                foregroundColor: AppTheme.earningsAmber,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(color: AppTheme.earningsAmber.withValues(alpha: 0.3)),
+                                ),
+                                elevation: 0,
+                              ),
+                              icon: const Icon(Icons.account_balance, size: 20),
+                              label: const Text('Request Payout', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                       // Stats row
@@ -169,6 +193,189 @@ class WalletScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showTopUpSheet(BuildContext context, WidgetRef ref) {
+    final amountController = TextEditingController();
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetContext, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+              ),
+              decoration: const BoxDecoration(
+                color: AppTheme.darkSurface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Add Money to Wallet',
+                    style: TextStyle(
+                      color: AppTheme.darkTextPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Top-up request will be reviewed and approved by Admin before balance is credited.',
+                    style: TextStyle(
+                      color: AppTheme.darkTextSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Preset chips
+                  Wrap(
+                    spacing: 10,
+                    children: [200, 500, 1000, 2000].map((amt) {
+                      final isSelected = amountController.text == amt.toString();
+                      return ChoiceChip(
+                        label: Text('₹$amt',
+                            style: TextStyle(
+                              color: isSelected ? Colors.black : Colors.white,
+                              fontWeight: FontWeight.w700,
+                            )),
+                        selected: isSelected,
+                        selectedColor: AppTheme.neonGreen,
+                        backgroundColor: AppTheme.darkCard,
+                        onSelected: (selected) {
+                          setModalState(() {
+                            amountController.text = selected ? amt.toString() : '';
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    decoration: InputDecoration(
+                      prefixText: '₹ ',
+                      prefixStyle: const TextStyle(
+                        color: AppTheme.neonGreen,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      hintText: 'Enter amount',
+                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 18),
+                      filled: true,
+                      fillColor: AppTheme.darkCard,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: AppTheme.neonGreen, width: 1.5),
+                      ),
+                    ),
+                    onChanged: (_) => setModalState(() {}),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              final text = amountController.text.trim();
+                              final amt = double.tryParse(text);
+                              if (amt == null || amt <= 0) {
+                                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Please enter a valid amount'),
+                                    backgroundColor: AppTheme.offlineRed,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              setModalState(() => isSubmitting = true);
+
+                              final success = await ref
+                                  .read(walletControllerProvider.notifier)
+                                  .topupWallet(amt);
+
+                              setModalState(() => isSubmitting = false);
+
+                              if (context.mounted) {
+                                Navigator.pop(sheetContext);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      success
+                                          ? 'Top-up request for ₹${amt.toStringAsFixed(0)} submitted! It will be added once approved by admin.'
+                                          : 'Failed to submit top-up request. Please try again.',
+                                    ),
+                                    backgroundColor: success
+                                        ? AppTheme.neonGreen
+                                        : AppTheme.offlineRed,
+                                  ),
+                                );
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.neonGreen,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                              ),
+                            )
+                          : const Text(
+                              'Submit Request',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

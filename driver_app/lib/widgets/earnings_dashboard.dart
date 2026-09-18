@@ -3,24 +3,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:ui';
 import '../core/theme.dart';
 import '../providers/vehicle_type_provider.dart';
+import '../features/driver/controllers/driver_providers.dart';
 
 class EarningsDashboard extends ConsumerWidget {
   const EarningsDashboard({super.key});
+
+  String _formatCurrency(double value) {
+    if (value >= 100000) {
+      return '₹${(value / 100000).toStringAsFixed(1)}L';
+    }
+    if (value >= 1000) {
+      return '₹${(value / 1000).toStringAsFixed(1)}k';
+    }
+    return '₹${value.toStringAsFixed(0)}';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final vehicleType = ref.watch(vehicleTypeProvider);
     final selectedSub = ref.watch(selectedSubVehicleProvider);
+    final earningsState = ref.watch(earningsControllerProvider);
+    final driverProfileState = ref.watch(driverProfileControllerProvider);
+    
+    final earningsData = earningsState.data;
+    final todayEarnings = earningsData?.todayEarnings ?? 0.0;
+    final totalTrips = driverProfileState.data?.totalRides ?? (earningsData?.records.length ?? 0);
+    
     final currentOption = vehicleType.subOptions.where((o) => o.id == selectedSub).firstOrNull ?? 
                          (vehicleType.subOptions.isNotEmpty ? vehicleType.subOptions.first : vehicleType.subOptions.firstWhere((_) => true, orElse: () => vehicleType.subOptions.isEmpty ? const VehicleOption(id: 'default', name: 'Standard', description: '', icon: Icons.minor_crash, basefare: '', perKm: '', color: Colors.blue) : vehicleType.subOptions.first));
     
-    // Simpler fallback
-    final safeOption = vehicleType.subOptions.isEmpty 
-        ? const VehicleOption(id: 'default', name: 'Standard', description: '', icon: Icons.minor_crash, basefare: '', perKm: '', color: Colors.blue)
-        : (vehicleType.subOptions.any((o) => o.id == selectedSub) 
-            ? vehicleType.subOptions.firstWhere((o) => o.id == selectedSub)
-            : vehicleType.subOptions.first);
-
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: ClipRRect(
@@ -104,8 +115,6 @@ class EarningsDashboard extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    _buildTrendBadge(),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -115,35 +124,26 @@ class EarningsDashboard extends ConsumerWidget {
                   children: [
                     _buildStatCard(
                       'Earnings',
-                      vehicleType.demoEarnings,
+                      _formatCurrency(todayEarnings),
                       Icons.currency_rupee,
                       AppTheme.earningsAmber,
                     ),
                     const SizedBox(width: 8),
                     _buildStatCard(
                       vehicleType.tripLabel,
-                      vehicleType.demoTrips,
+                      '$totalTrips',
                       vehicleType.icon,
                       vehicleType.accentColor,
                     ),
                     const SizedBox(width: 8),
                     _buildStatCard(
-                      'Distance',
-                      vehicleType.demoDistance,
-                      Icons.route,
+                      'Status',
+                      'Active',
+                      Icons.check_circle_outline,
                       const Color(0xFF64FFDA),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-
-                // Weekly chart
-                _buildWeeklyChart(vehicleType),
-
-                const SizedBox(height: 10),
-
-                // Demand hint
-                _buildDemandHint(vehicleType),
               ],
             ),
           ),

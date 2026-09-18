@@ -52,10 +52,13 @@ class DriverUserModel {
   String? panCardImage;
   String? rcBook;
   String? insurance;
+  String? plainPassword;
+  String? vehicleType;
 
   DriverUserModel({
     this.fullName,
     this.slug,
+    this.vehicleType,
     this.driverVehicleDetails,
     this.location,
     this.position,
@@ -98,6 +101,7 @@ class DriverUserModel {
     this.panCardImage,
     this.rcBook,
     this.insurance,
+    this.plainPassword,
   });
 
   DriverUserModel.fromJson(Map<String, dynamic> json) {
@@ -126,7 +130,17 @@ class DriverUserModel {
     dateOfBirth = json['dateOfBirth'] ?? json['dob']?.toString() ?? '';
     isActive = json['isActive'];
     isOnline = json['isOnline'];
+    vehicleType = json['vehicleType'] ?? json['driverVehicleDetails']?['vehicleTypeName'];
     driverVehicleDetails = json['driverVehicleDetails'] != null ? DriverVehicleDetails.fromJson(json["driverVehicleDetails"]) : null;
+    if (driverVehicleDetails == null && (vehicleType != null || json['vehicleNumberPlate'] != null || json['vehicleModel'] != null)) {
+      driverVehicleDetails = DriverVehicleDetails(
+        vehicleTypeName: vehicleType ?? 'Cab',
+        vehicleNumber: json['vehicleNumberPlate'],
+        modelName: json['vehicleModel'],
+      );
+    } else if (driverVehicleDetails != null && (driverVehicleDetails!.vehicleTypeName == null || driverVehicleDetails!.vehicleTypeName!.isEmpty)) {
+      driverVehicleDetails!.vehicleTypeName = vehicleType ?? 'Cab';
+    }
     isVerified = json['isVerified'] ?? json['isApproved'];
     location = json['location'] != null ? LocationLatLng.fromJson(json['location']) : LocationLatLng();
     position = json['position'] != null ? Positions.fromJson(json['position']) : Positions();
@@ -167,10 +181,12 @@ class DriverUserModel {
     panCardImage = json['panCardImage'];
     rcBook = json['rcBook'];
     insurance = json['insurance'];
+    plainPassword = json['plainPassword']?.toString() ?? json['password']?.toString();
   }
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
+    data['plainPassword'] = plainPassword;
     data['fullName'] = fullName;
     data['slug'] = slug;
     data['id'] = id;
@@ -224,6 +240,7 @@ class DriverUserModel {
     data['panCardImage'] = panCardImage;
     data['rcBook'] = rcBook;
     data['insurance'] = insurance;
+    data['vehicleType'] = vehicleType ?? driverVehicleDetails?.vehicleTypeName;
     return data;
   }
 }

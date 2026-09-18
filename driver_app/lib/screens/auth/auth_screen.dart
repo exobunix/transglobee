@@ -18,7 +18,7 @@ class AuthScreen extends ConsumerStatefulWidget {
 class _AuthScreenState extends ConsumerState<AuthScreen>
     with SingleTickerProviderStateMixin {
   bool _isLogin = true;
-  bool _showEmailForm = false; // toggle for "Continue with Email"
+  bool _showEmailForm = true; // default to true so fields are immediately visible
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
@@ -150,20 +150,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         ref.invalidate(driverProfileProvider);
         ref.invalidate(isOnboardingCompleteProvider);
 
-        final authService = ref.read(authServiceProvider);
-        final token = await authService.getIdToken();
-        final user = authService.currentUser;
-        
-        final isComplete = await dbService.isOnboardingComplete(
-          user.uid, 
-          token ?? ''
-        );
-        
-        if (mounted) {
-          if (isComplete) {
-            Navigator.pushReplacementNamed(context, AppRouter.home);
-          } else {
-            Navigator.pushReplacementNamed(context, AppRouter.onboarding);
+        if (_isLogin) {
+          // An existing driver logging in goes straight to the main app
+          Navigator.pushReplacementNamed(context, AppRouter.home);
+        } else {
+          // New registration: check onboarding status
+          final authService = ref.read(authServiceProvider);
+          final token = await authService.getIdToken();
+          final user = authService.currentUser;
+          
+          final isComplete = await dbService.isOnboardingComplete(
+            user.uid, 
+            token ?? ''
+          );
+          
+          if (mounted) {
+            if (isComplete) {
+              Navigator.pushReplacementNamed(context, AppRouter.home);
+            } else {
+              Navigator.pushReplacementNamed(context, AppRouter.onboarding);
+            }
           }
         }
       }
@@ -399,7 +405,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                     () => setState(() {
                                           _clearFormFields();
                                           _isLogin = true;
-                                          _showEmailForm = false;
+                                          _showEmailForm = true;
                                         })),
                                 _tab(
                                     'Sign Up',

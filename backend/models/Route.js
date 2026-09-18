@@ -4,6 +4,8 @@ const routeSchema = new mongoose.Schema({
     name: { type: String, required: true },
     source: String,
     destination: String,
+    vehicleType: { type: String, default: '' },
+    vehicleModel: { type: String, default: '' },
     startLocation: String,
     endLocation: String,
     startLat: Number,

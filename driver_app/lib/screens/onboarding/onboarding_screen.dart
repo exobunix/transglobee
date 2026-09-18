@@ -329,6 +329,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         vehicleModel: _modelCtrl.text,
         vehicleYear: _yearCtrl.text,
         vehicleNumberPlate: _plateCtrl.text,
+        vehicleType: _selectedVehicle.label,
         onboardingComplete: true,
       );
 

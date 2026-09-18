@@ -76,7 +76,7 @@ const DEFAULT_PRICING_CONFIGS = [
  */
 exports.estimateFare = async (req, res) => {
   try {
-    const { pickup, dropoff } = req.body;
+    const { pickup, dropoff, distanceKm: reqDistance, durationMins: reqDuration } = req.body;
 
     if (!pickup || !dropoff || pickup.lat == null || dropoff.lat == null) {
       return res.status(400).json({
@@ -90,15 +90,25 @@ exports.estimateFare = async (req, res) => {
     const dLat = parseFloat(dropoff.lat);
     const dLng = parseFloat(dropoff.lng);
 
-    // Calculate road distance in KM
-    let distanceKm = calculateHaversineDistance(pLat, pLng, dLat, dLng);
+    // Use road distance passed from Google Maps API or calculate Haversine distance
+    let distanceKm = 0;
+    if (reqDistance != null && Number(reqDistance) > 0) {
+      distanceKm = parseFloat(reqDistance);
+    } else {
+      distanceKm = calculateHaversineDistance(pLat, pLng, dLat, dLng);
+    }
     if (distanceKm < 0.5) distanceKm = 0.5;
 
-    // Estimate duration: Average speed 25 km/h in city traffic
-    let durationMins = Math.round((distanceKm / 25) * 60);
-    if (durationMins < 5) durationMins = 5;
+    // Use duration in minutes passed from Google Maps API or estimate
+    let durationMins = 0;
+    if (reqDuration != null && Number(reqDuration) > 0) {
+      durationMins = Math.round(Number(reqDuration));
+    } else {
+      durationMins = Math.round((distanceKm / 25) * 60);
+    }
+    if (durationMins < 1) durationMins = 1;
 
-    // Check if current server time is night shift (10 PM to 6 AM)
+    // Check if current time is Night Shift (10 PM to 6 AM)
     const currentHour = new Date().getHours();
     const isNightShift = currentHour >= 22 || currentHour < 6;
 
@@ -118,26 +128,35 @@ exports.estimateFare = async (req, res) => {
 
     const now = new Date();
     const rides = configs.map((config) => {
-      const excessDistance = Math.max(0, distanceKm - config.baseDistanceKm);
-      const distanceCharge = excessDistance * config.perKmRate;
-      const timeCharge = durationMins * (config.perMinuteRate || 0);
-      let calculatedSubtotal = config.baseFare + distanceCharge + timeCharge;
+      const baseFare = config.baseFare || 50;
+      const perKmRate = config.perKmRate || 15;
+      const perMinuteRate = config.perMinuteRate || 0;
 
-      // Apply Night Charge Percentage
-      if (isNightShift && config.nightChargePercentage > 0) {
-        calculatedSubtotal += (calculatedSubtotal * config.nightChargePercentage) / 100;
+      const distanceCharge = parseFloat((distanceKm * perKmRate).toFixed(2));
+      const timeCharge = parseFloat((durationMins * perMinuteRate).toFixed(2));
+      const subtotal = baseFare + distanceCharge + timeCharge;
+
+      // Night Charge calculation (if Night Shift: 10 PM - 6 AM)
+      let nightCharge = 0;
+      const nightPercentage = config.nightChargePercentage || 20;
+      if (isNightShift && nightPercentage > 0) {
+        nightCharge = parseFloat(((subtotal * nightPercentage) / 100).toFixed(2));
       }
 
-      // Apply Surge Multiplier
-      let finalFare = calculatedSubtotal * (config.surgeMultiplier || 1.0);
+      let calculatedTotal = subtotal + nightCharge;
+
+      // Apply Surge Multiplier if active
+      if (config.surgeMultiplier && config.surgeMultiplier > 1.0) {
+        calculatedTotal *= config.surgeMultiplier;
+      }
 
       // Enforce Minimum Booking Fare
-      if (finalFare < config.minBookingFare) {
-        finalFare = config.minBookingFare;
+      if (config.minBookingFare && calculatedTotal < config.minBookingFare) {
+        calculatedTotal = config.minBookingFare;
       }
 
-      const roundedFare = Math.round(finalFare);
-      const originalFare = Math.round(roundedFare * 1.1); // Display pre-discount strike price
+      const roundedFare = Math.round(calculatedTotal);
+      const originalFare = Math.round(roundedFare * 1.15); // Display pre-discount strike price
 
       // Calculate ETA & Arrival Time
       const etaMinutes = Math.floor(Math.random() * 6) + 3; // 3 to 8 mins
@@ -153,21 +172,36 @@ exports.estimateFare = async (req, res) => {
         name: config.categoryName,
         icon: config.icon || "car",
         capacity: config.capacity || 4,
-        baseFare: config.baseFare,
-        perKmRate: config.perKmRate,
-        perMinuteRate: config.perMinuteRate || 0,
+        baseFare: baseFare,
+        perKmRate: perKmRate,
+        perMinuteRate: perMinuteRate,
         estimatedFare: roundedFare,
         originalFare: originalFare,
         etaMinutes: etaMinutes,
         arrivalTime: arrivalTimeString,
         tagline: config.tagline || "",
+        fareBreakdown: {
+          baseFare: baseFare,
+          totalKm: parseFloat(distanceKm.toFixed(2)),
+          perKmRate: perKmRate,
+          distanceCharge: distanceCharge,
+          totalMin: durationMins,
+          perMinuteRate: perMinuteRate,
+          timeCharge: timeCharge,
+          isNightShift: isNightShift,
+          nightChargePercentage: nightPercentage,
+          nightCharge: nightCharge,
+          subtotal: parseFloat(subtotal.toFixed(2)),
+          totalFare: roundedFare,
+        },
       };
     });
 
     return res.status(200).json({
       success: true,
-      distanceKm: distanceKm,
+      distanceKm: parseFloat(distanceKm.toFixed(2)),
       durationMins: durationMins,
+      isNightShift: isNightShift,
       currency: "INR",
       rides: rides,
     });

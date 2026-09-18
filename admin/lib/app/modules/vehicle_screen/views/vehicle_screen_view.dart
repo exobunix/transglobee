@@ -322,14 +322,30 @@ class VehicleScreenView extends GetView<VehicleScreenController> {
                                             children: [
                                               TextCustom(title: 'Show'.tr, fontSize: 14, fontFamily: AppThemeData.medium),
                                               spaceW(),
-                                              DropdownButton(
+                                              DropdownButton<String>(
                                                 value: controller.totalItemPerPage.value,
+                                                dropdownColor: themeChange.isDarkTheme() ? const Color(0xFF1E293B) : Colors.white,
+                                                style: TextStyle(
+                                                  color: themeChange.isDarkTheme() ? Colors.white : Colors.black87,
+                                                  fontFamily: AppThemeData.medium,
+                                                  fontSize: 16,
+                                                ),
                                                 items: Constant.numOfPageIemList.map((value) {
-                                                  return DropdownMenuItem(value: value, child: TextCustom(title: value, fontFamily: AppThemeData.regular, fontSize: 16));
+                                                  return DropdownMenuItem<String>(
+                                                    value: value,
+                                                    child: TextCustom(
+                                                      title: value,
+                                                      fontFamily: AppThemeData.regular,
+                                                      fontSize: 16,
+                                                      color: themeChange.isDarkTheme() ? Colors.white : Colors.black87,
+                                                    ),
+                                                  );
                                                 }).toList(),
                                                 onChanged: (value) {
-                                                  controller.currentPage.value = 1;
-                                                  controller.setPagination(value.toString());
+                                                  if (value != null) {
+                                                    controller.currentPage.value = 1;
+                                                    controller.setPagination(value.toString());
+                                                  }
                                                 },
                                               ),
                                               spaceW(),
@@ -998,6 +1014,16 @@ class VehicleDetailsDialog extends StatelessWidget {
               _buildDetailRow(context, "Vehicle Name".tr, vehicle.vehicleName ?? 'N/A'),
               _buildDetailRow(context, "Number Plate".tr, vehicle.numberPlate ?? 'N/A'),
               _buildDetailRow(context, "Vehicle Type".tr, (vehicle.vehicleType ?? 'N/A').toUpperCase()),
+              if (vehicle.vehicleStatus != null && vehicle.vehicleStatus!.isNotEmpty)
+                _buildDetailRow(context, "Vehicle Status / Category".tr, vehicle.vehicleStatus!),
+              if (vehicle.vendorDetail != null && vehicle.vendorDetail!.isNotEmpty)
+                _buildDetailRow(context, "Vendor Detail".tr, vehicle.vendorDetail!),
+              if (vehicle.insuranceDetails != null && vehicle.insuranceDetails!.isNotEmpty)
+                _buildDetailRow(context, "Insurance Details".tr, vehicle.insuranceDetails!),
+              if (vehicle.pucDetails != null && vehicle.pucDetails!.isNotEmpty)
+                _buildDetailRow(context, "PUC Details".tr, vehicle.pucDetails!),
+              if (vehicle.permitDetails != null && vehicle.permitDetails!.isNotEmpty)
+                _buildDetailRow(context, "Permit Details".tr, vehicle.permitDetails!),
               _buildDetailRow(context, "Brand / Model".tr, "${vehicle.brand ?? 'N/A'} / ${vehicle.model ?? 'N/A'}"),
               _buildDetailRow(context, "Year".tr, vehicle.year ?? 'N/A'),
               _buildDetailRow(context, "Passenger Capacity".tr, "${vehicle.passengerCapacity ?? 0}"),

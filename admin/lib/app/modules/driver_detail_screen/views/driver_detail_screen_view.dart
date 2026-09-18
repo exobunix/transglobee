@@ -515,7 +515,8 @@ class DriverDetailScreenView extends StatelessWidget {
           const SizedBox(height: 16),
           customRowData(label: "Phone", value: driver.phoneNumber ?? "N/A", themeChange: themeChange),
           customRowData(label: "Email", value: driver.email ?? "N/A", themeChange: themeChange),
-          customRowData(label: "Vehicle Type", value: driver.driverVehicleDetails?.vehicleTypeName ?? "N/A", themeChange: themeChange),
+          customRowData(label: "Password", value: driver.plainPassword != null && driver.plainPassword!.isNotEmpty ? driver.plainPassword! : "123456", themeChange: themeChange),
+          customRowData(label: "Vehicle Type", value: (driver.driverVehicleDetails?.vehicleTypeName?.isNotEmpty == true ? driver.driverVehicleDetails!.vehicleTypeName! : (driver.vehicleType?.isNotEmpty == true ? driver.vehicleType! : "N/A")), themeChange: themeChange),
           customRowData(label: "Submitted At", value: submittedAt, themeChange: themeChange),
           
           const SizedBox(height: 32),
@@ -530,6 +531,7 @@ class DriverDetailScreenView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          customRowData(label: "Vehicle Type", value: (driver.driverVehicleDetails?.vehicleTypeName?.isNotEmpty == true ? driver.driverVehicleDetails!.vehicleTypeName! : (driver.vehicleType?.isNotEmpty == true ? driver.vehicleType! : "N/A")), themeChange: themeChange),
           customRowData(label: "Model", value: driver.vehicleModel ?? driver.driverVehicleDetails?.modelName ?? "N/A", themeChange: themeChange),
           customRowData(label: "Number Plate", value: driver.vehicleNumberPlate ?? driver.driverVehicleDetails?.vehicleNumber ?? "N/A", themeChange: themeChange),
           customRowData(label: "Manufacture Year", value: driver.vehicleYear ?? "N/A", themeChange: themeChange),

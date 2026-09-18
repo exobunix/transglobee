@@ -7,17 +7,17 @@ const transactionSchema = new mongoose.Schema({
     amount: { type: Number, required: true },
     type: {
         type: String,
-        enum: ['payment', 'commission', 'withdrawal', 'refund', 'incentive'],
+        enum: ['payment', 'commission', 'withdrawal', 'refund', 'incentive', 'topup'],
         required: true
     },
     method: {
         type: String,
-        enum: ['wallet', 'card', 'upi', 'cash'],
+        enum: ['wallet', 'card', 'upi', 'cash', 'bank_transfer', 'other'],
         default: 'wallet'
     },
     status: {
         type: String,
-        enum: ['pending', 'completed', 'failed', 'refunded'],
+        enum: ['pending', 'completed', 'failed', 'refunded', 'rejected'],
         default: 'pending'
     },
     adminCommission: Number,

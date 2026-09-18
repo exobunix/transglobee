@@ -166,6 +166,7 @@ class AuthService {
     await prefs.setString(_restTokenKey, token);
     await prefs.setString(_restUserKey, jsonEncode(userData));
     await prefs.setBool('is_logged_in', true);
+    await SecureStorageService.saveToken(token);
     
     // Update local user state
     _localUser = MockUser(
@@ -180,6 +181,8 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_restTokenKey);
     await prefs.remove(_restUserKey);
+    await prefs.remove('is_logged_in');
+    await SecureStorageService.clearAll();
     _localUser = null;
     _authStateController.add(null);
   }

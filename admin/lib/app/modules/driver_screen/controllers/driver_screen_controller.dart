@@ -57,6 +57,14 @@ class DriverScreenController extends GetxController {
   RxBool uploading = false.obs;
   RxString editingId = ''.obs;
 
+  // Add Driver form controllers
+  Rx<TextEditingController> addDriverNameController = TextEditingController().obs;
+  Rx<TextEditingController> addDriverMobileController = TextEditingController().obs;
+  Rx<TextEditingController> addDriverEmailController = TextEditingController().obs;
+  Rx<TextEditingController> addDriverPasswordController = TextEditingController().obs;
+  Rx<TextEditingController> addDriverLicenseController = TextEditingController().obs;
+  RxBool addDriverLoading = false.obs;
+
   RxString totalItemPerPage = '0'.obs;
   Rx<DateTimeRange> selectedDate = DateTimeRange(
           start: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 0, 0, 0),
@@ -210,6 +218,52 @@ class DriverScreenController extends GetxController {
     emailController.value.text = Constant.maskEmail(email: driverModel.value.email ?? '');
     imageController.value.text = driverModel.value.profilePic ?? '';
     editingId.value = driverModel.value.id ?? '';
+  }
+
+  /// Admin creates a new driver account via the backend REST API.
+  Future<bool> addDriver() async {
+    addDriverLoading.value = true;
+    try {
+      final name = addDriverNameController.value.text.trim();
+      final mobile = addDriverMobileController.value.text.trim();
+      final email = addDriverEmailController.value.text.trim();
+      final password = addDriverPasswordController.value.text.trim();
+      final license = addDriverLicenseController.value.text.trim();
+
+      final response = await http.post(
+        Uri.parse(ApiConstant.adminDriverCreate),
+        headers: ApiConstant.headers(),
+        body: jsonEncode({
+          'name': name,
+          'mobile': mobile,
+          'email': email,
+          'password': password,
+          if (license.isNotEmpty) 'licenseNumber': license,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 201) {
+        ShowToastDialog.toast('Driver added successfully!');
+        // Clear form fields
+        addDriverNameController.value.clear();
+        addDriverMobileController.value.clear();
+        addDriverEmailController.value.clear();
+        addDriverPasswordController.value.clear();
+        addDriverLicenseController.value.clear();
+        await fetchDrivers();
+        return true;
+      } else {
+        ShowToastDialog.toast(data['message'] ?? 'Failed to add driver');
+        return false;
+      }
+    } catch (e) {
+      log('Error adding driver: $e');
+      ShowToastDialog.toast('Error: $e');
+      return false;
+    } finally {
+      addDriverLoading.value = false;
+    }
   }
 
   Rx<TextEditingController> dateRangeController = TextEditingController().obs;

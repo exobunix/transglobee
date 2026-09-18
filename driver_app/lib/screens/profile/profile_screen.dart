@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../core/theme_provider.dart';
 import '../../providers/vehicle_type_provider.dart';
-import '../../services/driver_service.dart';
 import '../../services/auth_service.dart';
 import '../../core/app_router.dart';
 import '../../features/driver/controllers/driver_providers.dart';
@@ -30,6 +29,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
   }
 
+  void _openEditProfile(DriverProfileResponseModel driver) {
+    final model = DriverModel(
+      id: driver.id,
+      firebaseId: driver.id,
+      email: driver.email,
+      name: driver.name,
+      phoneNumber: driver.phoneNumber,
+      profilePic: driver.profilePic,
+      vehicleId: driver.vehicleNumber,
+      vehicleModel: driver.vehicleModel,
+      vehicleYear: driver.vehicleYear,
+      vehicleNumberPlate: driver.vehicleNumberPlate,
+      aadharCardNumber: driver.aadharCardNumber,
+      drivingLicenseNumber: driver.drivingLicenseNumber,
+      panCardNumber: driver.panCardNumber,
+      isEmailVerified: driver.isEmailVerified,
+      panVerified: driver.panVerified,
+      aadharVerified: driver.aadharVerified,
+      drivingLicenseVerified: driver.drivingLicenseVerified,
+      rcVerified: driver.rcVerified,
+      insuranceVerified: driver.insuranceVerified,
+      signatureVerified: driver.signatureVerified,
+      onboardingComplete: driver.onboardingComplete,
+      isApproved: driver.isApproved,
+      aadhaarUrl: driver.aadhaarUrl,
+      licenseUrl: driver.licenseUrl,
+      panUrl: driver.panUrl,
+      rcUrl: driver.rcUrl,
+      signatureUrl: driver.signatureUrl,
+      insuranceUrl: driver.insuranceUrl,
+      dob: driver.dob,
+      vehicleType: driver.vehicleType,
+    );
+    Navigator.pushNamed(context, AppRouter.editProfile, arguments: model);
+  }
+
   @override
   Widget build(BuildContext context) {
     final vehicleType = ref.watch(vehicleTypeProvider);
@@ -50,7 +85,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    isDark ? vehicleType.accentColor.withOpacity(0.15) : const Color(0xFFE3F2FD),
+                    isDark ? vehicleType.accentColor.withValues(alpha: 0.15) : const Color(0xFFE3F2FD),
                     Theme.of(context).scaffoldBackgroundColor
                   ],
                   begin: Alignment.topCenter,
@@ -108,36 +143,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               ),
                             ),
                             IconButton(
-                              onPressed: () {
-                                final model = DriverModel(
-                                  id: driver.id,
-                                  firebaseId: driver.id,
-                                  email: driver.email,
-                                  name: driver.name,
-                                  phoneNumber: driver.phoneNumber,
-                                  profilePic: driver.profilePic,
-                                  vehicleId: driver.vehicleNumber,
-                                  vehicleModel: driver.vehicleModel,
-                                  vehicleYear: driver.vehicleYear,
-                                  vehicleNumberPlate: driver.vehicleNumberPlate,
-                                  aadharCardNumber: driver.aadharCardNumber,
-                                  drivingLicenseNumber: driver.drivingLicenseNumber,
-                                  panCardNumber: driver.panCardNumber,
-                                  isEmailVerified: driver.isEmailVerified,
-                                  panVerified: driver.panVerified,
-                                  aadharVerified: driver.aadharVerified,
-                                  drivingLicenseVerified: driver.drivingLicenseVerified,
-                                  onboardingComplete: driver.onboardingComplete,
-                                  isApproved: driver.isApproved,
-                                  aadhaarUrl: driver.aadhaarUrl,
-                                  licenseUrl: driver.licenseUrl,
-                                  panUrl: driver.panUrl,
-                                  rcUrl: driver.rcUrl,
-                                  signatureUrl: driver.signatureUrl,
-                                  insuranceUrl: driver.insuranceUrl,
-                                );
-                                Navigator.pushNamed(context, AppRouter.editProfile, arguments: model);
-                              },
+                              onPressed: () => _openEditProfile(driver),
                               icon: Icon(Icons.edit_outlined, color: vehicleType.accentColor, size: 20),
                             ),
                           ],
@@ -149,67 +155,120 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 20),
 
                   // Documents
-                  _buildSectionHeader('Documents'),
                   if (driverProfileState.status == ApiStatus.loading)
                     const SizedBox(height: 80, child: Center(child: CircularProgressIndicator()))
                   else if (driverProfileState.data != null)
                     Builder(builder: (context) {
                       final driver = driverProfileState.data!;
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: Theme.of(context).cardTheme.color, borderRadius: BorderRadius.circular(20)),
-                        child: Column(
-                          children: [
-                            _buildDocRow(
-                              'Email Verified', 
-                              'Email Verified', 
-                              driver.isEmailVerified,
-                              isVerified: driver.isEmailVerified
+
+                      final hasDLNum = driver.drivingLicenseNumber.trim().isNotEmpty;
+                      final hasDLFile = driver.licenseUrl.trim().isNotEmpty;
+                      final isDLVerified = driver.drivingLicenseVerified;
+                      final isDLUploaded = hasDLFile || hasDLNum;
+                      final dlStatus = isDLVerified ? 'Verified' : (hasDLFile ? 'Uploaded' : (hasDLNum ? 'Added' : 'Not Uploaded'));
+
+                      final hasAadharNum = driver.aadharCardNumber.trim().isNotEmpty;
+                      final hasAadharFile = driver.aadhaarUrl.trim().isNotEmpty;
+                      final isAadharVerified = driver.aadharVerified;
+                      final isAadharUploaded = hasAadharFile || hasAadharNum;
+                      final aadharStatus = isAadharVerified ? 'Verified' : (hasAadharFile ? 'Uploaded' : (hasAadharNum ? 'Added' : 'Not Uploaded'));
+
+                      final hasPanNum = driver.panCardNumber.trim().isNotEmpty;
+                      final hasPanFile = driver.panUrl.trim().isNotEmpty;
+                      final isPanVerified = driver.panVerified;
+                      final isPanUploaded = hasPanFile || hasPanNum;
+                      final panStatus = isPanVerified ? 'Verified' : (hasPanFile ? 'Uploaded' : (hasPanNum ? 'Added' : 'Not Uploaded'));
+
+                      final hasSigFile = driver.signatureUrl.trim().isNotEmpty;
+                      final isSigVerified = driver.signatureVerified || (hasSigFile && driver.isApproved);
+                      final isSigUploaded = hasSigFile;
+                      final sigStatus = isSigVerified ? 'Verified' : (hasSigFile ? 'Uploaded' : 'Not Uploaded');
+
+                      final hasRcFile = driver.rcUrl.trim().isNotEmpty;
+                      final isRcVerified = driver.rcVerified || (hasRcFile && driver.isApproved);
+                      final isRcUploaded = hasRcFile;
+                      final rcStatus = isRcVerified ? 'Verified' : (hasRcFile ? 'Uploaded' : 'Not Uploaded');
+
+                      final hasInsFile = driver.insuranceUrl.trim().isNotEmpty;
+                      final isInsVerified = driver.insuranceVerified || (hasInsFile && driver.isApproved);
+                      final isInsUploaded = hasInsFile;
+                      final insStatus = isInsVerified ? 'Verified' : (hasInsFile ? 'Uploaded' : 'Not Uploaded');
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionHeader(
+                            'Documents',
+                            onAction: () => _openEditProfile(driver),
+                            actionText: 'Upload / Edit',
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).cardTheme.color,
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            const Divider(height: 20),
-                            _buildDocRow(
-                              'Driving License', 
-                              driver.drivingLicenseNumber, 
-                              driver.licenseUrl.isNotEmpty,
-                              isVerified: driver.drivingLicenseVerified
+                            child: Column(
+                              children: [
+                                _buildDocRow(
+                                  'Email Verified', 
+                                  driver.isEmailVerified ? 'Verified' : 'Unverified', 
+                                  driver.isEmailVerified,
+                                  isVerified: driver.isEmailVerified,
+                                  onTap: () => _openEditProfile(driver),
+                                ),
+                                const Divider(height: 20),
+                                _buildDocRow(
+                                  'Driving License', 
+                                  dlStatus, 
+                                  isDLUploaded,
+                                  isVerified: isDLVerified,
+                                  onTap: () => _openEditProfile(driver),
+                                ),
+                                const Divider(height: 20),
+                                _buildDocRow(
+                                  'Aadhar Card', 
+                                  aadharStatus, 
+                                  isAadharUploaded,
+                                  isVerified: isAadharVerified,
+                                  onTap: () => _openEditProfile(driver),
+                                ),
+                                const Divider(height: 20),
+                                _buildDocRow(
+                                  'PAN Card', 
+                                  panStatus, 
+                                  isPanUploaded,
+                                  isVerified: isPanVerified,
+                                  onTap: () => _openEditProfile(driver),
+                                ),
+                                const Divider(height: 20),
+                                _buildDocRow(
+                                  'Signature', 
+                                  sigStatus, 
+                                  isSigUploaded,
+                                  isVerified: isSigVerified,
+                                  onTap: () => _openEditProfile(driver),
+                                ),
+                                const Divider(height: 20),
+                                _buildDocRow(
+                                  'RC Book', 
+                                  rcStatus, 
+                                  isRcUploaded,
+                                  isVerified: isRcVerified,
+                                  onTap: () => _openEditProfile(driver),
+                                ),
+                                const Divider(height: 20),
+                                _buildDocRow(
+                                  'Insurance', 
+                                  insStatus, 
+                                  isInsUploaded,
+                                  isVerified: isInsVerified,
+                                  onTap: () => _openEditProfile(driver),
+                                ),
+                              ],
                             ),
-                            const Divider(height: 20),
-                            _buildDocRow(
-                              'Aadhar Card', 
-                              driver.aadharCardNumber, 
-                              driver.aadhaarUrl.isNotEmpty,
-                              isVerified: driver.aadharVerified
-                            ),
-                            const Divider(height: 20),
-                            _buildDocRow(
-                              'PAN Card', 
-                              driver.panCardNumber, 
-                              driver.panUrl.isNotEmpty || driver.panCardNumber.isNotEmpty,
-                              isVerified: driver.panVerified
-                            ),
-                            const Divider(height: 20),
-                            _buildDocRow(
-                              'Signature', 
-                              'Verified', 
-                              true,
-                              isVerified: true
-                            ),
-                            const Divider(height: 20),
-                            _buildDocRow(
-                              'RC Book', 
-                              'Verified', 
-                              true,
-                              isVerified: true
-                            ),
-                            const Divider(height: 20),
-                            _buildDocRow(
-                              'Insurance', 
-                              'Verified', 
-                              true,
-                              isVerified: true
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       );
                     })
                   else
@@ -223,6 +282,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     decoration: BoxDecoration(color: Theme.of(context).cardTheme.color, borderRadius: BorderRadius.circular(20)),
                     child: Column(
                       children: [
+                        _buildArrowTile(Icons.person_outline, 'Edit Profile', 'Update personal & vehicle details', AppTheme.neonGreen, onTap: () {
+                          if (driverProfileState.data != null) {
+                            _openEditProfile(driverProfileState.data!);
+                          }
+                        }),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
                         _buildArrowTile(Icons.account_balance_wallet_outlined, 'My Wallet', 'Check balance & history', AppTheme.earningsAmber, onTap: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
                         }),
@@ -301,36 +366,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Positioned(
               bottom: 0, right: 0,
               child: InkWell(
-                onTap: () {
-                  final model = DriverModel(
-                    id: driver.id,
-                    firebaseId: driver.id,
-                    email: driver.email,
-                    name: driver.name,
-                    phoneNumber: driver.phoneNumber,
-                    profilePic: driver.profilePic,
-                    vehicleId: driver.vehicleNumber,
-                    vehicleModel: driver.vehicleModel,
-                    vehicleYear: driver.vehicleYear,
-                    vehicleNumberPlate: driver.vehicleNumberPlate,
-                    aadharCardNumber: driver.aadharCardNumber,
-                    drivingLicenseNumber: driver.drivingLicenseNumber,
-                    panCardNumber: driver.panCardNumber,
-                    isEmailVerified: driver.isEmailVerified,
-                    panVerified: driver.panVerified,
-                    aadharVerified: driver.aadharVerified,
-                    drivingLicenseVerified: driver.drivingLicenseVerified,
-                    onboardingComplete: driver.onboardingComplete,
-                    isApproved: driver.isApproved,
-                    aadhaarUrl: driver.aadhaarUrl,
-                    licenseUrl: driver.licenseUrl,
-                    panUrl: driver.panUrl,
-                    rcUrl: driver.rcUrl,
-                    signatureUrl: driver.signatureUrl,
-                    insuranceUrl: driver.insuranceUrl,
-                  );
-                  Navigator.pushNamed(context, AppRouter.editProfile, arguments: model);
-                },
+                onTap: () => _openEditProfile(driver),
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: const BoxDecoration(color: AppTheme.neonGreen, shape: BoxShape.circle),
@@ -382,67 +418,126 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, {VoidCallback? onAction, String? actionText}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Text(title,
-          style: const TextStyle(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
               color: AppTheme.darkTextSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              letterSpacing: 1)),
+              letterSpacing: 1,
+            ),
+          ),
+          if (onAction != null)
+            InkWell(
+              onTap: onAction,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      actionText ?? 'Edit',
+                      style: const TextStyle(
+                        color: AppTheme.neonGreen,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    const Icon(Icons.edit_outlined, size: 12, color: AppTheme.neonGreen),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  Widget _buildDocRow(String name, String status, bool? uploaded,
-      {bool isVerified = false}) {
-    final color = isVerified
-        ? AppTheme.neonGreen
-        : (uploaded == true ? AppTheme.earningsAmber : AppTheme.offlineRed);
-    final icon =
-        isVerified ? Icons.verified : (uploaded == true ? Icons.check_circle : Icons.pending);
-    final statusText = isVerified ? 'Verified' : status;
+  Widget _buildDocRow(
+    String name,
+    String status,
+    bool uploaded, {
+    bool isVerified = false,
+    VoidCallback? onTap,
+  }) {
+    final Color color;
+    final IconData icon;
+    final String statusText;
 
-    return Row(
-      children: [
-        const Icon(Icons.description_outlined,
-            color: AppTheme.darkTextSecondary, size: 20),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            name,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 12),
-              const SizedBox(width: 4),
-              Text(
-                statusText,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
+    if (isVerified) {
+      color = AppTheme.neonGreen;
+      icon = Icons.verified;
+      statusText = 'Verified';
+    } else if (uploaded) {
+      color = AppTheme.earningsAmber;
+      icon = Icons.access_time_rounded;
+      statusText = status.isNotEmpty && status != 'Pending' ? status : 'Uploaded';
+    } else {
+      color = AppTheme.offlineRed;
+      icon = Icons.pending;
+      statusText = status.isNotEmpty ? status : 'Not Uploaded';
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            const Icon(Icons.description_outlined,
+                color: AppTheme.darkTextSecondary, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                name,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: color, size: 12),
+                  const SizedBox(width: 4),
+                  Text(
+                    statusText,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, size: 14, color: AppTheme.darkTextSecondary),
             ],
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 

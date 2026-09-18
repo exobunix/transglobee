@@ -29,6 +29,26 @@ const vehicleSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    vehicleStatus: {
+        type: String,
+        default: ''
+    },
+    vendorDetail: {
+        type: String,
+        default: ''
+    },
+    insuranceDetails: {
+        type: String,
+        default: ''
+    },
+    pucDetails: {
+        type: String,
+        default: ''
+    },
+    permitDetails: {
+        type: String,
+        default: ''
+    },
 
     // ─── Capacity ─────────────────────────────────────────────
     passengerCapacity: {

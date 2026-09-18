@@ -27,9 +27,13 @@ class DriverModel {
   final bool drivingLicenseVerified;
   final bool onboardingComplete;
   final bool isEmailVerified;
+  final bool rcVerified;
+  final bool insuranceVerified;
+  final bool signatureVerified;
   final String? vehicleModel;
   final String? vehicleYear;
   final String? vehicleNumberPlate;
+  final String? vehicleType;
   final bool isApproved;
 
   DriverModel({
@@ -61,9 +65,13 @@ class DriverModel {
     this.panVerified = false,
     this.aadharVerified = false,
     this.drivingLicenseVerified = false,
+    this.rcVerified = false,
+    this.insuranceVerified = false,
+    this.signatureVerified = false,
     this.vehicleModel,
     this.vehicleYear,
     this.vehicleNumberPlate,
+    this.vehicleType,
     this.isApproved = false,
   });
 
@@ -125,9 +133,13 @@ class DriverModel {
       panVerified: json['panVerified'] ?? false,
       aadharVerified: json['aadharVerified'] ?? false,
       drivingLicenseVerified: json['drivingLicenseVerified'] ?? false,
+      rcVerified: json['rcVerified'] ?? false,
+      insuranceVerified: json['insuranceVerified'] ?? false,
+      signatureVerified: json['signatureVerified'] ?? false,
       vehicleModel: json['vehicleModel'],
       vehicleYear: json['vehicleYear'],
       vehicleNumberPlate: json['vehicleNumberPlate'] ?? json['vehicleNumber'] ?? '',
+      vehicleType: json['vehicleType'] ?? json['driverVehicleDetails']?['vehicleTypeName'],
       isApproved: approvedFromFlag,
     );
   }
@@ -177,6 +189,7 @@ class DriverModel {
       'vehicleModel': vehicleModel,
       'vehicleYear': vehicleYear,
       'vehicleNumberPlate': vehicleNumberPlate,
+      'vehicleType': vehicleType,
       'isApproved': isApproved,
     };
   }

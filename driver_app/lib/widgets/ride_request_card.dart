@@ -107,7 +107,7 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
               // Header
               Row(
                 children: [
-                   Container(
+                  Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: vehicleType.accentColor.withValues(alpha: 0.15),
@@ -125,19 +125,49 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          vehicleType.requestLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: vehicleType.accentColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              margin: const EdgeInsets.only(right: 6),
+                              decoration: BoxDecoration(
+                                color: vehicleType.accentColor.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: vehicleType.accentColor.withValues(alpha: 0.5),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                vehicleType.label.toUpperCase(),
+                                style: TextStyle(
+                                  color: vehicleType.accentColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                vehicleType.requestLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: vehicleType.accentColor,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Text(
-                          '${widget.rideData?['rideMode'] ?? 'economy'} • ${widget.rideData?['distance'] ?? '0 km'} away',
+                          '${widget.rideData?['rideMode'] ?? 'Standard'} • ${widget.rideData?['distance'] ?? '0 km'} away',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

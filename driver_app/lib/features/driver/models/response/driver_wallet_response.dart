@@ -14,11 +14,13 @@ class DriverWalletResponseModel extends Equatable {
   });
 
   factory DriverWalletResponseModel.fromJson(Map<String, dynamic> json) {
+    final rawBalance = json['balance'] ?? json['walletBalance'] ?? json['currentBalance'] ?? 0.0;
+    final rawPending = json['pendingPayout'] ?? json['pending'] ?? 0.0;
     return DriverWalletResponseModel(
-      balance: (json['balance'] ?? 0.0).toDouble(),
-      currency: json['currency'] ?? '',
-      lastUpdated: json['lastUpdated'] ?? '',
-      pendingPayout: (json['pendingPayout'] ?? 0.0).toDouble(),
+      balance: (rawBalance is num) ? rawBalance.toDouble() : (double.tryParse(rawBalance.toString()) ?? 0.0),
+      currency: json['currency']?.toString() ?? 'INR',
+      lastUpdated: json['lastUpdated']?.toString() ?? '',
+      pendingPayout: (rawPending is num) ? rawPending.toDouble() : (double.tryParse(rawPending.toString()) ?? 0.0),
     );
   }
 

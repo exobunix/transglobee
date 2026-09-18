@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/user_provider.dart';
 import '../providers/api_state_providers.dart';
+import '../providers/wallet_provider.dart';
 import '../services/auth_service.dart';
 import 'profile_screen.dart';
 import 'payments_screen.dart';
@@ -18,6 +19,9 @@ class AccountTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fullProfileAsync = ref.watch(fullUserProfileProvider);
+    final authService = ref.watch(authServiceProvider);
+    final isLoggedIn = authService.currentUser != null || fullProfileAsync.value != null;
+    final wallet = ref.watch(userWalletProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FBFC),
@@ -180,13 +184,15 @@ class AccountTab extends ConsumerWidget {
               ),
               const SizedBox(height: 20),
 
-              // 2. Wallet Balance Card
-              _buildWalletCard(context),
-              const SizedBox(height: 12),
+              // 2. Wallet Balance Card (Only shown when logged in)
+              if (isLoggedIn) ...[
+                _buildWalletCard(context, wallet.balance),
+                const SizedBox(height: 12),
+              ],
 
-              // 3. Rewards Card
-              _buildRewardsCard(context),
-              const SizedBox(height: 20),
+              // // 3. Rewards Card
+              // _buildRewardsCard(context),
+              // const SizedBox(height: 20),
 
               // 4. Horizontal Shortcut Icons Grid
               _buildShortcutsRow(context),
@@ -196,13 +202,13 @@ class AccountTab extends ConsumerWidget {
               _buildPreferencesSection(context),
               const SizedBox(height: 16),
 
-              // 6. Refer & Earn Card
-              _buildReferEarnCard(context),
-              const SizedBox(height: 12),
+              // // 6. Refer & Earn Card
+              // _buildReferEarnCard(context),
+              // const SizedBox(height: 12),
 
-              // 7. TransGlobe Premium Card
-              _buildPremiumCard(context),
-              const SizedBox(height: 24),
+              // // 7. TransGlobe Premium Card
+              // _buildPremiumCard(context),
+              // const SizedBox(height: 24),
 
               // 8. More Section
               _buildMoreSection(context, ref),
@@ -230,7 +236,7 @@ class AccountTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildWalletCard(BuildContext context) {
+  Widget _buildWalletCard(BuildContext context, double balance) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -273,7 +279,7 @@ class AccountTab extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "₹2,450.00",
+                "₹${balance.toStringAsFixed(2)}",
                 style: GoogleFonts.lexend(
                   color: Colors.white,
                   fontSize: 26,
@@ -450,9 +456,9 @@ class AccountTab extends ConsumerWidget {
         _buildShortcutItem(context, Icons.location_on_outlined, "Saved Places", () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
         }),
-        _buildShortcutItem(context, Icons.payment_outlined, "Payment Methods", () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const PaymentsScreen()));
-        }),
+        // _buildShortcutItem(context, Icons.payment_outlined, "Payment Methods", () {
+        //   Navigator.push(context, MaterialPageRoute(builder: (context) => const PaymentsScreen()));
+        // }),
       ],
     );
   }

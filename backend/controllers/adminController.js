@@ -18,6 +18,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const imagekit = require('../config/imagekit');
 const Transaction = require('../models/Transaction');
+const WalletRequest = require('../models/WalletRequest');
+const Notification = require('../models/Notification');
 const sendEmail = require('../utils/sendEmail');
 const sendSMS = require('../utils/sendSMS');
 const firebaseAdmin = require('../config/firebase');
@@ -110,9 +112,23 @@ const updateDriverStatus = async (req, res) => {
         // If an admin sets status to active, they are implicitly approving the driver.
         if (status === 'active') {
             updateData.isApproved = true;
+            updateData.drivingLicenseVerified = true;
+            updateData.aadharVerified = true;
+            updateData.panVerified = true;
+            updateData.rcVerified = true;
+            updateData.insuranceVerified = true;
+            updateData.signatureVerified = true;
         } else if (isApproved !== undefined) {
             updateData.isApproved = isApproved;
         }
+
+        const { aadharVerified, panVerified, drivingLicenseVerified, rcVerified, insuranceVerified, signatureVerified } = req.body;
+        if (aadharVerified !== undefined) updateData.aadharVerified = aadharVerified;
+        if (panVerified !== undefined) updateData.panVerified = panVerified;
+        if (drivingLicenseVerified !== undefined) updateData.drivingLicenseVerified = drivingLicenseVerified;
+        if (rcVerified !== undefined) updateData.rcVerified = rcVerified;
+        if (insuranceVerified !== undefined) updateData.insuranceVerified = insuranceVerified;
+        if (signatureVerified !== undefined) updateData.signatureVerified = signatureVerified;
 
         const driver = await Driver.findByIdAndUpdate(
             driverId,
@@ -131,6 +147,25 @@ const updateDriverStatus = async (req, res) => {
     } catch (error) {
         console.error('Error updating driver status:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// Reset/change driver password by admin
+const resetDriverPassword = async (req, res) => {
+    try {
+        const { driverId } = req.params;
+        const { newPassword } = req.body;
+        if (!newPassword || newPassword.length < 4) {
+            return res.status(400).json({ message: 'Password must be at least 4 characters' });
+        }
+        const driver = await Driver.findById(driverId);
+        if (!driver) return res.status(404).json({ message: 'Driver not found' });
+        driver.password = newPassword; // will be hashed by pre-save hook
+        driver.plainPassword = newPassword;
+        await driver.save();
+        res.status(200).json({ message: 'Driver password updated successfully', plainPassword: newPassword });
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating password', error: err.message });
     }
 };
 
@@ -943,6 +978,7 @@ module.exports = {
     syncAdminData,
     getAllDrivers,
     updateDriverStatus,
+    resetDriverPassword,
     warnDriver,
     getAllUsers,
     createUser,   // ✅ ADD THIS
@@ -1036,5 +1072,229 @@ module.exports = {
         } catch (error) {
             res.status(500).json({ message: 'Server error', error: error.message });
         }
-    }
+    },
+
+    // Wallet Top-Up Requests Management
+    getWalletRequests: async (req, res) => {
+        try {
+            const { status, userType, search } = req.query;
+            const page = Math.max(Number(req.query.page || 1), 1);
+            const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
+
+            const filter = {};
+            if (status && status !== 'all' && status !== 'All') {
+                filter.status = status.toLowerCase();
+            }
+            if (userType && userType !== 'all' && userType !== 'All') {
+                filter.userType = userType.toLowerCase();
+            }
+            if (search && search.trim()) {
+                const searchRegex = new RegExp(search.trim(), 'i');
+                filter.$or = [
+                    { userName: searchRegex },
+                    { userPhone: searchRegex },
+                    { userEmail: searchRegex },
+                ];
+            }
+
+            const [requests, total, totalStats] = await Promise.all([
+                WalletRequest.find(filter)
+                    .sort({ createdAt: -1 })
+                    .skip((page - 1) * limit)
+                    .limit(limit)
+                    .populate('userId', 'name fullName mobileNumber email profilePicture walletBalance')
+                    .populate('driverId', 'name fullName mobileNumber email profilePicture walletBalance')
+                    .lean(),
+                WalletRequest.countDocuments(filter),
+                WalletRequest.aggregate([
+                    {
+                        $group: {
+                            _id: null,
+                            total: { $sum: 1 },
+                            pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+                            approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } },
+                            rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } },
+                            pendingAmount: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0] } },
+                            approvedAmount: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0] } },
+                        }
+                    }
+                ]),
+            ]);
+
+            const stats = totalStats[0] || {
+                total: 0,
+                pending: 0,
+                approved: 0,
+                rejected: 0,
+                pendingAmount: 0,
+                approvedAmount: 0,
+            };
+
+            return res.status(200).json({
+                success: true,
+                requests,
+                stats,
+                pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+            });
+        } catch (error) {
+            console.error('[ADMIN] getWalletRequests error:', error);
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    approveWalletRequest: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { adminNote } = req.body;
+
+            const request = await WalletRequest.findById(id);
+            if (!request) {
+                return res.status(404).json({ success: false, message: 'Wallet request not found.' });
+            }
+
+            if (request.status !== 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: `Request is already ${request.status}. Only pending requests can be approved.`,
+                });
+            }
+
+            let newBalance = 0;
+            let targetEntity = null;
+
+            if (request.userType === 'driver') {
+                targetEntity = await Driver.findById(request.driverId);
+                if (!targetEntity) {
+                    return res.status(404).json({ success: false, message: 'Driver not found.' });
+                }
+                targetEntity.walletBalance = Number(targetEntity.walletBalance || 0) + Number(request.amount);
+                await targetEntity.save();
+                newBalance = targetEntity.walletBalance;
+            } else {
+                targetEntity = await User.findById(request.userId);
+                if (!targetEntity) {
+                    return res.status(404).json({ success: false, message: 'User not found.' });
+                }
+                targetEntity.walletBalance = Number(targetEntity.walletBalance || 0) + Number(request.amount);
+                await targetEntity.save();
+                newBalance = targetEntity.walletBalance;
+            }
+
+            // Update request
+            request.status = 'approved';
+            request.adminNote = adminNote || 'Approved by admin';
+            request.actionBy = req.admin?._id || req.user?.id;
+            request.actionAt = new Date();
+            await request.save();
+
+            // Update linked Transaction
+            if (request.transactionId) {
+                await Transaction.findByIdAndUpdate(request.transactionId, {
+                    status: 'completed',
+                    'metadata.approvedAt': new Date(),
+                    'metadata.adminNote': request.adminNote,
+                });
+            } else {
+                await Transaction.create({
+                    userId: request.userId,
+                    driverId: request.driverId,
+                    amount: request.amount,
+                    type: 'topup',
+                    method: request.paymentMethod || 'upi',
+                    status: 'completed',
+                    metadata: {
+                        walletRequestId: request._id,
+                        walletOperation: 'topup_approved',
+                        userType: request.userType,
+                        approvedAt: new Date(),
+                    },
+                });
+            }
+
+            // Create in-app Notification
+            try {
+                const targetId = request.userType === 'driver' ? (targetEntity.uid || targetEntity._id.toString()) : (targetEntity.uid || targetEntity._id.toString());
+                await Notification.create({
+                    userId: targetId,
+                    role: request.userType,
+                    title: 'Wallet Recharge Approved! 🎉',
+                    body: `Your wallet top-up of ₹${request.amount} has been approved by admin. New balance: ₹${newBalance}`,
+                    type: 'wallet',
+                    data: { requestId: request._id, amount: request.amount, newBalance },
+                });
+            } catch (notifErr) {
+                console.warn('[ADMIN] Notification create error:', notifErr.message);
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: `Wallet top-up of ₹${request.amount} successfully approved and credited.`,
+                data: request,
+                newBalance,
+            });
+        } catch (error) {
+            console.error('[ADMIN] approveWalletRequest error:', error);
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    },
+
+    rejectWalletRequest: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { adminNote = 'Request rejected by admin', reason } = req.body;
+            const note = reason || adminNote || 'Rejected by admin';
+
+            const request = await WalletRequest.findById(id);
+            if (!request) {
+                return res.status(404).json({ success: false, message: 'Wallet request not found.' });
+            }
+
+            if (request.status !== 'pending') {
+                return res.status(400).json({
+                    success: false,
+                    message: `Request is already ${request.status}. Only pending requests can be rejected.`,
+                });
+            }
+
+            // Update request
+            request.status = 'rejected';
+            request.adminNote = note;
+            request.actionBy = req.admin?._id || req.user?.id;
+            request.actionAt = new Date();
+            await request.save();
+
+            // Update linked Transaction
+            if (request.transactionId) {
+                await Transaction.findByIdAndUpdate(request.transactionId, {
+                    status: 'rejected',
+                    'metadata.rejectedAt': new Date(),
+                    'metadata.adminNote': note,
+                });
+            }
+
+            // Create in-app Notification
+            try {
+                const targetId = request.userType === 'driver' ? String(request.driverId) : String(request.userId);
+                await Notification.create({
+                    userId: targetId,
+                    role: request.userType,
+                    title: 'Wallet Recharge Rejected',
+                    body: `Your wallet top-up request of ₹${request.amount} was not approved. Reason: ${note}`,
+                    type: 'wallet',
+                    data: { requestId: request._id, amount: request.amount, reason: note },
+                });
+            } catch (notifErr) {
+                console.warn('[ADMIN] Notification create error:', notifErr.message);
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: `Wallet top-up request for ₹${request.amount} rejected.`,
+                data: request,
+            });
+        } catch (error) {
+            console.error('[ADMIN] rejectWalletRequest error:', error);
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    },
 };

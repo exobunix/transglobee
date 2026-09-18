@@ -29,6 +29,10 @@ class DriverProfileResponseModel extends Equatable {
   final String rcUrl;
   final String insuranceUrl;
   final String status;
+  final String dob;
+  final bool rcVerified;
+  final bool insuranceVerified;
+  final bool signatureVerified;
 
   const DriverProfileResponseModel({
     required this.id,
@@ -59,30 +63,34 @@ class DriverProfileResponseModel extends Equatable {
     this.rcUrl = '',
     this.insuranceUrl = '',
     this.status = 'pending',
+    this.dob = '',
+    this.rcVerified = false,
+    this.insuranceVerified = false,
+    this.signatureVerified = false,
   });
 
   factory DriverProfileResponseModel.fromJson(Map<String, dynamic> json) {
     return DriverProfileResponseModel(
-      id: json['id'] ?? '',
+      id: json['id'] ?? json['_id']?.toString() ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      phoneNumber: json['phone'] ?? json['phoneNumber'] ?? '',
-      drivingLicenseNumber: json['licenseNumber'] ?? json['drivingLicenseNumber'] ?? '',
-      licenseUrl: json['licenseUrl'] ?? '',
+      phoneNumber: json['mobileNumber'] ?? json['phone'] ?? json['phoneNumber'] ?? '',
+      drivingLicenseNumber: json['drivingLicenseNumber'] ?? json['licenseNumber'] ?? '',
+      licenseUrl: json['drivingLicense'] ?? json['licenseUrl'] ?? '',
       drivingLicenseVerified: json['drivingLicenseVerified'] ?? false,
       aadharCardNumber: json['aadharCardNumber'] ?? '',
-      aadhaarUrl: json['aadhaarUrl'] ?? '',
+      aadhaarUrl: json['aadharCard'] ?? json['aadhaarUrl'] ?? '',
       aadharVerified: json['aadharVerified'] ?? false,
       panCardNumber: json['panCardNumber'] ?? '',
-      panUrl: json['panUrl'] ?? '',
+      panUrl: json['panCardImage'] ?? json['panUrl'] ?? '',
       panVerified: json['panVerified'] ?? false,
-      signatureUrl: json['signatureUrl'] ?? '',
-      profilePic: json['profilePhoto'] ?? json['profilePic'] ?? '',
-      vehicleType: json['vehicleType'] ?? '',
-      vehicleNumber: json['vehicleNumber'] ?? '',
+      signatureUrl: json['signature'] ?? json['signatureUrl'] ?? '',
+      profilePic: json['photo'] ?? json['profilePhoto'] ?? json['profilePic'] ?? '',
+      vehicleType: json['vehicleType'] ?? 'cab',
+      vehicleNumber: json['vehicleNumberPlate'] ?? json['vehicleNumber'] ?? '',
       vehicleNumberPlate: json['vehicleNumberPlate'] ?? json['vehicleNumber'] ?? '',
       vehicleModel: json['vehicleModel'] ?? '',
-      vehicleYear: json['vehicleYear'] ?? '',
+      vehicleYear: json['vehicleYear']?.toString() ?? '',
       rating: (json['rating'] ?? 0.0).toDouble(),
       totalRides: json['totalTrips'] ?? json['totalRides'] ?? 0,
       onboardingComplete: json['onboardingComplete'] ?? json['isApproved'] ?? false,
@@ -91,6 +99,10 @@ class DriverProfileResponseModel extends Equatable {
       rcUrl: json['rcBook'] ?? json['rcbook'] ?? json['rcUrl'] ?? '',
       insuranceUrl: json['insurance'] ?? json['insuranceUrl'] ?? '',
       status: json['status'] ?? 'pending',
+      dob: json['dob'] != null ? json['dob'].toString() : '',
+      rcVerified: json['rcVerified'] ?? false,
+      insuranceVerified: json['insuranceVerified'] ?? false,
+      signatureVerified: json['signatureVerified'] ?? false,
     );
   }
 
@@ -112,7 +124,7 @@ class DriverProfileResponseModel extends Equatable {
       panVerified: model.panVerified ?? false,
       signatureUrl: model.signatureUrl ?? '',
       profilePic: model.profilePic ?? '',
-      vehicleType: '',
+      vehicleType: model.vehicleType ?? '',
       vehicleNumber: model.vehicleId ?? '',
       vehicleNumberPlate: model.vehicleNumberPlate ?? '',
       vehicleModel: model.vehicleModel ?? '',
@@ -122,6 +134,12 @@ class DriverProfileResponseModel extends Equatable {
       onboardingComplete: model.onboardingComplete ?? false,
       isEmailVerified: model.isEmailVerified ?? false,
       isApproved: model.isApproved ?? false,
+      rcUrl: model.rcUrl ?? '',
+      insuranceUrl: model.insuranceUrl ?? '',
+      dob: model.dob ?? '',
+      rcVerified: model.rcVerified ?? false,
+      insuranceVerified: model.insuranceVerified ?? false,
+      signatureVerified: model.signatureVerified ?? false,
     );
   }
 
@@ -159,6 +177,7 @@ class DriverProfileResponseModel extends Equatable {
       'rcBook': rcUrl,
       'insurance': insuranceUrl,
       'status': status,
+      'dob': dob,
     };
   }
 
@@ -192,5 +211,9 @@ class DriverProfileResponseModel extends Equatable {
         rcUrl,
         insuranceUrl,
         status,
+        dob,
+        rcVerified,
+        insuranceVerified,
+        signatureVerified,
       ];
 }

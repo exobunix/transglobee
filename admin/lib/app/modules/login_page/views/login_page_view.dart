@@ -75,6 +75,7 @@ class LoginPageView extends GetView<LoginPageController> {
                           child: TextFormField(
                               style: TextStyle(color: AppThemData.primaryBlack, fontFamily: AppThemeData.medium, fontWeight: FontWeight.w500),
                               autofocus: false,
+                              autofillHints: const [],
                               controller: controller.emailController,
                               keyboardType: TextInputType.emailAddress,
                               validator: (value) {
@@ -137,6 +138,7 @@ class LoginPageView extends GetView<LoginPageController> {
                                 style: TextStyle(color: AppThemData.primaryBlack, fontFamily: AppThemeData.medium, fontWeight: FontWeight.w500),
                                 cursorColor: AppThemData.appColor,
                                 autofocus: false,
+                                autofillHints: const [],
                                 controller: controller.passwordController,
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) {
@@ -282,6 +284,7 @@ class LoginPageView extends GetView<LoginPageController> {
                             child: TextFormField(
                                 style: TextStyle(color: AppThemData.primaryBlack, fontFamily: AppThemeData.medium, fontWeight: FontWeight.w500),
                                 autofocus: false,
+                                autofillHints: const [],
                                 controller: controller.emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) {
@@ -340,6 +343,7 @@ class LoginPageView extends GetView<LoginPageController> {
                                 style: TextStyle(color: AppThemData.primaryBlack, fontFamily: AppThemeData.medium, fontWeight: FontWeight.w500),
                                 cursorColor: AppThemData.appColor,
                                 autofocus: false,
+                                autofillHints: const [],
                                 controller: controller.passwordController,
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) {
@@ -496,6 +500,7 @@ class LoginPageView extends GetView<LoginPageController> {
                           child: TextFormField(
                               style: TextStyle(color: AppThemData.primaryBlack, fontFamily: AppThemeData.medium, fontWeight: FontWeight.w500),
                               autofocus: false,
+                              autofillHints: const [],
                               controller: controller.emailController,
                               keyboardType: TextInputType.emailAddress,
                               validator: (value) {
@@ -558,6 +563,7 @@ class LoginPageView extends GetView<LoginPageController> {
                                 style: TextStyle(color: AppThemData.primaryBlack, fontFamily: AppThemeData.medium, fontWeight: FontWeight.w500),
                                 cursorColor: AppThemData.appColor,
                                 autofocus: false,
+                                autofillHints: const [],
                                 controller: controller.passwordController,
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (value) {

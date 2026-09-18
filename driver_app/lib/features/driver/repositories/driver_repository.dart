@@ -52,11 +52,20 @@ class DriverRepository {
   }
 
   Future<ApiResponse<DriverWalletResponseModel>> getDriverWallet() async {
-    final response = await _repo.getEarnings();
+    final response = await _repo.getDriverWallet();
     return ApiResponse<DriverWalletResponseModel>(
       success: response.success,
       message: response.message ?? '',
       data: response.data != null ? DriverWalletResponseModel.fromJson(response.data!) : null,
+    );
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> topupWallet(double amount, {String method = 'upi'}) async {
+    final response = await _repo.topupWallet(amount, method: method);
+    return ApiResponse<Map<String, dynamic>>(
+      success: response.success,
+      message: response.message ?? '',
+      data: response.data,
     );
   }
 

@@ -30,8 +30,9 @@ class LoginPageController extends GetxController {
   @override
   void onInit() {
     getData();
-    emailController.text = "admin@transglobe.com";
-    passwordController.text = "admin123456";
+    // emailController.text = "admin@transglobe.com";
+    // passwordController.text = "admin123456";
+    // Do NOT pre-fill credentials for security
     super.onInit();
   }
 

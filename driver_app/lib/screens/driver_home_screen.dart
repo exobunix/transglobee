@@ -24,6 +24,8 @@ import 'package:driver_app/features/driver/models/request/update_location_reques
 import 'package:driver_app/core/network/api_state.dart';
 import 'package:driver_app/features/driver/models/response/driver_profile_response.dart';
 
+import '../core/app_router.dart';
+
 // ── Providers ──
 class DriverStatusNotifier extends Notifier<DriverStatus> {
   @override
@@ -179,7 +181,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
         if (ref.read(currentRideRequestProvider) != null) return;
 
         final currentVehicleType = ref.read(vehicleTypeProvider).name; // 'cab', 'truck', 'bus'
-        final filteredNext = next.where((b) => b.vehicleType == currentVehicleType).toList();
+        // If driver is on Cab tab, show all types of bookings (Cab, Truck, Bus). Otherwise filter strictly.
+        final filteredNext = (currentVehicleType == 'cab')
+            ? next
+            : next.where((b) => b.vehicleType == currentVehicleType).toList();
         if (filteredNext.isEmpty) return;
 
         final firstRide = filteredNext.first;
@@ -197,7 +202,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       final currentRide = ref.read(currentRideRequestProvider);
       if (currentRide != null) {
         final bookingVehicleType = currentRide['vehicleType']?.toString().toLowerCase() ?? 'cab';
-        if (bookingVehicleType != next.name) {
+        // When switching to Cab tab, any booking type is allowed. When switching to other tabs, match strictly.
+        if (next.name != 'cab' && bookingVehicleType != next.name) {
           ref.read(showRequestProvider.notifier).hide();
           ref.read(currentRideRequestProvider.notifier).setRide(null);
         }
@@ -206,7 +212,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       // Auto-promote first matching pending request for new vehicle tab
       final pending = ref.read(incomingRideRequestsProvider);
       final currentVehicleType = next.name;
-      final filteredPending = pending.where((b) => b.vehicleType == currentVehicleType).toList();
+      final filteredPending = (currentVehicleType == 'cab')
+          ? pending
+          : pending.where((b) => b.vehicleType == currentVehicleType).toList();
       if (filteredPending.isNotEmpty &&
           ref.read(driverStatusProvider) == DriverStatus.available &&
           ref.read(currentRideRequestProvider) == null) {
@@ -215,22 +223,19 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       }
     });
 
-    // Initial connection attempt if profile is already there
-    final profileState = ref.read(driverProfileControllerProvider);
-    if (profileState.status == ApiStatus.success && profileState.data != null) {
-      ref
-          .read(socketServiceProvider)
-          .connect(profileState.data!.id, name: profileState.data!.name);
-    } else {
-      // Fetch profile if not already loaded
-      ref.read(driverProfileControllerProvider.notifier).getDriverProfile();
-    }
-
-    // Fetch current booking to resume any active trip
-    ref.read(currentBookingControllerProvider.notifier).getCurrentBooking();
-
-    // Socket listeners for live ride requests
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final profileState = ref.read(driverProfileControllerProvider);
+      if (profileState.status == ApiStatus.success && profileState.data != null) {
+        ref
+            .read(socketServiceProvider)
+            .connect(profileState.data!.id, name: profileState.data!.name);
+      } else {
+        ref.read(driverProfileControllerProvider.notifier).getDriverProfile();
+      }
+
+      // Fetch current booking to resume any active trip
+      ref.read(currentBookingControllerProvider.notifier).getCurrentBooking();
+
       final socketService = ref.read(socketServiceProvider);
 
       _newRideSub?.cancel();
@@ -255,8 +260,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
           ref.read(bookingProvider.notifier).addIncomingRequest(newBooking);
 
           final currentVehicleType = ref.read(vehicleTypeProvider).name; // 'cab', 'truck', 'bus'
-          if (ref.read(driverStatusProvider) == DriverStatus.available &&
-              newBooking.vehicleType == currentVehicleType) {
+          // If on Cab tab, accept all incoming booking requests, otherwise only matching vehicle type
+          final isEligibleTab = (currentVehicleType == 'cab') || (newBooking.vehicleType == currentVehicleType);
+          if (ref.read(driverStatusProvider) == DriverStatus.available && isEligibleTab) {
             ref.read(currentRideRequestProvider.notifier).setRide(
                   Map<String, dynamic>.from(data as Map),
                 );
@@ -361,24 +367,37 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
   }
 
   Future<void> _getCurrentLocation() async {
-    if (_currentPosition != null) {
-      _mapController.move(
-        LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-        15.0,
-      );
-    } else {
-      setState(() => _isLoading = true);
-    }
+    setState(() => _isLoading = true);
 
     try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        debugPrint("Location services are disabled.");
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          debugPrint("Location permission denied");
+          if (mounted) setState(() => _isLoading = false);
+          return;
+        }
       }
+
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint("Location permission denied forever");
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
       final position = await Geolocator.getCurrentPosition(
         timeLimit: const Duration(seconds: 5),
         desiredAccuracy: LocationAccuracy.high,
       );
+
       if (mounted) {
         setState(() {
           _currentPosition = position;
@@ -393,13 +412,6 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       debugPrint("Error getting current location: $e");
       if (mounted) {
         setState(() => _isLoading = false);
-        // If still null, move to default coordinates (Mumbai)
-        if (_currentPosition == null) {
-          _mapController.move(
-            const LatLng(19.0760, 72.8777),
-            15.0,
-          );
-        }
       }
     }
     _startPositionUpdates();
@@ -540,68 +552,90 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       data: AppTheme.darkDriverTheme,
       child: Scaffold(
         backgroundColor: AppTheme.darkBg,
-        drawer: _buildDrawer(driverProfileState, vehicleType),
+        drawer: _buildDrawer(context, driverProfileState, vehicleType),
         body: Stack(
           children: [
-            // MAP LAYER
-            _isLoading
-                ? Center(
-                    child: Column(
+            // MAP LAYER (Always rendered immediately - never blocked by loading)
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _currentPosition != null
+                    ? LatLng(
+                        _currentPosition!.latitude,
+                        _currentPosition!.longitude,
+                      )
+                    : const LatLng(19.0760, 72.8777),
+                initialZoom: 15.0,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate:
+                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.transglobe.driver_app',
+                  maxZoom: 20,
+                ),
+                if (_currentPosition != null)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: LatLng(
+                          _currentPosition!.latitude,
+                          _currentPosition!.longitude,
+                        ),
+                        width: 80,
+                        height: 80,
+                        child: _buildDriverMarker(status, vehicleType),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+
+            // SUBTLE GPS LOCATING INDICATOR (Non-blocking)
+            if (_isLoading && _currentPosition == null)
+              Positioned(
+                top: 140,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.darkCard.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: vehicleType.accentColor.withValues(alpha: 0.3)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         SizedBox(
-                          width: 50,
-                          height: 50,
+                          width: 14,
+                          height: 14,
                           child: CircularProgressIndicator(
+                            strokeWidth: 2,
                             color: vehicleType.accentColor,
-                            strokeWidth: 3,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(width: 8),
                         const Text(
-                          'Getting your location...',
+                          'Locating GPS...',
                           style: TextStyle(
-                            color: AppTheme.darkTextSecondary,
-                            fontSize: 14,
+                            color: AppTheme.darkTextPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
-                  )
-                : FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: _currentPosition != null
-                          ? LatLng(
-                              _currentPosition!.latitude,
-                              _currentPosition!.longitude,
-                            )
-                          : const LatLng(19.0760, 72.8777),
-                      initialZoom: 15.0,
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-                        subdomains: const ['a', 'b', 'c', 'd'],
-                        userAgentPackageName: 'com.olauber.driver_app',
-                      ),
-                      if (_currentPosition != null)
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              point: LatLng(
-                                _currentPosition!.latitude,
-                                _currentPosition!.longitude,
-                              ),
-                              width: 80,
-                              height: 80,
-                              child: _buildDriverMarker(status, vehicleType),
-                            ),
-                          ],
-                        ),
-                    ],
                   ),
+                ),
+              ),
 
             // TOP HEADER
             SafeArea(
@@ -614,37 +648,6 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
                       children: [
                         _buildProfileAvatar(driverProfileState),
                         const Spacer(),
-                        // // =======================================================
-                        // // TESTING DUMMY REQUEST BUTTON (COMMENT OUT FOR PRODUCTION)
-                        // // =======================================================
-                        // TextButton.icon(
-                        //   onPressed: () {
-                        //     final dummyData = {
-                        //       'id': 'dummy_booking_123',
-                        //       'userId': 'dummy_user_123',
-                        //       'userName': 'Aman Kumar (Test)',
-                        //       'phone': '+919999999999',
-                        //       'type': 'CAB',
-                        //       'bookingCategory': 'CAB',
-                        //       'rideMode': 'Economy',
-                        //       'distance': '1.8 km',
-                        //       'fare': 150.0,
-                        //       'pick': 'Alpha Sector 1, Greater Noida',
-                        //       'drop': 'Beta Sector 2, Greater Noida',
-                        //       'status': 'pending',
-                        //       'pickupLat': 28.4727,
-                        //       'pickupLng': 77.4878,
-                        //       'dropLat': 28.4827,
-                        //       'dropLng': 77.4978,
-                        //     };
-                        //     ref.read(currentRideRequestProvider.notifier).setRide(dummyData);
-                        //     ref.read(showRequestProvider.notifier).show();
-                        //   },
-                        //   icon: const Icon(Icons.bug_report, color: Colors.orange, size: 14),
-                        //   label: const Text('TEST REQUEST', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
-                        // ),
-                        // const SizedBox(width: 8),
-                        // // =======================================================
                         StatusChip(
                           status: status,
                           onTap: _toggleOnlineStatus,
@@ -914,7 +917,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
                             size: 8, color: AppTheme.earningsAmber),
                         const SizedBox(width: 2),
                         Text(
-                          driverProfileState.data?.rating.toString() ?? '4.9',
+                          (driverProfileState.data?.rating != null && driverProfileState.data!.rating > 0)
+                              ? driverProfileState.data!.rating.toStringAsFixed(1)
+                              : '0.0',
                           style: const TextStyle(
                               fontSize: 9,
                               color: AppTheme.earningsAmber,
@@ -1159,7 +1164,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
   }
 }
 
-Widget _buildDrawer(ApiState<DriverProfileResponseModel> driverProfileState,
+Widget _buildDrawer(BuildContext context,
+    ApiState<DriverProfileResponseModel> driverProfileState,
     VehicleType vehicleType) {
   return Drawer(
     backgroundColor: AppTheme.darkSurface,
@@ -1202,7 +1208,7 @@ Widget _buildDrawer(ApiState<DriverProfileResponseModel> driverProfileState,
                   ),
                   child: CircleAvatar(
                     radius: 20,
-                    backgroundColor: vehicleType.accentColor.withOpacity(0.2),
+                    backgroundColor: vehicleType.accentColor.withValues(alpha: 0.2),
                     child: const Icon(Icons.person, color: Colors.white),
                   ),
                 ),
@@ -1244,8 +1250,13 @@ Widget _buildDrawer(ApiState<DriverProfileResponseModel> driverProfileState,
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                _drawerItem(Icons.history, 'Trips History', () {}),
-                _drawerItem(Icons.account_balance_wallet, 'Wallet', () {}),
+                _drawerItem(Icons.history, 'Trips History', () {
+                  Navigator.pop(context);
+                }),
+                _drawerItem(Icons.account_balance_wallet, 'Wallet', () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, AppRouter.wallet);
+                }),
                 _drawerItem(Icons.star, 'Ratings', () {}),
                 _drawerItem(Icons.help_outline, 'Support', () {}),
                 _drawerItem(Icons.settings, 'Settings', () {}),

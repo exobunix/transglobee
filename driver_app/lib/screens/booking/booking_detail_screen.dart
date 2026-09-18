@@ -277,11 +277,16 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(booking.userName, style: const TextStyle(color: AppTheme.darkTextPrimary, fontSize: 18, fontWeight: FontWeight.w800)),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.star, color: AppTheme.earningsAmber, size: 14),
-                    SizedBox(width: 4),
-                    Text('4.8 • 120 Trips', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12)),
+                    const Icon(Icons.star, color: AppTheme.earningsAmber, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      booking.userRating != null && booking.userRating! > 0
+                          ? booking.userRating!.toStringAsFixed(1)
+                          : '5.0',
+                      style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12),
+                    ),
                   ],
                 ),
               ],

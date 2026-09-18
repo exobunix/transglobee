@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/wallet_model.dart';
 import '../services/rest_api_repository.dart';
-
+import '../services/auth_service.dart';
 
 class UserWalletNotifier extends Notifier<UserWalletState> {
   RestApiRepository get _repo => ref.read(restApiRepositoryProvider);
+  AuthService get _auth => ref.read(authServiceProvider);
 
   @override
   UserWalletState build() {
@@ -17,6 +18,14 @@ class UserWalletNotifier extends Notifier<UserWalletState> {
   }
 
   Future<void> refresh() async {
+    if (_auth.currentUser == null) {
+      state = const UserWalletState(
+        balance: 0.0,
+        transactions: [],
+        isLoading: false,
+      );
+      return;
+    }
     state = state.copyWith(isLoading: true);
     try {
       final balanceRes = await _repo.getWalletBalance();
@@ -36,9 +45,12 @@ class UserWalletNotifier extends Notifier<UserWalletState> {
   }
 
   Future<bool> addMoney(double amount) async {
+    if (_auth.currentUser == null) {
+      return false;
+    }
     state = state.copyWith(isLoading: true);
     try {
-      final res = await _repo.topupWallet(amount, 'card'); // Defaulting to card
+      final res = await _repo.topupWallet(amount, 'upi');
       if (res.success) {
         await refresh();
         return true;
@@ -46,15 +58,15 @@ class UserWalletNotifier extends Notifier<UserWalletState> {
     } catch (e) {
       print("Wallet Topup API error: $e");
     }
-    // Fallback: update state locally so it always updates in the UI
-    state = state.copyWith(
-      balance: state.balance + amount,
-      isLoading: false,
-    );
+    // Refresh to get any updated history/state from server
+    await refresh();
     return true;
   }
 
   Future<bool> withdraw(double amount) async {
+    if (_auth.currentUser == null) {
+      return false;
+    }
     // Mocking withdrawal since it's not in the provided API spec
     if (amount > state.balance) return false;
     

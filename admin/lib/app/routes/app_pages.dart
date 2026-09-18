@@ -25,7 +25,8 @@ import 'package:admin/app/modules/vehicle_screen/bindings/vehicle_screen_binding
 import 'package:admin/app/modules/vehicle_screen/views/vehicle_screen_view.dart';
 import 'package:admin/app/modules/role_permissions/bindings/role_permissions_binding.dart';
 import 'package:admin/app/modules/role_permissions/views/role_permissions_view.dart';
-import 'package:admin/app/modules/pending_bookings/views/pending_bookings_view.dart';
+import 'package:admin/app/modules/wallet_requests/bindings/wallet_requests_binding.dart';
+import 'package:admin/app/modules/wallet_requests/views/wallet_requests_view.dart';
 import 'package:get/get.dart';
 import '../modules/about_app/bindings/about_app_binding.dart';
 import '../modules/about_app/views/about_app_view.dart';
@@ -146,6 +147,7 @@ class AppPages {
     GetPage(name: _Paths.SUBSCRIPTION_HISTORY, page: () => const SubscriptionHistoryView(), binding: SubscriptionHistoryBinding(), transition: Transition.fadeIn),
     GetPage(name: _Paths.VEHICLE, page: () => const VehicleScreenView(), binding: VehicleScreenBinding(), transition: Transition.fadeIn),
     GetPage(name: _Paths.ROLE_PERMISSIONS, page: () => const RolePermissionsView(), binding: RolePermissionsBinding(), transition: Transition.fadeIn),
+    GetPage(name: _Paths.WALLET_REQUESTS, page: () => const WalletRequestsView(), binding: WalletRequestsBinding(), transition: Transition.fadeIn),
     // GetPage(name: _Paths.PENDING_BOOKINGS, page: () => const PendingBookingsView(), transition: Transition.fadeIn),
   ];
 }

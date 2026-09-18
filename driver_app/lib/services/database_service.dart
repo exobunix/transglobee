@@ -21,7 +21,7 @@ class DatabaseService {
   DatabaseService(this._apiClient);
 
   Map<String, String> _getHeaders(String? token,
-      {String? uid, bool isMultipart = false}) {
+      {String? uid, String? email, bool isMultipart = false}) {
     final headers = <String, String>{};
     if (!isMultipart) {
       headers['Content-Type'] = 'application/json';
@@ -35,8 +35,11 @@ class DatabaseService {
         isLocal ? 'dev-token-bypass' : (token ?? 'dev-token-bypass');
 
     headers['Authorization'] = 'Bearer $finalToken';
-    if (finalToken == 'dev-token-bypass' && uid != null) {
+    if (uid != null && uid.isNotEmpty) {
       headers['x-dev-uid'] = uid;
+    }
+    if (email != null && email.isNotEmpty) {
+      headers['x-dev-email'] = email;
     }
     return headers;
   }
@@ -46,7 +49,7 @@ class DatabaseService {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/driver/sync');
       final response = await http.post(
         url,
-        headers: _getHeaders(token, uid: user.uid),
+        headers: _getHeaders(token, uid: user.uid, email: user.email),
         body: json.encode({
           'uid': user.uid,
           'email': user.email ?? '',
@@ -58,10 +61,51 @@ class DatabaseService {
         return (data['hasDocs'] == true);
       } else {
         final error = json.decode(response.body);
-        throw Exception(error['message'] ?? 'Failed to sync with backend');
+        throw Exception(error['message'] ?? 'Failed to save driver');
       }
     } catch (e) {
-      print('Backend sync error: $e');
+      print('Error saving driver to backend: $e');
+      return true; // Soft fail to avoid breaking UX
+    }
+  }
+
+  // Get active driver status
+  Future<Map<String, dynamic>?> getDriverStatus(String token) async {
+    try {
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/driver/status');
+      final response = await http.get(
+        url,
+        headers: _getHeaders(token),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (e) {
+      print('Error getting driver status: $e');
+      return null;
+    }
+  }
+
+  // Update driver online status
+  Future<void> updateDriverOnlineStatus({
+    required String token,
+    required bool isOnline,
+  }) async {
+    try {
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/driver/status');
+      final response = await http.put(
+        url,
+        headers: _getHeaders(token),
+        body: json.encode({'isOnline': isOnline}),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to update status: ${response.body}');
+      }
+    } catch (e) {
+      print('Error updating status: $e');
       rethrow;
     }
   }
@@ -73,7 +117,7 @@ class DatabaseService {
 
       final response = await http.post(
         url,
-        headers: _getHeaders(token, uid: driver.firebaseId),
+        headers: _getHeaders(token, uid: driver.firebaseId, email: driver.email),
         body: json.encode({
           'uid': driver.firebaseId,
           'name': driver.name,
@@ -87,6 +131,7 @@ class DatabaseService {
           'vehicleModel': driver.vehicleModel,
           'vehicleYear': driver.vehicleYear,
           'vehicleNumberPlate': driver.vehicleNumberPlate,
+          'vehicleType': driver.vehicleType,
         }),
       );
 
@@ -103,16 +148,15 @@ class DatabaseService {
   Future<void> updateDriverProfile({
     required String token,
     required Map<String, dynamic> updateData,
+    String? uid,
+    String? email,
   }) async {
     try {
       final url =
           Uri.parse('${AppConfig.apiBaseUrl}/driver/profile/update');
       final response = await http.put(
         url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        headers: _getHeaders(token, uid: uid, email: email),
         body: json.encode(updateData),
       );
 
@@ -126,7 +170,7 @@ class DatabaseService {
   }
 
   // Upload driver documents to ImageKit via Backend
-  Future<void> uploadDriverDocuments({
+  Future<Map<String, dynamic>> uploadDriverDocuments({
     required String token,
     XFile? photoFile,
     XFile? aadharFile,
@@ -136,12 +180,13 @@ class DatabaseService {
     XFile? rcBookFile,
     XFile? insuranceFile,
     String? uid,
+    String? email,
   }) async {
     try {
       final url = Uri.parse('${AppConfig.apiBaseUrl}/driver/upload');
       var request = http.MultipartRequest('POST', url);
 
-      request.headers.addAll(_getHeaders(token, uid: uid, isMultipart: true));
+      request.headers.addAll(_getHeaders(token, uid: uid, email: email, isMultipart: true));
 
       if (photoFile != null) {
         final bytes = await photoFile.readAsBytes();
@@ -198,6 +243,12 @@ class DatabaseService {
       if (response.statusCode != 200) {
         throw Exception('Failed to upload documents: ${response.body}');
       }
+
+      try {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } catch (_) {
+        return {'success': true};
+      }
     } catch (e) {
       print('Error uploading documents: $e');
       rethrow;
@@ -232,12 +283,12 @@ class DatabaseService {
         final data = response.data;
         // If they are in the DB (isRegistered), we consider initial registration "complete"
         // so we don't show the multi-step registration flow again.
-        return (data['hasDocs'] == true);
+        return (data['isRegistered'] == true || data['hasDocs'] == true);
       }
-      return false;
+      return true;
     } catch (e) {
       print('Error checking onboarding: $e');
-      return false;
+      return true;
     }
   }
 

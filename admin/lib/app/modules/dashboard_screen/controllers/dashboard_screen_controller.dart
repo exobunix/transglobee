@@ -1,19 +1,13 @@
-// ignore_for_file: depend_on_referenced_packages
 import 'dart:convert';
 import 'package:admin/app/utils/http_client.dart' as http;
 import 'package:admin/app/constant/api_constant.dart';
 import 'package:admin/app/services/shared_preferences/app_preference.dart';
-import 'package:admin/app/constant/booking_status.dart';
-import 'package:admin/app/constant/collection_name.dart';
 import 'package:admin/app/constant/constants.dart';
 import 'package:admin/app/models/admin_model.dart';
 import 'package:admin/app/models/booking_model.dart';
 import 'package:admin/app/models/language_model.dart';
 import 'package:admin/app/models/user_model.dart';
 import 'package:admin/app/models/vehicle_type_model.dart';
-import 'package:admin/app/utils/fire_store_utils.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:nb_utils/nb_utils.dart';

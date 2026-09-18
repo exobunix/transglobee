@@ -62,8 +62,8 @@ class DriverApp extends ConsumerWidget {
                   ),
                   error: (err, stack) {
                     print(
-                        '[MAIN-DEBUG] Onboarding check failed, proceeding to registration: $err');
-                    return const OnboardingScreen();
+                        '[MAIN-DEBUG] Onboarding check failed, defaulting to MainShell: $err');
+                    return const MainShell();
                   },
                 );
           }

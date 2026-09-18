@@ -18,23 +18,23 @@ class AuthInterceptor extends Interceptor {
       RequestOptions options, RequestInterceptorHandler handler) async {
     String? token;
 
-    // 1. Prefer live Firebase token when available (prevents stale local JWT in release mode).
-    try {
-      final firebaseUser = FirebaseAuth.instance.currentUser;
-      if (firebaseUser != null) {
-        token = await firebaseUser.getIdToken().timeout(const Duration(seconds: 5));
-      }
-    } catch (_) {
-      // Ignore and fall back to stored tokens below.
-    }
+    // 1. Prefer active REST auth_token when driver is logged in
+    final prefs = await SharedPreferences.getInstance();
+    token = prefs.getString('auth_token');
 
     // 2. Try Secure Storage
     token ??= await SecureStorageService.getToken();
 
-    // 3. Try SharedPreferences (fallback for rest_api_repository/custom login)
+    // 3. Fallback to Firebase token if available
     if (token == null) {
-      final prefs = await SharedPreferences.getInstance();
-      token = prefs.getString('auth_token');
+      try {
+        final firebaseUser = FirebaseAuth.instance.currentUser;
+        if (firebaseUser != null) {
+          token = await firebaseUser.getIdToken().timeout(const Duration(seconds: 5));
+        }
+      } catch (_) {
+        // Ignore and fall back below.
+      }
     }
 
     // 4. Handle Local Development Bypass

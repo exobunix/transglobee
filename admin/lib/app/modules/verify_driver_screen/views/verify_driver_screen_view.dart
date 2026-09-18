@@ -750,7 +750,7 @@ class VerifyDriverDialog extends StatelessWidget {
                                           title: 'VehicleNumber'.tr,
                                         ),
                                         TextCustom(
-                                          title: controller.driverUserDetails.value.driverVehicleDetails!.vehicleNumber.toString(),
+                                          title: (controller.driverUserDetails.value.driverVehicleDetails?.vehicleNumber ?? controller.driverUserDetails.value.vehicleNumberPlate ?? "N/A").toString(),
                                         ),
                                       ],
                                     ),
@@ -771,7 +771,7 @@ class VerifyDriverDialog extends StatelessWidget {
                                           title: 'VehicleTypeName'.tr,
                                         ),
                                         TextCustom(
-                                          title: controller.driverUserDetails.value.driverVehicleDetails!.vehicleTypeName.toString(),
+                                          title: (controller.driverUserDetails.value.driverVehicleDetails?.vehicleTypeName ?? controller.driverUserDetails.value.vehicleType ?? "N/A").toString(),
                                         ),
                                       ],
                                     ),

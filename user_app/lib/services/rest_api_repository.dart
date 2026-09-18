@@ -406,11 +406,21 @@ class RestApiRepository {
   Future<ApiResponse<Map<String, dynamic>>> estimateFare({
     required Map<String, dynamic> pickup,
     required Map<String, dynamic> dropoff,
+    double? distanceKm,
+    double? durationMins,
   }) async {
-    final response = await _api.post('/pricing/estimate-fare', {
+    final body = <String, dynamic>{
       'pickup': pickup,
       'dropoff': dropoff,
-    });
+    };
+    if (distanceKm != null && distanceKm > 0) {
+      body['distanceKm'] = distanceKm;
+    }
+    if (durationMins != null && durationMins > 0) {
+      body['durationMins'] = durationMins;
+    }
+
+    final response = await _api.post('/pricing/estimate-fare', body);
     return ApiResponse<Map<String, dynamic>>.fromJson(
       response,
       (data) => data as Map<String, dynamic>,

@@ -414,6 +414,15 @@ class MenuWidget extends StatelessWidget {
                       isSelected: Get.currentRoute == Routes.PAYOUT_REQUEST,
                       themeChange: themeChange,
                     ),
+                    ListItem(
+                      buttonTitle: 'Wallet Requests'.tr,
+                      icon: "assets/icons/ic_wallet.svg",
+                      onPress: () {
+                        Get.toNamed(Routes.WALLET_REQUESTS);
+                      },
+                      isSelected: Get.currentRoute == Routes.WALLET_REQUESTS,
+                      themeChange: themeChange,
+                    ),
 
                     ListTile(
                         title: TextCustom(

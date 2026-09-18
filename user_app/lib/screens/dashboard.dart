@@ -29,6 +29,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userAsync = ref.watch(fullUserProfileProvider);
+    final authService = ref.watch(authServiceProvider);
+    final isLoggedIn = authService.currentUser != null || userAsync.value != null;
+
     final List<Widget> tabs = [
       HomeTab(
         onMenuPressed: () {
@@ -36,7 +40,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         },
       ),
       const ActivityTab(),
-      const WalletScreen(),
+      if (isLoggedIn) const WalletScreen(),
       AccountTab(
         onTabChange: (index) {
           setState(() => _currentIndex = index);
@@ -44,13 +48,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
     ];
 
+    final safeIndex = _currentIndex >= tabs.length ? tabs.length - 1 : _currentIndex;
+
     return Scaffold(
       key: _scaffoldKey,
       drawer: _buildDrawer(context),
-      body: tabs[_currentIndex],
+      body: tabs[safeIndex],
       backgroundColor: context.theme.scaffoldBackgroundColor,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
+        selectedIndex: safeIndex,
         onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
@@ -81,17 +87,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
             label: 'Activity',
           ),
-          NavigationDestination(
-            icon: Icon(
-              Icons.account_balance_wallet_outlined,
-              color: context.colors.textSecondary,
+          if (isLoggedIn)
+            NavigationDestination(
+              icon: Icon(
+                Icons.account_balance_wallet_outlined,
+                color: context.colors.textSecondary,
+              ),
+              selectedIcon: Icon(
+                Icons.account_balance_wallet,
+                color: context.theme.primaryColor,
+              ),
+              label: 'Wallet',
             ),
-            selectedIcon: Icon(
-              Icons.account_balance_wallet,
-              color: context.theme.primaryColor,
-            ),
-            label: 'Wallet',
-          ),
           NavigationDestination(
             icon: Icon(
               Icons.settings_outlined,
@@ -111,7 +118,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _buildDrawer(BuildContext context) {
     const Color transPurple = Color(0xFF8B7DBE);
     final userAsync = ref.watch(fullUserProfileProvider);
-    final isLoggedIn = userAsync.value != null;
+    final authService = ref.watch(authServiceProvider);
+    final isLoggedIn = authService.currentUser != null || userAsync.value != null;
 
     return Drawer(
       backgroundColor: context.theme.scaffoldBackgroundColor,
@@ -260,14 +268,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Navigator.pop(context);
                   setState(() => _currentIndex = 1);
                 }),
-                _drawerMenuItem(
-                  Icons.account_balance_wallet_outlined,
-                  "Wallet",
-                  () {
-                    Navigator.pop(context);
-                    setState(() => _currentIndex = 2);
-                  },
-                ),
+                if (isLoggedIn)
+                  _drawerMenuItem(
+                    Icons.account_balance_wallet_outlined,
+                    "Wallet",
+                    () {
+                      Navigator.pop(context);
+                      setState(() => _currentIndex = 2);
+                    },
+                  ),
                 _drawerMenuItem(Icons.local_offer_outlined, "Offers", () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -279,7 +288,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 }),
                 _drawerMenuItem(Icons.settings_outlined, "Settings", () {
                   Navigator.pop(context);
-                  setState(() => _currentIndex = 3);
+                  setState(() => _currentIndex = isLoggedIn ? 3 : 2);
                 }),
                 _drawerMenuItem(Icons.help_outline, "Support", () {
                   Navigator.pop(context);

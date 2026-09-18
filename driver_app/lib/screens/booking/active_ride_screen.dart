@@ -299,8 +299,8 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                   ),
                     children: [
                       TileLayer(
-                        urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                        subdomains: const ['a', 'b', 'c', 'd'],
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.transglobe.driver_app',
                       ),
                       if (_routePoints.isNotEmpty)
                         PolylineLayer(

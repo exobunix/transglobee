@@ -17,6 +17,8 @@ import 'package:admin/widget/web_pagination.dart';
 import 'package:aligned_dialog/aligned_dialog.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:admin/app/constant/show_toast.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -292,6 +294,19 @@ class DriverScreenView extends GetView<DriverScreenController> {
                                                   width: 18,
                                                 ),
                                               )),
+                                          spaceW(),
+                                          // ── ADD DRIVER BUTTON (Desktop) ──
+                                          ElevatedButton.icon(
+                                            onPressed: () => _showAddDriverDialog(context, controller),
+                                            icon: const Icon(Icons.person_add_alt_1, size: 18),
+                                            label: Text('Add Driver'.tr),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppThemData.primary500,
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            ),
+                                          ),
                                         ],
                                       )
                                     ],
@@ -453,6 +468,19 @@ class DriverScreenView extends GetView<DriverScreenController> {
                                                   width: 18,
                                                 ),
                                               )),
+                                          spaceW(),
+                                          // ── ADD DRIVER BUTTON (Mobile) ──
+                                          ElevatedButton.icon(
+                                            onPressed: () => _showAddDriverDialog(context, controller),
+                                            icon: const Icon(Icons.person_add_alt_1, size: 16),
+                                            label: Text('Add'.tr),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppThemData.primary500,
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            ),
+                                          ),
                                         ],
                                       )
                                     ],
@@ -472,7 +500,7 @@ class DriverScreenView extends GetView<DriverScreenController> {
                                           crossAxisCount: ResponsiveWidget.isDesktop(context) ? 2 : 1,
                                           crossAxisSpacing: 20,
                                           mainAxisSpacing: 20,
-                                          mainAxisExtent: 180,
+                                          mainAxisExtent: 215,
                                         ),
                                         itemCount: controller.currentPageDriver.length,
                                         itemBuilder: (context, index) {
@@ -531,6 +559,53 @@ class DriverScreenView extends GetView<DriverScreenController> {
                                                               fontSize: 14,
                                                               color: themeChange.isDarkTheme() ? Colors.grey[400] : Colors.grey[600],
                                                             ),
+                                                          ),
+                                                          const SizedBox(height: 5),
+                                                          Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons.lock_outline,
+                                                                size: 14,
+                                                                color: themeChange.isDarkTheme() ? AppThemData.primary500 : Colors.deepOrange,
+                                                              ),
+                                                              const SizedBox(width: 4),
+                                                              Text(
+                                                                "Password: ",
+                                                                style: TextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight: FontWeight.w600,
+                                                                  color: themeChange.isDarkTheme() ? Colors.grey[400] : Colors.grey[700],
+                                                                ),
+                                                              ),
+                                                              SelectableText(
+                                                                driverUserModel.plainPassword != null && driverUserModel.plainPassword!.isNotEmpty
+                                                                    ? driverUserModel.plainPassword!
+                                                                    : "123456",
+                                                                style: TextStyle(
+                                                                  fontSize: 13,
+                                                                  fontWeight: FontWeight.bold,
+                                                                  color: themeChange.isDarkTheme() ? AppThemData.primary500 : Colors.deepOrange,
+                                                                ),
+                                                              ),
+                                                              const SizedBox(width: 6),
+                                                              InkWell(
+                                                                onTap: () {
+                                                                  final pass = driverUserModel.plainPassword != null && driverUserModel.plainPassword!.isNotEmpty
+                                                                      ? driverUserModel.plainPassword!
+                                                                      : "123456";
+                                                                  Clipboard.setData(ClipboardData(text: pass));
+                                                                  ShowToastDialog.toast("Password copied: $pass");
+                                                                },
+                                                                child: Padding(
+                                                                  padding: const EdgeInsets.all(2.0),
+                                                                  child: Icon(
+                                                                    Icons.copy,
+                                                                    size: 13,
+                                                                    color: themeChange.isDarkTheme() ? Colors.grey[400] : Colors.grey[600],
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ],
                                                       ),
@@ -660,6 +735,305 @@ class DriverScreenView extends GetView<DriverScreenController> {
       },
     );
   }
+
+  /// Premium Add Driver dialog — styled like driver_app's Step 1 registration.
+  void _showAddDriverDialog(BuildContext context, DriverScreenController controller) {
+    bool _obscurePass = true;
+    bool _isLoading = false;
+    final _formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Container(
+              width: 480,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A2E),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFF2D2D44), width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 32,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppThemData.primary500.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(Icons.person_add_alt_1, color: AppThemData.primary500, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Add New Driver',
+                                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                                ),
+                                Text(
+                                  'Fill in the driver\'s basic details',
+                                  style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              icon: const Icon(Icons.close, color: Colors.white54),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 28),
+
+                        // Full Name
+                        _addDriverField(
+                          label: 'Full Name *',
+                          hint: 'e.g. Ravi Kumar',
+                          icon: Icons.person_outline,
+                          controller: controller.addDriverNameController.value,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Name is required';
+                            if (v.trim().length < 3) return 'Enter at least 3 characters';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Mobile
+                        _addDriverField(
+                          label: 'Mobile Number *',
+                          hint: 'e.g. 9876543210',
+                          icon: Icons.phone_android,
+                          controller: controller.addDriverMobileController.value,
+                          keyboardType: TextInputType.phone,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Mobile number is required';
+                            if (!RegExp(r'^[0-9]{10}$').hasMatch(v.trim())) return 'Enter a valid 10-digit number';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Email
+                        _addDriverField(
+                          label: 'Email Address *',
+                          hint: 'e.g. driver@example.com',
+                          icon: Icons.email_outlined,
+                          controller: controller.addDriverEmailController.value,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Email is required';
+                            if (!RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w]{2,4}$').hasMatch(v.trim())) return 'Enter a valid email';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Password
+                        StatefulBuilder(
+                          builder: (_, setStatePass) => Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Password *',
+                                style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: controller.addDriverPasswordController.value,
+                                obscureText: _obscurePass,
+                                style: const TextStyle(color: Colors.white),
+                                validator: (v) {
+                                  if (v == null || v.isEmpty) return 'Password is required';
+                                  if (v.length < 6) return 'Minimum 6 characters';
+                                  return null;
+                                },
+                                decoration: InputDecoration(
+                                  hintText: 'Minimum 6 characters',
+                                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14),
+                                  prefixIcon: Icon(Icons.lock_outline, color: Colors.white.withOpacity(0.5), size: 20),
+                                  suffixIcon: IconButton(
+                                    onPressed: () => setStatePass(() => _obscurePass = !_obscurePass),
+                                    icon: Icon(
+                                      _obscurePass ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                      color: Colors.white.withOpacity(0.5),
+                                      size: 20,
+                                    ),
+                                  ),
+                                  filled: true,
+                                  fillColor: const Color(0xFF16213E),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Colors.transparent),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Color(0xFF2D2D44)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(color: AppThemData.primary500, width: 1.5),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Colors.redAccent),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // License Number (optional)
+                        _addDriverField(
+                          label: 'Driving License Number (optional)',
+                          hint: 'e.g. DL-1420110012345',
+                          icon: Icons.credit_card_outlined,
+                          controller: controller.addDriverLicenseController.value,
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _isLoading ? null : () => Navigator.pop(ctx),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  foregroundColor: Colors.white54,
+                                  side: const BorderSide(color: Color(0xFF2D2D44)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : () async {
+                                        if (!_formKey.currentState!.validate()) return;
+                                        setState(() => _isLoading = true);
+                                        final success = await controller.addDriver();
+                                        setState(() => _isLoading = false);
+                                        if (success && ctx.mounted) Navigator.pop(ctx);
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppThemData.primary500,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 0,
+                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                      )
+                                    : const Text('Add Driver', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Reusable styled text field for the Add Driver dialog.
+  Widget _addDriverField({
+    required String label,
+    required String hint,
+    required IconData icon,
+    required TextEditingController controller,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          style: const TextStyle(color: Colors.white),
+          validator: validator,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14),
+            prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.5), size: 20),
+            filled: true,
+            fillColor: const Color(0xFF16213E),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.transparent),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF2D2D44)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: AppThemData.primary500, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.redAccent),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> showDateRangePickerForPdf(BuildContext context) async {
     await showDialog(
       context: context,

@@ -171,8 +171,27 @@ class RestApiRepository {
   }
 
   // --- EARNINGS & WALLET ---
+  Future<ApiResponse<Map<String, dynamic>>> topupWallet(double amount, {String method = 'upi'}) async {
+    final response = await _api.post('/wallet/topup', {
+      'amount': amount,
+      'method': method,
+    });
+    return ApiResponse<Map<String, dynamic>>.fromJson(
+      response,
+      (data) => data is Map<String, dynamic> ? data : {},
+    );
+  }
+
   Future<ApiResponse<Map<String, dynamic>>> getEarnings() async {
     final response = await _api.get('/driver/earnings');
+    return ApiResponse<Map<String, dynamic>>.fromJson(
+      response,
+      (data) => data as Map<String, dynamic>,
+    );
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> getDriverWallet() async {
+    final response = await _api.get('/driver/wallet');
     return ApiResponse<Map<String, dynamic>>.fromJson(
       response,
       (data) => data as Map<String, dynamic>,

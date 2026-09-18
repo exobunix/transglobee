@@ -8,6 +8,8 @@ const isExplicitDevBypassEnabled = () =>
     process.env.NODE_ENV !== 'production' &&
     process.env.ALLOW_DEV_AUTH_BYPASS === 'true';
 
+const isValidObjectId = (val) => typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(val);
+
 // ─── Attach role from DB (User or Driver) ────────────────
 const attachRoleFromDB = async (id) => {
     try {
@@ -17,8 +19,8 @@ const attachRoleFromDB = async (id) => {
         // 1. Try to find User by Firebase UID
         let dbUser = await User.findOne({ uid: id });
         
-        // 2. Fallback to MongoDB _id if id looks like an ObjectId (24 chars)
-        if (!dbUser && id && id.length === 24) {
+        // 2. Fallback to MongoDB _id if id is a valid 24-hex ObjectId
+        if (!dbUser && isValidObjectId(id)) {
             dbUser = await User.findById(id);
         }
         
@@ -28,7 +30,7 @@ const attachRoleFromDB = async (id) => {
         let dbDriver = await Driver.findOne({ $or: [{ uid: id }, { firebaseId: id }] });
         
         // 4. Fallback to MongoDB _id for Driver
-        if (!dbDriver && id && id.length === 24) {
+        if (!dbDriver && isValidObjectId(id)) {
             dbDriver = await Driver.findById(id);
         }
         

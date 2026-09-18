@@ -1227,6 +1227,16 @@ exports.updateRideStatus = async (req, res) => {
 
         await ride.save();
 
+        // Credit driver wallet if completed/delivered
+        if ((ride.status === 'completed' || ride.status === 'delivered') && oldStatus !== 'completed' && oldStatus !== 'delivered') {
+            const fareEarned = Number(ride.actualFare || ride.fare || ride.totalPrice || actualFare || 0);
+            if (fareEarned > 0 && ride.driverId) {
+                const Driver = require('../models/Driver');
+                await Driver.findByIdAndUpdate(ride.driverId, {
+                    $inc: { walletBalance: fareEarned }
+                });
+            }
+        }
         if (req.io) {
             // Emit to user's personal room AND the specific ride room
             const targetUserRoom = resolveDocId(ride.userId);

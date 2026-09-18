@@ -1,8 +1,8 @@
 class ApiConstant {
   // Centralized Base URL for backend API
   static const String baseUrl = 
-  'https://api.buildora.cloud/api';
-  // "http://localhost:8082/api";
+  // 'https://api.buildora.cloud/api';
+  "http://localhost:8082/api";
 
   // Admin Authentication Endpoints
   static const String adminLogin = "$baseUrl/auth/admin/login";
@@ -16,10 +16,14 @@ class ApiConstant {
   static const String adminUsers = "$baseUrl/admin/users";
   static const String adminUsersCreate = "$baseUrl/admin/users/create";
   static const String adminDrivers = "$baseUrl/admin/drivers";
+  static const String adminDriverCreate = "$baseUrl/driver/register";
 
   // Admin Banner, Coupon, CMS & Upload Endpoints
   static const String adminCms = "$baseUrl/admin/cms";
   static const String adminUpload = "$baseUrl/admin/upload";
+
+  // Admin Wallet Requests
+  static const String adminWalletRequests = "$baseUrl/admin/wallet-requests";
 
   // Common Headers
   static Map<String, String> headers({String? token}) {

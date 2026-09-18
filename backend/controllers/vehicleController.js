@@ -19,7 +19,12 @@ exports.addVehicle = async (req, res) => {
             driverId,
             pricing,
             status,
-            vehicleImage
+            vehicleImage,
+            vehicleStatus,
+            vendorDetail,
+            insuranceDetails,
+            pucDetails,
+            permitDetails
         } = req.body;
 
         // Validate required fields
@@ -53,6 +58,11 @@ exports.addVehicle = async (req, res) => {
             model:             model             || '',
             year:              year              || '',
             numberPlate,
+            vehicleStatus:    vehicleStatus     || '',
+            vendorDetail:     vendorDetail      || '',
+            insuranceDetails: insuranceDetails  || '',
+            pucDetails:       pucDetails        || '',
+            permitDetails:    permitDetails     || '',
             passengerCapacity: passengerCapacity || 0,
             luggageCapacity:   luggageCapacity   || 0,
             truckLoadCapacity: truckLoadCapacity || 0,

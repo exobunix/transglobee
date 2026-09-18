@@ -1,15 +1,133 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../core/theme.dart';
 import '../providers/wallet_provider.dart';
+import '../providers/user_provider.dart';
 import '../models/wallet_model.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 class WalletScreen extends ConsumerWidget {
   const WalletScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final authService = ref.watch(authServiceProvider);
+    final userProfile = ref.watch(fullUserProfileProvider);
+    final isLoggedIn = authService.currentUser != null || userProfile.value != null;
+
+    if (!isLoggedIn) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF7F9F8),
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(64),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: Navigator.canPop(context)
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF14201B), size: 24),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  : null,
+              title: Text(
+                'My Wallet',
+                style: GoogleFonts.lexend(
+                  color: const Color(0xFF14201B),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                ),
+              ),
+              centerTitle: true,
+            ),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F4A2C).withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 46,
+                    color: Color(0xFF0F4A2C),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Login Required',
+                  style: GoogleFonts.lexend(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF14201B),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Please log in to your account to view your wallet balance, check transactions, and add funds.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.notoSans(
+                    fontSize: 14,
+                    color: const Color(0xFF64748B),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F4A2C),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      'Log In / Register',
+                      style: GoogleFonts.lexend(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final wallet = ref.watch(userWalletProvider);
 
     return Scaffold(
@@ -259,14 +377,23 @@ class WalletScreen extends ConsumerWidget {
         return Expanded(
           child: GestureDetector(
             onTap: () {
+              final authService = ref.read(authServiceProvider);
+              final userProfile = ref.read(fullUserProfileProvider);
+              final isLoggedIn = authService.currentUser != null || userProfile.value != null;
+              if (!isLoggedIn) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please log in to add money to your wallet.')),
+                );
+                return;
+              }
               ref.read(userWalletProvider.notifier).addMoney(amount.toDouble());
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    '₹$amount added successfully!',
+                    'Top-up request for ₹$amount submitted! It will be added once approved by admin.',
                     style: GoogleFonts.notoSans(fontWeight: FontWeight.w600),
                   ),
-                  backgroundColor: const Color(0xFF167A45),
+                  backgroundColor: const Color(0xFFD97706),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -350,7 +477,13 @@ class WalletScreen extends ConsumerWidget {
           final index = entry.key;
           final txn = entry.value;
           final isCredit = txn.type == 'credit';
+          final isPending = txn.status == 'pending';
+          final isRejected = txn.status == 'rejected';
           
+          Color iconColor = isCredit ? const Color(0xFF167A45) : const Color(0xFFD95353);
+          if (isPending) iconColor = const Color(0xFFD97706);
+          if (isRejected) iconColor = const Color(0xFFEF4444);
+
           return Column(
             children: [
               ListTile(
@@ -358,12 +491,14 @@ class WalletScreen extends ConsumerWidget {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: (isCredit ? const Color(0xFF167A45) : const Color(0xFFD95353)).withOpacity(0.08),
+                    color: iconColor.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
-                    isCredit ? Icons.arrow_downward_rounded : Icons.payment_rounded,
-                    color: isCredit ? const Color(0xFF167A45) : const Color(0xFFD95353),
+                    isPending
+                        ? Icons.hourglass_top_rounded
+                        : (isCredit ? Icons.arrow_downward_rounded : Icons.payment_rounded),
+                    color: iconColor,
                     size: 20,
                   ),
                 ),
@@ -377,21 +512,58 @@ class WalletScreen extends ConsumerWidget {
                 ),
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    txn.date,
-                    style: GoogleFonts.notoSans(
-                      fontSize: 11,
-                      color: const Color(0xFF68736E),
-                    ),
+                  child: Row(
+                    children: [
+                      Text(
+                        txn.date,
+                        style: GoogleFonts.notoSans(
+                          fontSize: 11,
+                          color: const Color(0xFF68736E),
+                        ),
+                      ),
+                      if (isPending) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Pending Approval',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFB45309),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                trailing: Text(
-                  '${isCredit ? '+' : '-'}₹${txn.amount.toStringAsFixed(0)}',
-                  style: GoogleFonts.lexend(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: isCredit ? const Color(0xFF167A45) : const Color(0xFFD95353),
-                  ),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${isCredit ? '+' : '-'}₹${txn.amount.toStringAsFixed(0)}',
+                      style: GoogleFonts.lexend(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: isPending ? const Color(0xFFD97706) : (isCredit ? const Color(0xFF167A45) : const Color(0xFFD95353)),
+                      ),
+                    ),
+                    if (isPending)
+                      Text(
+                        'Pending',
+                        style: GoogleFonts.notoSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFD97706),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               if (index < transactions.length - 1)
@@ -409,6 +581,15 @@ class WalletScreen extends ConsumerWidget {
   }
 
   void _showTopUpSheet(BuildContext context, WidgetRef ref) {
+    final authService = ref.read(authServiceProvider);
+    final userProfile = ref.read(fullUserProfileProvider);
+    final isLoggedIn = authService.currentUser != null || userProfile.value != null;
+    if (!isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to add money to your wallet.')),
+      );
+      return;
+    }
     final controller = TextEditingController();
     showModalBottomSheet(
       context: context,
@@ -480,10 +661,10 @@ class WalletScreen extends ConsumerWidget {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          '₹$amount added to wallet!',
+                          'Top-up request of ₹$amount submitted! It will be added once approved by admin.',
                           style: GoogleFonts.notoSans(fontWeight: FontWeight.w600),
                         ),
-                        backgroundColor: const Color(0xFF167A45),
+                        backgroundColor: const Color(0xFFD97706),
                         behavior: SnackBarBehavior.floating,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -508,6 +689,15 @@ class WalletScreen extends ConsumerWidget {
   }
 
   void _showWithdrawSheet(BuildContext context, WidgetRef ref, double balance) {
+    final authService = ref.read(authServiceProvider);
+    final userProfile = ref.read(fullUserProfileProvider);
+    final isLoggedIn = authService.currentUser != null || userProfile.value != null;
+    if (!isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to withdraw funds.')),
+      );
+      return;
+    }
     final controller = TextEditingController();
     showModalBottomSheet(
       context: context,

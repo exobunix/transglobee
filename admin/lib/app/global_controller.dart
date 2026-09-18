@@ -1,8 +1,7 @@
 import 'package:admin/app/constant/constants.dart';
 import 'package:admin/app/routes/app_pages.dart';
+import 'package:admin/app/services/shared_preferences/app_preference.dart';
 import 'package:get/get.dart';
-
-import 'utils/fire_store_utils.dart';
 
 class GlobalController extends GetxController {
   RxBool isLoading = true.obs;
@@ -17,18 +16,15 @@ class GlobalController extends GetxController {
   Future<void> getData() async {
     isLoading.value = false;
 
-    bool isLogin = await FireStoreUtils.isLogin();
+    // Check token-based auth (REST API backend — no Firebase Auth needed)
+    final String adminToken = await AppSharedPreference.getString('adminToken');
+    final bool isLogin = adminToken.isNotEmpty;
+
     if (Get.currentRoute != Routes.ERROR_SCREEN) {
       if (!isLogin) {
         Get.offAllNamed(Routes.LOGIN_PAGE);
       } else {
-        FireStoreUtils.getAdmin().then(
-          (value) {
-            if (value != null) {
-              Constant.isDemoSet(value);
-            }
-          },
-        );
+        Constant.isLogin = true;
         Get.offAllNamed(Routes.DASHBOARD_SCREEN);
       }
     }

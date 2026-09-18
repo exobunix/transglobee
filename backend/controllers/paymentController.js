@@ -4,6 +4,7 @@ const Transaction = require('../models/Transaction');
 const LogisticsBooking = require('../models/LogisticsBooking');
 const User = require('../models/User');
 const Driver = require('../models/Driver');
+const WalletRequest = require('../models/WalletRequest');
 
 const isObjectId = (value) => mongoose.Types.ObjectId.isValid(String(value || ''));
 
@@ -310,9 +311,10 @@ exports.refundPayment = async (req, res) => {
 
 exports.walletAdd = async (req, res) => {
     try {
-        const { userId, driverId, amount, method = 'upi' } = req.body;
-        if (!amount || Number(amount) <= 0) {
-            return res.status(400).json({ success: false, message: 'Invalid amount.' });
+        const { userId, driverId, amount, method = 'upi', paymentMethod } = req.body;
+        const requestedAmount = Number(amount);
+        if (!requestedAmount || requestedAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid amount. Must be greater than 0.' });
         }
 
         const actor = await getActor({ userId, driverId, req });
@@ -320,25 +322,53 @@ exports.walletAdd = async (req, res) => {
             return res.status(404).json({ success: false, message: 'User/Driver not found.' });
         }
 
-        actor.entity.walletBalance = Number(actor.entity.walletBalance || 0) + Number(amount);
-        await actor.entity.save();
+        const chosenMethod = method || paymentMethod || 'upi';
+        const actorName = actor.entity.fullName || actor.entity.name || (actor.entityType === 'driver' ? 'Driver' : 'User');
+        const actorPhone = actor.entity.mobileNumber || actor.entity.phoneNumber || actor.entity.phone || '';
+        const actorEmail = actor.entity.email || '';
 
-        await Transaction.create({
+        // Create WalletRequest pending admin approval
+        const walletRequest = await WalletRequest.create({
+            userType: actor.entityType,
             userId: actor.userId,
             driverId: actor.driverId,
-            amount: Number(amount),
-            type: 'payment',
-            method,
-            status: 'completed',
-            metadata: { walletOperation: 'credit' },
+            userName: actorName,
+            userPhone: actorPhone,
+            userEmail: actorEmail,
+            amount: requestedAmount,
+            paymentMethod: chosenMethod,
+            status: 'pending',
         });
+
+        // Create Transaction record in pending status
+        const transaction = await Transaction.create({
+            userId: actor.userId,
+            driverId: actor.driverId,
+            amount: requestedAmount,
+            type: 'topup',
+            method: chosenMethod,
+            status: 'pending',
+            metadata: {
+                walletRequestId: walletRequest._id,
+                walletOperation: 'topup_request',
+                userType: actor.entityType,
+                requestedAt: new Date(),
+            },
+        });
+
+        walletRequest.transactionId = transaction._id;
+        await walletRequest.save();
 
         return res.status(200).json({
             success: true,
-            message: `Amount added to ${actor.entityType} wallet.`,
-            newBalance: actor.entity.walletBalance,
+            message: `Top-up request for ₹${requestedAmount} submitted successfully. It will be added to your wallet once approved by admin.`,
+            status: 'pending',
+            requestId: walletRequest._id,
+            data: walletRequest,
+            currentBalance: Number(actor.entity.walletBalance || 0),
         });
     } catch (error) {
+        console.error('[PAYMENT] walletAdd error:', error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -423,12 +453,30 @@ exports.getWalletHistory = async (req, res) => {
 
         const page = Math.max(Number(req.query.page || 1), 1);
         const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
-        const [transactions, total] = await Promise.all([
-            Transaction.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
-            Transaction.countDocuments(filter),
-        ]);
+        const mappedTransactions = transactions.map((t) => {
+            const isCredit = t.type === 'topup' || t.metadata?.walletOperation === 'credit' || t.metadata?.walletOperation === 'credit_request';
+            let title = 'Wallet Top-up';
+            if (t.type === 'withdrawal') title = 'Payout / Withdrawal';
+            else if (t.type === 'payment' && t.bookingId) title = 'Booking Payment';
+            else if (t.type === 'topup') title = t.status === 'pending' ? 'Top-up (Pending Approval)' : (t.status === 'rejected' ? 'Top-up (Rejected)' : 'Wallet Top-up');
 
-        return res.status(200).json({ success: true, data: transactions, pagination: { page, limit, total } });
+            return {
+                ...t.toObject(),
+                id: t._id.toString(),
+                title: t.metadata?.title || title,
+                description: t.metadata?.description || title,
+                date: t.createdAt ? new Date(t.createdAt).toISOString().split('T')[0] : '',
+                type: isCredit ? 'credit' : 'debit',
+                status: t.status,
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: mappedTransactions,
+            transactions: mappedTransactions,
+            pagination: { page, limit, total },
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -547,6 +595,7 @@ exports.getDriverEarnings = async (req, res) => {
         return res.status(200).json({
             success: true,
             data: {
+                balance: Number(driver.walletBalance || 0),
                 walletBalance: Number(driver.walletBalance || 0),
                 todayEarnings,
                 weeklyEarnings,
@@ -583,6 +632,7 @@ exports.getDriverWallet = async (req, res) => {
 
         return res.json({
             success: true,
+            balance: Number(driver.walletBalance || 0),
             walletBalance: Number(driver.walletBalance || 0),
             pendingPayout: Number(driver.walletBalance || 0),
             todayEarnings: today[0]?.total || 0,

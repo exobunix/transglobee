@@ -34,10 +34,7 @@ class NotificationNotifier extends Notifier<List<AppNotification>> {
       _setupSocketListener(myId);
     }
 
-    return [
-      AppNotification(id: 'N1', title: 'New Booking Request', body: 'Priya Sharma wants a Sedan ride to Pari Chowk.', category: 'booking', time: DateTime.now().subtract(const Duration(minutes: 2))),
-      // ... default notifications
-    ];
+    return [];
   }
 
   void _setupSocketListener(String myId) {
