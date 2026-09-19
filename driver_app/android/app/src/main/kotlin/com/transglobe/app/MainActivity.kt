@@ -1,4 +1,4 @@
-package com.transglobe.app
+package com.transglobe.driverapp
 
 import io.flutter.embedding.android.FlutterActivity
 

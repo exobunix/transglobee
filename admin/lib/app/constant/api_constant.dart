@@ -1,8 +1,8 @@
 class ApiConstant {
   // Centralized Base URL for backend API
   static const String baseUrl = 
-  // 'https://api.buildora.cloud/api';
-  "http://localhost:8082/api";
+  'https://api.transgloble.com/api';
+  // "http://localhost:8082/api";
 
   // Admin Authentication Endpoints
   static const String adminLogin = "$baseUrl/auth/admin/login";

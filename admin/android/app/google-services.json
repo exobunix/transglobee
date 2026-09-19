@@ -47,7 +47,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:266071218633:android:dc6c9fafd16cca945db018",
         "android_client_info": {
-          "package_name": "com.example.user_app"
+          "package_name": "com.transglobe.userapp"
         }
       },
       "oauth_client": [],
@@ -66,7 +66,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:266071218633:android:3cd306d56d296b455db018",
         "android_client_info": {
-          "package_name": "com.transglobe.app"
+          "package_name": "com.transglobe.driverapp"
         }
       },
       "oauth_client": [],
