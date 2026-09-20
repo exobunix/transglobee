@@ -261,10 +261,10 @@ const getDriverProfile = async (req, res) => {
                     firebaseId: uid || '',
                     email: email || '',
                     name: req.user?.name || req.user?.displayName || 'Driver',
-                    status: 'pending',
-                    isApproved: false,
-                    isOnline: false,
-                    onboardingComplete: false,
+                    status: 'active',
+                    isApproved: true,
+                    isOnline: true,
+                    onboardingComplete: true,
                     isEmailVerified: !!email,
                     vehicleId: '',
                     vehicleModel: '',
@@ -274,6 +274,22 @@ const getDriverProfile = async (req, res) => {
                 }
             });
         }
+
+        if (driver.status !== 'suspended') {
+            let needsSave = false;
+            if (!driver.isApproved) {
+                driver.isApproved = true;
+                needsSave = true;
+            }
+            if (driver.status === 'pending') {
+                driver.status = 'active';
+                needsSave = true;
+            }
+            if (needsSave) {
+                await driver.save();
+            }
+        }
+
         res.status(200).json({ driver });
     } catch (error) {
         console.error('Error fetching driver:', error);

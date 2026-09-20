@@ -28,7 +28,7 @@ import '../core/app_router.dart';
 // ── Providers ──
 class DriverStatusNotifier extends Notifier<DriverStatus> {
   @override
-  DriverStatus build() => DriverStatus.offline;
+  DriverStatus build() => DriverStatus.available;
   void set(DriverStatus value) {
     if (state == value) return;
     state = value;
@@ -151,13 +151,14 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
         final socketService = ref.read(socketServiceProvider);
         socketService.connect(driverProfile.id, name: driverProfile.name);
 
-        // Sync initial online status from database profile status
-        if (driverProfile.status == 'active') {
-          ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.available);
-          _onlineBannerController.forward();
-        } else {
+        // Sync initial online status from database profile status:
+        // Keep driver available unless account is explicitly suspended.
+        if (driverProfile.status == 'suspended') {
           ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.offline);
           _onlineBannerController.reverse();
+        } else {
+          ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.available);
+          _onlineBannerController.forward();
         }
 
         _connectionSub?.cancel();
@@ -179,21 +180,16 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
     // Polling fallback when socket missed a new_ride event
     ref.listenManual(incomingRideRequestsProvider, (previous, next) {
       try {
-        if (next.isEmpty ||
-            ref.read(driverStatusProvider) != DriverStatus.available) {
-          return;
-        }
+        if (next.isEmpty) return;
         if (ref.read(currentRideRequestProvider) != null) return;
 
-        final currentVehicleType = ref.read(vehicleTypeProvider).name; // 'cab', 'truck', 'bus'
-        // If driver is on Cab tab, show all types of bookings (Cab, Truck, Bus). Otherwise filter strictly.
-        final filteredNext = (currentVehicleType == 'cab')
-            ? next
-            : next.where((b) => b.vehicleType == currentVehicleType).toList();
-        if (filteredNext.isEmpty) return;
-
-        final firstRide = filteredNext.first;
+        final firstRide = next.first;
         debugPrint('[DISPATCH] Polling surfaced ride ${firstRide.id} (${firstRide.dispatchType})');
+
+        if (ref.read(driverStatusProvider) == DriverStatus.offline) {
+          ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.available);
+          _onlineBannerController.forward();
+        }
 
         ref.read(currentRideRequestProvider.notifier).setRide(firstRide.toRideRequestMap());
         ref.read(showRequestProvider.notifier).show();
@@ -229,12 +225,16 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authService = ref.read(authServiceProvider);
+      final currentAuthUser = authService.currentUser;
+      final fallbackId = currentAuthUser?.uid ?? 'driver';
+      final socketService = ref.read(socketServiceProvider);
+
       final profileState = ref.read(driverProfileControllerProvider);
       if (profileState.status == ApiStatus.success && profileState.data != null) {
-        ref
-            .read(socketServiceProvider)
-            .connect(profileState.data!.id, name: profileState.data!.name);
+        socketService.connect(profileState.data!.id, name: profileState.data!.name);
       } else {
+        socketService.connect(fallbackId, name: currentAuthUser?.displayName ?? 'Driver');
         ref.read(driverProfileControllerProvider.notifier).getDriverProfile();
       }
 
@@ -244,11 +244,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       // Fetch pending bookings via REST polling immediately
       ref.read(bookingProvider.notifier).fetchBookings();
 
-      final socketService = ref.read(socketServiceProvider);
-
       _newRideSub?.cancel();
       _newRideSub = socketService.newRideStream.listen((data) {
-        print("Driver App Received New Ride Request: $data");
+        debugPrint("[DISPATCH] Driver App Received New Ride Request: $data");
 
         try {
           final bookingType = (data['type'] ?? data['bookingCategory'] ?? 'CAB')
@@ -264,20 +262,25 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
             return;
           }
 
-          final newBooking = BookingModel.fromJson(data);
-          ref.read(bookingProvider.notifier).addIncomingRequest(newBooking);
-
-          final currentVehicleType = ref.read(vehicleTypeProvider).name; // 'cab', 'truck', 'bus'
-          // If on Cab tab, accept all incoming booking requests, otherwise only matching vehicle type
-          final isEligibleTab = (currentVehicleType == 'cab') || (newBooking.vehicleType == currentVehicleType);
-          if (ref.read(driverStatusProvider) == DriverStatus.available && isEligibleTab) {
-            ref.read(currentRideRequestProvider.notifier).setRide(
-                  Map<String, dynamic>.from(data as Map),
-                );
-            ref.read(showRequestProvider.notifier).show();
+          BookingModel? newBooking;
+          try {
+            newBooking = BookingModel.fromJson(Map<String, dynamic>.from(data as Map));
+            ref.read(bookingProvider.notifier).addIncomingRequest(newBooking);
+          } catch (pe) {
+            debugPrint("Warning parsing BookingModel for incoming request: $pe");
           }
+
+          // Auto-switch driver to available if offline
+          if (ref.read(driverStatusProvider) == DriverStatus.offline) {
+            ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.available);
+            _onlineBannerController.forward();
+          }
+
+          final rideMap = newBooking?.toRideRequestMap() ?? Map<String, dynamic>.from(data as Map);
+          ref.read(currentRideRequestProvider.notifier).setRide(rideMap);
+          ref.read(showRequestProvider.notifier).show();
         } catch (e) {
-          print("Error processing new ride: $e");
+          debugPrint("Error processing new ride: $e");
         }
       });
 
@@ -722,7 +725,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
             //   ),
 
             // RIDE REQUEST CARD
-            if (isOnline && showRequest)
+            if (showRequest)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -809,10 +812,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
               ),
 
             // CURRENT LOCATION BUTTON (Fixed & Repositioned)
-            Positioned(
-              right: 16,
-              bottom: isOnline ? 100 : 40,
-              child: _buildActionFab(
+            if (!showRequest)
+              Positioned(
+                right: 16,
+                bottom: isOnline ? 100 : 40,
+                child: _buildActionFab(
                 _isLoading ? Icons.hourglass_empty : Icons.my_location,
                 _getCurrentLocation,
                 color: _isLoading ? AppTheme.darkTextSecondary : AppTheme.neonGreen,

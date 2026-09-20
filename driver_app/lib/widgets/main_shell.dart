@@ -38,8 +38,8 @@ class MainShell extends ConsumerWidget {
       data: (driverProfile) {
         if (driverProfile == null) return _buildProfileNotLoaded(context, ref);
         
-        // Show pending screen only for unapproved profiles.
-        if (!driverProfile.isApproved) {
+        // Show pending screen only if account is explicitly suspended
+        if (driverProfile.status == 'suspended') {
           return const PendingApprovalScreen();
         }
 

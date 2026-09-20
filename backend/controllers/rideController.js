@@ -394,16 +394,18 @@ exports.getDriverBookings = async (req, res) => {
             $or: [
                 { driverId: currentDriver._id },
                 { "driverSnapshot.driver_id": currentDriver._id },
-                { rejectedBy: currentDriver._id }
+                { rejectedBy: currentDriver._id },
+                {
+                    status: { $in: ['pending', 'pending_for_driver'] },
+                    rejectedBy: { $ne: currentDriver._id }
+                }
             ]
         } : {
             createdAt: { $gte: lookbackDate },
-            _id: null
+            status: { $in: ['pending', 'pending_for_driver'] }
         };
 
-        const bookings = currentDriver?._id
-            ? await History.find(rideQuery).populate('userId', 'name').sort({ createdAt: -1 })
-            : [];
+        const bookings = await History.find(rideQuery).populate('userId', 'name').sort({ createdAt: -1 });
 
         // Merge with Logistics Bookings assigned to this driver or explicitly dispatched
         let logistics = [];
@@ -415,7 +417,12 @@ exports.getDriverBookings = async (req, res) => {
                     ...(currentDriverId ? [{ driverId: currentDriverId }] : []),
                     { "segments.driverId": currentDriver._id },
                     ...(currentDriverId ? [{ "segments.driverId": currentDriverId }] : []),
-                    { rejectedBy: currentDriver._id }
+                    { rejectedBy: currentDriver._id },
+                    {
+                        status: 'pending_for_driver',
+                        roadmapStatus: 'approved',
+                        rejectedBy: { $ne: currentDriver._id }
+                    }
                 ]
             }).sort({ createdAt: -1 });
         } else {
@@ -487,7 +494,12 @@ exports.getDriverBookings = async (req, res) => {
                     ...(currentDriverId ? [{ driverId: currentDriverId }] : []),
                     { "segments.driverId": currentDriver._id },
                     ...(currentDriverId ? [{ "segments.driverId": currentDriverId }] : []),
-                    { rejectedBy: currentDriver._id }
+                    { rejectedBy: currentDriver._id },
+                    {
+                        status: 'pending_for_driver',
+                        roadmapStatus: 'approved',
+                        rejectedBy: { $ne: currentDriver._id }
+                    }
                 ]
             }).sort({ createdAt: -1 });
         }

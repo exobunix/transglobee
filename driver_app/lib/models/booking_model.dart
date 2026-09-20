@@ -253,7 +253,9 @@ class BookingModel {
       subType: mode?.toUpperCase() ?? dispatchType,
       dispatchType: dispatchType,
       status: mapStatus(json['status']?.toString()),
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'].toString()) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now())
+          : DateTime.now(),
       otp: json['otp']?.toString(),
       actualFare: parseOptionalDouble(json['actualFare']),
       pickupLat: resolveLatFromObj(pickupRaw, 'pickupLat'),
