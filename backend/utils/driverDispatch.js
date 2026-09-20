@@ -58,11 +58,16 @@ async function broadcastNewRideToOnlineDrivers(io, socketData, options = {}) {
         onlineDrivers = await Driver.find(query).select('_id uid name fcmToken').lean();
     }
 
+    // Fallback: If no drivers found within 10km radius or driver coordinates missing, dispatch to all online drivers
     if (!onlineDrivers.length) {
-        console.log(`[DISPATCH] No online drivers to notify near pickup: ${pickupLat || 'N/A'}, ${pickupLng || 'N/A'} for route: ${routeId || 'all'}`);
-        return { sent: 0 };
+        console.log(`[DISPATCH] Broadening dispatch to all online drivers for ride ${socketData.id}`);
+        onlineDrivers = await Driver.find({ isOnline: true }).select('_id uid name fcmToken').lean();
     }
 
+    // Broadcast globally to connected drivers
+    io.emit('new_ride', socketData);
+
+    // Also emit to individual driver rooms
     onlineDrivers.forEach((driver) => {
         const roomId = driver._id.toString();
         io.to(roomId).emit('new_ride', socketData);

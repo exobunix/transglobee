@@ -10,7 +10,6 @@ import 'package:driver_app/models/booking_model.dart';
 
 import 'package:driver_app/providers/vehicle_type_provider.dart';
 import 'package:driver_app/widgets/vehicle_type_selector.dart';
-import 'package:driver_app/widgets/earnings_dashboard.dart';
 import 'package:driver_app/widgets/ride_request_card.dart';
 
 import 'package:driver_app/widgets/status_chip.dart';
@@ -18,7 +17,6 @@ import 'package:driver_app/screens/booking/booking_detail_screen.dart';
 import 'package:driver_app/services/socket_service.dart';
 import 'package:driver_app/providers/booking_provider.dart';
 import 'package:driver_app/providers/active_ride_tracking_provider.dart';
-import 'package:flutter/foundation.dart';
 import 'package:driver_app/features/driver/controllers/driver_providers.dart';
 import 'package:driver_app/features/driver/models/request/update_location_request.dart';
 import 'package:driver_app/core/network/api_state.dart';
@@ -277,11 +275,18 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       _rideAssignedSub = socketService.rideAssignedStream.listen((data) {
         final currentRide = ref.read(currentRideRequestProvider);
         final takenId = data['rideId']?.toString() ?? data['bookingId']?.toString();
-        if (currentRide != null && currentRide['id']?.toString() == takenId) {
-          print(
-              "Hiding ride request card as it was assigned to another driver");
-          ref.read(showRequestProvider.notifier).hide();
-          ref.read(currentRideRequestProvider.notifier).setRide(null);
+        if (takenId != null && takenId.isNotEmpty) {
+          // Remove from incoming bookings so polling doesn't resurrect the card
+          ref.read(bookingProvider.notifier).removeBooking(takenId);
+
+          final currentId = currentRide?['id']?.toString() ??
+              currentRide?['_id']?.toString() ??
+              currentRide?['bookingId']?.toString();
+          if (currentId != null && currentId == takenId) {
+            print("Hiding ride request card as it was assigned to another driver");
+            ref.read(showRequestProvider.notifier).hide();
+            ref.read(currentRideRequestProvider.notifier).setRide(null);
+          }
         }
       });
 
@@ -289,10 +294,17 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       _rideCancelledSub = socketService.rideCancelledStream.listen((data) {
         final currentRide = ref.read(currentRideRequestProvider);
         final cancelledId = data['rideId']?.toString() ?? data['bookingId']?.toString();
-        if (currentRide != null && currentRide['id']?.toString() == cancelledId) {
-          print("Hiding ride request card as it was cancelled by user");
-          ref.read(showRequestProvider.notifier).hide();
-          ref.read(currentRideRequestProvider.notifier).setRide(null);
+        if (cancelledId != null && cancelledId.isNotEmpty) {
+          ref.read(bookingProvider.notifier).removeBooking(cancelledId);
+
+          final currentId = currentRide?['id']?.toString() ??
+              currentRide?['_id']?.toString() ??
+              currentRide?['bookingId']?.toString();
+          if (currentId != null && currentId == cancelledId) {
+            print("Hiding ride request card as it was cancelled by user");
+            ref.read(showRequestProvider.notifier).hide();
+            ref.read(currentRideRequestProvider.notifier).setRide(null);
+          }
         }
       });
 

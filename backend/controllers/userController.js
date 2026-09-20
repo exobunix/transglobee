@@ -477,8 +477,13 @@ exports.updateFCMToken = async (req, res) => {
 exports.getCMSContent = async (req, res) => {
     try {
         const { type } = req.query;
-        const query = type ? { type } : {};
-        const contents = await CMS.find(query);
+        let query = {};
+        if (type === 'banner') {
+            query = { type: { $in: ['banner', 'featured_banner'] } };
+        } else if (type) {
+            query = { type };
+        }
+        const contents = await CMS.find(query).sort({ updatedAt: -1, createdAt: -1 });
         res.status(200).json({ success: true, contents });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error', error: error.message });

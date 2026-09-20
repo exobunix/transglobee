@@ -86,16 +86,28 @@ bool _isSheetOpen = true;
         rideMode.toLowerCase() == 'economy' ||
         rideMode.toLowerCase() == 'transglobe';
 
+    final rawImg = (d['profileImage'] != null && d['profileImage'].toString().isNotEmpty)
+        ? d['profileImage'].toString()
+        : (d['photo'] != null && d['photo'].toString().isNotEmpty)
+            ? d['photo'].toString()
+            : (d['avatar'] != null && d['avatar'].toString().isNotEmpty)
+                ? d['avatar'].toString()
+                : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+
+    final vehicleModel = d['vehicle_name'] ??
+        d['vehicleName'] ??
+        d['vehicle_model'] ??
+        d['vehicleModel'] ??
+        d['model'] ??
+        d['vehicleType'] ??
+        d['vehicle'] ??
+        (isGenericRideLabel ? 'Cab' : rideMode);
+
     return {
-      'id': d['driver_id'] ?? d['_id'] ?? d['uid'],
+      'id': d['driver_id'] ?? d['_id'] ?? d['uid'] ?? d['id'],
       'name': d['name']?.toString() ?? 'Driver',
       'rating': d['rating']?.toString() ?? '4.9',
-      'vehicle': (d['vehicle_name'] ??
-              d['vehicleName'] ??
-              d['vehicle_model'] ??
-              d['vehicle'] ??
-              (isGenericRideLabel ? 'Cab' : rideMode))
-          .toString(),
+      'vehicle': vehicleModel.toString(),
       'plate': (d['vehicle_number'] ??
               d['vehicleNumber'] ??
               d['vichle_number'] ??
@@ -104,9 +116,7 @@ bool _isSheetOpen = true;
           .toString(),
       'phone': d['phone']?.toString() ?? '',
       'otp': widget.otp?.toString() ?? d['otp']?.toString() ?? '----',
-      'image': (d['photo'] != null && d['photo'].toString().isNotEmpty)
-          ? d['photo'].toString()
-          : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      'image': rawImg,
     };
   }
 

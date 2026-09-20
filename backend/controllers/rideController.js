@@ -217,6 +217,13 @@ exports.getRideById = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Ride not found.' });
         }
 
+        let bookingUser = null;
+        if (ride.userId) {
+            try {
+                bookingUser = await User.findById(ride.userId).select('name mobileNumber').lean();
+            } catch (_) {}
+        }
+
         let reqDriverId = null;
         if (req.user) {
             const Driver = require('../models/Driver');
@@ -247,9 +254,17 @@ exports.getRideById = async (req, res) => {
             }
         }
 
+        const pickupAddr = ride.locations?.[0]?.address || ride.pickup?.address || ride.pickupLocation?.address || 'Pickup';
+        const dropAddr = ride.locations?.[1]?.address || ride.dropoff?.address || ride.dropLocation?.address || 'Dropoff';
+
         const payload = {
             ...ride,
             bookingId: ride._id,
+            userName: ride.userName || bookingUser?.name || ride.name || 'Guest User',
+            userPhone: ride.userPhone || bookingUser?.mobileNumber || ride.mobileNumber || ride.phone || '',
+            phone: ride.userPhone || bookingUser?.mobileNumber || ride.mobileNumber || ride.phone || '',
+            pickupAddress: pickupAddr,
+            dropAddress: dropAddr,
             otp: ride.otp,
             driver: driverForClient,
             driverSnapshot: ride.driverSnapshot || (driverForClient ? {
@@ -924,6 +939,14 @@ exports.assignRide = async (req, res) => {
             isLogistics = true;
         }
 
+        // Concurrency Guard: Check if another driver has already accepted
+        if (ride.driverId && ride.status !== 'pending' && ride.status !== 'pending_for_driver') {
+            return res.status(409).json({
+                success: false,
+                message: 'This booking has already been accepted by another driver.'
+            });
+        }
+
         ride.status = isLogistics ? 'confirmed' : 'accepted';
         ride.driverActionAt = new Date();
         if (fare) ride.fare = fare;
@@ -953,10 +976,6 @@ exports.assignRide = async (req, res) => {
                 ? (ride.userPhone || '')
                 : (ride.mobileNumber || ride.userId?.mobileNumber || '');
             const userRooms = await resolveUserSocketRooms(ride);
-            let rideAcceptedEmitter = req.io;
-            userRooms.forEach((room) => {
-                rideAcceptedEmitter = rideAcceptedEmitter.to(room);
-            });
             console.log(`[RIDE-DEBUG] ride_accepted rooms: ${userRooms.join(', ')}`);
 
             const acceptedPayload = {
@@ -967,12 +986,19 @@ exports.assignRide = async (req, res) => {
                 otp: ride.otp,
                 type: isLogistics ? 'LOGISTICS' : 'CAB',
             };
-            rideAcceptedEmitter.emit("ride_accepted", acceptedPayload);
-            rideAcceptedEmitter.emit("ride_status_update", acceptedPayload);
+
+            // Emit to each user room
+            userRooms.forEach((room) => {
+                req.io.to(room).emit("ride_accepted", acceptedPayload);
+                req.io.to(room).emit("ride_status_update", acceptedPayload);
+            });
+            // Also emit directly to the ride room
+            req.io.to(ride._id.toString()).emit("ride_accepted", acceptedPayload);
+            req.io.to(ride._id.toString()).emit("ride_status_update", acceptedPayload);
 
             if (driver?.location?.coordinates?.length >= 2) {
                 const [lng, lat] = driver.location.coordinates;
-                rideAcceptedEmitter.emit("driver_location_update", {
+                req.io.to(ride._id.toString()).emit("driver_location_update", {
                     rideId: ride._id.toString(),
                     latitude: lat,
                     longitude: lng,
@@ -1006,8 +1032,8 @@ exports.assignRide = async (req, res) => {
                     transportNumber: ride.transportNumber
                 });
             }
-            // Also notify other drivers that this ride is taken
-            req.io.emit("ride_assigned", { rideId: ride._id.toString() });
+            // Also notify all other drivers that this ride is taken so popup immediately dismisses
+            req.io.emit("ride_assigned", { rideId: ride._id.toString(), bookingId: ride._id.toString() });
         }
 
         const { notifyUser } = require('../utils/notificationService');

@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
-import '../core/theme.dart';
 import '../services/socket_service.dart';
 import '../services/location_service.dart';
 import '../widgets/leaflet_map.dart';
@@ -88,7 +87,7 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen>
     await authService.waitForSession();
     if (!mounted) return;
 
-    final userProfile = await ref.read(fullUserProfileProvider.future);
+    final userProfile = await ref.read(fullUserProfileProvider.future).catchError((_) => null);
     final mongoUserId = userProfile?.id;
     final firebaseId = authService.currentUser?.uid;
     final userName = userProfile?.name;
@@ -96,15 +95,15 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen>
     final socketRooms = <String>{
       if (mongoUserId != null && mongoUserId.isNotEmpty) mongoUserId,
       if (firebaseId != null && firebaseId.isNotEmpty) firebaseId,
+      widget.rideId,
     };
 
-    if (socketRooms.isNotEmpty) {
-      ref.read(socketServiceProvider).connect(
-        socketRooms.first,
-        name: userName,
-        additionalUserIds: socketRooms.skip(1).toList(),
-      );
-    }
+    final primaryRoom = socketRooms.first;
+    ref.read(socketServiceProvider).connect(
+      primaryRoom,
+      name: userName ?? 'Guest User',
+      additionalUserIds: socketRooms.skip(1).toList(),
+    );
 
     ref.read(socketServiceProvider).joinRide(widget.rideId);
 

@@ -252,15 +252,23 @@ final unreadNotificationCountProvider = Provider<int>((ref) {
 });
 
 final bannersProvider = FutureProvider<List<dynamic>>((ref) async {
-  final repo = ref.watch(restApiRepositoryProvider);
-  final res = await repo.getCMSContent('banner');
-  return res.data ?? [];
+  try {
+    final repo = ref.watch(restApiRepositoryProvider);
+    final res = await repo.getCMSContent('banner').timeout(const Duration(seconds: 5));
+    return res.data ?? [];
+  } catch (e) {
+    return [];
+  }
 });
 
 final featuredBannersProvider = FutureProvider<List<dynamic>>((ref) async {
-  final repo = ref.watch(restApiRepositoryProvider);
-  final res = await repo.getCMSContent('featured_banner');
-  return res.data ?? [];
+  try {
+    final repo = ref.watch(restApiRepositoryProvider);
+    final res = await repo.getCMSContent('featured_banner').timeout(const Duration(seconds: 5));
+    return res.data ?? [];
+  } catch (e) {
+    return [];
+  }
 });
 
 final offersProvider = FutureProvider<List<dynamic>>((ref) async {

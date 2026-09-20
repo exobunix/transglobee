@@ -19,8 +19,13 @@ class ApiService {
     return _authService.buildAuthHeaders();
   }
 
-  Future<dynamic> get(String endpoint) async {
-    final headers = await _getHeaders();
+  Future<dynamic> get(String endpoint, {bool isPublic = false}) async {
+    final bool shouldSkipAuth = isPublic ||
+        endpoint.startsWith('/user/cms') ||
+        endpoint.startsWith('/maps');
+    final headers = shouldSkipAuth
+        ? {'Content-Type': 'application/json'}
+        : await _getHeaders();
     final url = '$baseUrl$endpoint';
 
     _logRequest('GET', url, headers, null);

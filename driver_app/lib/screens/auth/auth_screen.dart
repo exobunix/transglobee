@@ -26,7 +26,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   final _panController = TextEditingController();
   bool _isLoading = false;
   bool _isGoogleLoading = false;
-  bool _isFacebookLoading = false;
   String? _errorMessage;
 
   void _clearFormFields() {
@@ -238,62 +237,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     }
   }
 
- 
- 
-  // ── Facebook Sign-In ───────────────────────────────────────────────────────
-  Future<void> _signInWithFacebook() async {
-    setState(() {
-      _isFacebookLoading = true;
-      _errorMessage = null;
-    });
-    try {
-      final authService = ref.read(authServiceProvider);
-      final dbService = ref.read(databaseServiceProvider);
-      final userCredential = await authService.signInWithFacebook();
-      final token = await authService.getIdToken();
-
-      if (mounted) {
-        final user = userCredential.user;
-        if (user != null) {
-          // Clear cached profile data for the previous user before reading onboarding state
-          ref.invalidate(driverProfileProvider);
-          ref.invalidate(isOnboardingCompleteProvider);
-
-          // Save Facebook user to backend database
-          final isComplete = await dbService.saveDriverToBackend(user, token);
-
-          if (mounted) {
-            if (isComplete) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content:
-                      Text('Welcome back, ${user.displayName ?? 'Driver'}! 🎉'),
-                  backgroundColor: AppTheme.neonGreen,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              Navigator.pushReplacementNamed(context, AppRouter.home);
-            } else {
-              Navigator.pushReplacementNamed(context, AppRouter.onboarding);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _isFacebookLoading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
-    final isLoading = authState.isLoading || _isGoogleLoading || _isFacebookLoading;
+    final isLoading = authState.isLoading || _isGoogleLoading;
     final errorMessage = authState.error ?? _errorMessage;
 
     return Scaffold(
@@ -799,22 +746,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                             ),
                             const SizedBox(height: 24),
 
-                            // ── Other social buttons ───────────────────────────────────
-                            // Row(
-                            //   mainAxisAlignment: MainAxisAlignment.center,
-                            //   children: [
-                            //     _socialButton(Icons.apple, () {}),
-                            //     const SizedBox(width: 16),
-                            //     _socialButton(
-                            //       Icons.facebook,
-                            //       _isFacebookLoading
-                            //           ? null
-                            //           : _signInWithFacebook,
-                            //       isLoading: _isFacebookLoading,
-                            //     ),
-                            //   ],
-                            // ),
-                            // const SizedBox(height: 32),
                      
                           ],
                         ],

@@ -802,8 +802,24 @@ const getUserDetailsForDriver = async (req, res) => {
         const { bookingId } = req.params;
         const uid = req.user?.uid || req.user?.id;
 
-        // Find the ride in History model
-        const ride = await History.findById(bookingId);
+        // Resolve driver from uid/firebaseId/id
+        let driver = null;
+        if (uid) {
+            if (mongoose.Types.ObjectId.isValid(uid)) {
+                driver = await Driver.findById(uid);
+            }
+            if (!driver) driver = await Driver.findOne({ uid });
+            if (!driver) driver = await Driver.findOne({ firebaseId: uid });
+        }
+
+        // Find the ride in History or LogisticsBooking model
+        let ride = await History.findById(bookingId);
+        let isLogistics = false;
+        if (!ride) {
+            const LogisticsBooking = require('../models/LogisticsBooking');
+            ride = await LogisticsBooking.findById(bookingId);
+            isLogistics = !!ride;
+        }
 
         if (!ride) {
             return res.status(404).json({
@@ -812,14 +828,14 @@ const getUserDetailsForDriver = async (req, res) => {
             });
         }
 
-        // Security check
-        // History model statuses: pending, accepted, on_the_way, ongoing,
-        //                         completed, cancelled, rejected, arrived
-        const isAssignedDriver = ride.driverId &&
-            ride.driverId.toString() === uid;
+        const driverIdStr = driver ? driver._id.toString() : uid;
+        const isAssignedDriver = ride.driverId && (
+            ride.driverId.toString() === driverIdStr ||
+            (driver?.uid && ride.driverId.toString() === driver.uid)
+        );
 
-        // 'pending' = still searching for driver
-        const isOpenForDrivers = ride.status === 'pending';
+        // 'pending' or 'pending_for_driver' = still searching for driver
+        const isOpenForDrivers = ride.status === 'pending' || ride.status === 'pending_for_driver';
 
         if (!isOpenForDrivers && !isAssignedDriver) {
             return res.status(403).json({
@@ -828,56 +844,54 @@ const getUserDetailsForDriver = async (req, res) => {
             });
         }
 
-        // Fetch user — only safe fields
-        const user = await User.findById(ride.userId).select(
-            'name mobileNumber imageUrl fcmToken uid'
-        );
-
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found for this ride.'
-            });
+        // Fetch user or fallback to guest details stored directly on ride
+        let user = null;
+        if (ride.userId) {
+            try {
+                user = await User.findById(ride.userId).select(
+                    'name mobileNumber imageUrl fcmToken uid'
+                );
+            } catch (_) {}
         }
 
-        // Extract pickup & drop from locations array
-        // locations = [{ type: 'pickup', address, latitude, longitude }, 
-        //              { type: 'dropoff', address, latitude, longitude }]
-        const pickup = ride.locations?.find(l => l.type === 'pickup') || null;
-        const dropoff = ride.locations?.find(l => l.type === 'dropoff') || null;
+        const userName = user?.name || ride.userName || ride.name || 'Guest User';
+        const userPhone = user?.mobileNumber || ride.userPhone || ride.mobileNumber || ride.phone || '';
+
+        // Extract pickup & drop
+        const pickup = isLogistics ? ride.pickup : (ride.locations?.find(l => l.type === 'pickup') || null);
+        const dropoff = isLogistics ? ride.dropoff : (ride.locations?.find(l => l.type === 'dropoff') || null);
 
         return res.status(200).json({
             success: true,
             message: 'User details fetched successfully.',
             data: {
                 user: {
-                    id:           user._id,
-                    name:         user.name          || 'Transglobe User',
-                    phone:        user.mobileNumber  || ride.mobileNumber || null,
-                    profilePhoto: user.imageUrl      || 'https://i.pravatar.cc/150?u=user'
+                    id:           user?._id || ride.userId || 'guest',
+                    name:         userName,
+                    phone:        userPhone,
+                    profilePhoto: user?.imageUrl || 'https://i.pravatar.cc/150?u=user'
                 },
                 ride: {
                     id:            ride._id,
                     status:        ride.status,
-                    // ✅ Correct field names from History model
                     pickupLocation: pickup ? {
                         address:   pickup.address,
                         latitude:  pickup.latitude,
                         longitude: pickup.longitude,
-                        title:     pickup.title
+                        title:     pickup.title || pickup.address
                     } : null,
                     dropLocation: dropoff ? {
                         address:   dropoff.address,
                         latitude:  dropoff.latitude,
                         longitude: dropoff.longitude,
-                        title:     dropoff.title
+                        title:     dropoff.title || dropoff.address
                     } : null,
-                    distance:      ride.distance     || 0,
-                    fare:          ride.fare          || 0,   // ✅ 'fare' not 'estimatedFare'
-                    paymentMode:   ride.paymentMode   || 'cash', // ✅ 'paymentMode' not 'paymentMethod'
-                    rideMode:      ride.rideMode,
-                    vehicleType:   ride.vehicleType   || null,
-                    helperCount:   ride.helperCount   || 0,
+                    distance:      ride.distance || ride.distanceKm || 0,
+                    fare:          ride.fare || ride.totalPrice || 0,
+                    paymentMode:   ride.paymentMode || 'cash',
+                    rideMode:      ride.rideMode || ride.vehicleType,
+                    vehicleType:   ride.vehicleType || null,
+                    helperCount:   ride.helperCount || 0,
                     createdAt:     ride.createdAt
                 }
             }

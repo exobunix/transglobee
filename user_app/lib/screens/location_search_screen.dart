@@ -177,15 +177,20 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
       final apiService = ref.read(apiServiceProvider);
       final response = await apiService.get(
         '/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in',
+        isPublic: true,
       );
 
       if (mounted) {
-        final List predictions = (response as Map<String, dynamic>)['predictions'] ?? [];
+        final List predictions = (response is Map<String, dynamic>)
+            ? (response['predictions'] ?? [])
+            : [];
         setState(() {
           _searchResults = predictions.map((item) => {
-            'name': item['structured_formatting']['main_text'] as String,
-            'address': item['description'] as String,
-            'place_id': item['place_id'] as String,
+            'name': item['structured_formatting']?['main_text'] as String? ??
+                item['description'] as String? ??
+                'Place',
+            'address': item['description'] as String? ?? '',
+            'place_id': item['place_id'] as String? ?? '',
             'icon': Icons.location_on_rounded,
           }).toList();
           _isSearching = false;
@@ -200,27 +205,48 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
     // Save which field was focused BEFORE any async work
     final fillingPickup = _isPickupFocused;
     
-    LatLng target;
+    LatLng? target;
     // Use the full address for input display
     String displayName = location['address'] ?? location['name'] ?? 'Selected Location';
 
     if (location.containsKey('lat') && location.containsKey('lng')) {
-      target = LatLng(location['lat'], location['lng']);
-    } else if (location.containsKey('place_id')) {
+      target = LatLng(
+        (location['lat'] as num).toDouble(),
+        (location['lng'] as num).toDouble(),
+      );
+    } else if (location.containsKey('place_id') && location['place_id'] != null) {
       if (mounted) setState(() => _isSearching = true);
       try {
         final apiKey = AppConfig.googleMapsApiKey;
         final apiService = ref.read(apiServiceProvider);
         final response = await apiService.get(
           '/maps/details?place_id=${location['place_id']}&key=$apiKey&fields=geometry',
+          isPublic: true,
         );
-        final loc = (response as Map<String, dynamic>)['result']['geometry']['location'];
-        target = LatLng(loc['lat'], loc['lng']);
+        if (response is Map<String, dynamic>) {
+          final result = response['result'];
+          if (result is Map) {
+            final geometry = result['geometry'];
+            if (geometry is Map) {
+              final loc = geometry['location'];
+              if (loc is Map && loc['lat'] != null && loc['lng'] != null) {
+                target = LatLng(
+                  (loc['lat'] as num).toDouble(),
+                  (loc['lng'] as num).toDouble(),
+                );
+              }
+            }
+          }
+        }
       } catch (e) {
+        debugPrint("Error fetching place details: $e");
+      } finally {
         if (mounted) setState(() => _isSearching = false);
-        return;
       }
-    } else {
+    }
+
+    if (target == null) {
+      if (mounted) setState(() => _isSearching = false);
       return;
     }
 
@@ -282,19 +308,22 @@ class _LocationSearchScreenState extends ConsumerState<LocationSearchScreen> {
     setState(() => _isSearching = true);
     try {
       final routeData = await LocationService.getRouteData(_pickupLatLng!, _dropoffLatLng!);
+      if (!mounted) return;
       setState(() {
         final List<dynamic> rawPoints = routeData['points'] ?? [];
         _routePoints = rawPoints.map((p) => LatLng(p[0], p[1])).toList();
       });
       
-      if (_routePoints.isNotEmpty) {
+      if (_routePoints.length >= 2) {
         final bounds = LatLngBounds.fromPoints(_routePoints);
         _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)));
+      } else {
+        _mapController.move(_pickupLatLng!, 14.0);
       }
     } catch (e) {
       debugPrint("Route error: $e");
     } finally {
-      setState(() => _isSearching = false);
+      if (mounted) setState(() => _isSearching = false);
     }
   }
 
