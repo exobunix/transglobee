@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/notification_provider.dart';
@@ -8,12 +9,16 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String receiverId;
   final String receiverName;
   final String driverId;
+  final String? receiverPhone;
+  final String? bookingId;
 
   const ChatScreen({
     super.key,
     required this.receiverId,
     required this.receiverName,
     required this.driverId,
+    this.receiverPhone,
+    this.bookingId,
   });
 
   @override
@@ -48,6 +53,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _msgCtrl.clear();
     setState(() {});
     Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
+  }
+
+  Future<void> _makeCall(BuildContext context, String? phone) async {
+    if (phone == null || phone.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passenger phone number not available')),
+      );
+      return;
+    }
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri.parse('tel:$cleanPhone');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open phone dialer: $e')),
+        );
+      }
+    }
   }
 
   void _scrollToBottom() {
@@ -133,17 +162,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   const SizedBox(height: 1),
                   Row(
                     children: [
-                      Flexible(
-                        child: Text(
-                          'ID: ${widget.receiverId.substring(0, widget.receiverId.length > 8 ? 8 : widget.receiverId.length)}',
+                      if (widget.bookingId != null && widget.bookingId!.isNotEmpty) ...[
+                        Text(
+                          'Ride #${widget.bookingId!.substring(0, widget.bookingId!.length > 6 ? 6 : widget.bookingId!.length)} • ',
                           style: const TextStyle(
                             color: AppTheme.darkTextSecondary,
                             fontSize: 10,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const SizedBox(width: 6),
+                      ],
                       Container(
                         width: 6,
                         height: 6,
@@ -167,7 +194,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.phone, color: AppTheme.neonGreen, size: 20),
-            onPressed: () {},
+            tooltip: 'Call Passenger',
+            onPressed: () => _makeCall(context, widget.receiverPhone),
           ),
           const SizedBox(width: 4),
         ],

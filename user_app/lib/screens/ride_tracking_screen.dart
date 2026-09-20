@@ -10,6 +10,7 @@ import 'dart:async';
 import '../core/theme.dart';
 import 'rating_screen.dart';
 import 'chat_screen.dart';
+import '../providers/chat_provider.dart';
 import '../widgets/leaflet_map.dart';
 import '../services/location_service.dart';
 import '../services/ride_service.dart';
@@ -333,13 +334,7 @@ bool _isSheetOpen = true;
             }
 
             if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating) {
-               _hasNavigatedToRating = true;
-               Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
-                ),
-              );
+              _navigateToRating();
             }
           }
         }
@@ -385,6 +380,18 @@ bool _isSheetOpen = true;
     });
   }
 
+  void _navigateToRating() {
+    if (_hasNavigatedToRating || !mounted) return;
+    _hasNavigatedToRating = true;
+    ref.read(chatProvider.notifier).clearChat();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
+      ),
+    );
+  }
+
   Future<void> _fetchDriverAndRideDetails() async {
     if (!mounted) return;
     try {
@@ -423,13 +430,7 @@ bool _isSheetOpen = true;
               _loadRoute();
             }
             if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating) {
-               _hasNavigatedToRating = true;
-               Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
-                ),
-              );
+              _navigateToRating();
             }
           }
           if (booking['paymentStatus'] != null) {
@@ -474,13 +475,7 @@ bool _isSheetOpen = true;
           _loadRoute();
         }
         if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating) {
-           _hasNavigatedToRating = true;
-           Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
-            ),
-          );
+          _navigateToRating();
         }
       }
     } catch (e) {
@@ -927,13 +922,7 @@ bool _isSheetOpen = true;
         // FeedBack/Rating logic
         Future.delayed(const Duration(seconds: 1), () {
           if (mounted && !_hasNavigatedToRating) {
-            _hasNavigatedToRating = true;
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
-              ),
-            );
+            _navigateToRating();
           }
         });
       }
@@ -1524,8 +1513,11 @@ DraggableScrollableSheet(
                               MaterialPageRoute(
                                 builder: (_) => ChatScreen(
                                   receiverId: driverId.toString(),
-                                  receiverName: _driver['name'],
+                                  receiverName: _driver['name'] ?? 'Driver',
                                   senderId: _bookingUserId,
+                                  vehicleNumber: _driver['plate'] ?? _driver['vehicleNumber'] ?? _driver['vehicle'],
+                                  driverPhone: _driver['phone'],
+                                  bookingId: widget.rideId,
                                 ),
                               ),
                             );
@@ -1666,8 +1658,11 @@ DraggableScrollableSheet(
             MaterialPageRoute(
               builder: (_) => ChatScreen(
                 receiverId: driverId.toString(),
-                receiverName: _driver['name'],
+                receiverName: _driver['name'] ?? 'Driver',
                 senderId: _bookingUserId,
+                vehicleNumber: _driver['plate'] ?? _driver['vehicleNumber'] ?? _driver['vehicle'],
+                driverPhone: _driver['phone'],
+                bookingId: widget.rideId,
               ),
             ),
           );

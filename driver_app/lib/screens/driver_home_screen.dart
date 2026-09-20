@@ -22,6 +22,7 @@ import 'package:driver_app/features/driver/models/request/update_location_reques
 import 'package:driver_app/core/network/api_state.dart';
 import 'package:driver_app/features/driver/models/response/driver_profile_response.dart';
 
+import 'package:driver_app/services/beep_service.dart';
 import '../core/app_router.dart';
 
 // ── Providers ──
@@ -53,8 +54,14 @@ final driverStatusProvider =
 class ShowRequestNotifier extends Notifier<bool> {
   @override
   bool build() => false;
-  void show() => state = true;
-  void hide() => state = false;
+  void show() {
+    state = true;
+    BeepService.startBeeping();
+  }
+  void hide() {
+    state = false;
+    BeepService.stopBeeping();
+  }
 }
 
 final showRequestProvider = NotifierProvider<ShowRequestNotifier, bool>(
@@ -234,6 +241,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       // Fetch current booking to resume any active trip
       ref.read(currentBookingControllerProvider.notifier).getCurrentBooking();
 
+      // Fetch pending bookings via REST polling immediately
+      ref.read(bookingProvider.notifier).fetchBookings();
+
       final socketService = ref.read(socketServiceProvider);
 
       _newRideSub?.cancel();
@@ -247,7 +257,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
           final status = (data['status'] ?? 'pending').toString().toLowerCase();
 
           // Cab: show immediately. Logistics/shuttle: only after roadmap approval.
-          final isCab = bookingType == 'CAB' || bookingType == 'RETAIL';
+          final isCab = bookingType == 'CAB' || bookingType == 'RETAIL' || bookingType == 'RIDE' || bookingType.isEmpty;
           final isApprovedJob = status == 'pending_for_driver' ||
               (data['roadmapStatus']?.toString().toLowerCase() == 'approved');
           if (!isCab && !isApprovedJob) {
@@ -364,6 +374,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
 
   @override
   void dispose() {
+    BeepService.stopBeeping();
     _newRideSub?.cancel();
     _rideAssignedSub?.cancel();
     _rideCancelledSub?.cancel();

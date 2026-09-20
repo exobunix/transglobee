@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/chat_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
@@ -10,12 +11,18 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String receiverId;
   final String receiverName;
   final String? senderId;
+  final String? vehicleNumber;
+  final String? driverPhone;
+  final String? bookingId;
 
   const ChatScreen({
     super.key,
     required this.receiverId,
     required this.receiverName,
     this.senderId,
+    this.vehicleNumber,
+    this.driverPhone,
+    this.bookingId,
   });
 
   @override
@@ -80,6 +87,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  Future<void> _callDriver(BuildContext context, String? phone) async {
+    if (phone == null || phone.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Driver phone number not available')),
+      );
+      return;
+    }
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final uri = Uri.parse('tel:$cleanPhone');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open phone dialer: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(chatProvider);
@@ -102,13 +133,68 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(widget.receiverName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const Text('Driver', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const CircleAvatar(
+              backgroundColor: AppTheme.primaryColor,
+              radius: 17,
+              child: Icon(Icons.drive_eta, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.receiverName,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Row(
+                    children: [
+                      if (widget.vehicleNumber != null && widget.vehicleNumber!.isNotEmpty) ...[
+                        Text(
+                          '${widget.vehicleNumber} • ',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'Online',
+                        style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.phone, color: AppTheme.primaryColor),
+            tooltip: 'Call Driver',
+            onPressed: () => _callDriver(context, widget.driverPhone),
+          ),
+          const SizedBox(width: 4),
+        ],
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),

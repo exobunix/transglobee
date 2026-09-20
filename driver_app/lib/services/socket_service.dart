@@ -59,6 +59,7 @@ class SocketService {
     _socket?.onConnect((_) {
       print("Socket Connected Successfully: $userId");
       _socket?.emit("register", {"userId": userId, "name": name ?? "Driver"});
+      _socket?.emit("join_drivers", {"userId": userId});
     });
 
     _socket?.on("connection_success", (data) {

@@ -244,6 +244,11 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
     ) : m).toList();
   }
 
+  void clearChat() {
+    state = [];
+    _currentReceiverId = null;
+  }
+
   void _cancelSubscriptions() {
     _messageSubscription?.cancel();
     _historySubscription?.cancel();

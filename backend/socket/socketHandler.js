@@ -58,6 +58,12 @@ const initSocket = (server) => {
                             socket.join(fbId);
                             console.log(`Socket ${socket.id} also joined FB ID room: ${fbId}`);
                         }
+                        // If driver, auto-join 'drivers' room
+                        const isDriver = await Driver.exists({ _id: userOrDriver._id });
+                        if (isDriver) {
+                            socket.join('drivers');
+                            console.log(`Socket ${socket.id} auto-joined 'drivers' room`);
+                        }
                     }
                 } catch (err) {
                     console.error("Error joining secondary rooms:", err);
@@ -70,9 +76,14 @@ const initSocket = (server) => {
             }
         });
 
+        socket.on("join_drivers", (data) => {
+            socket.join("drivers");
+            console.log(`Socket ${socket.id} joined 'drivers' room via join_drivers event`);
+        });
+
         // Add this new one in soket io for live tracking
         // JOIN LOGISTICS TRACKING ROOM
-    socket.on("join_tracking", (bookingId) => {
+        socket.on("join_tracking", (bookingId) => {
 
         socket.join(`tracking_${bookingId}`);
 
