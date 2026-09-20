@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:driver_app/core/theme.dart';
 import 'package:driver_app/services/driver_service.dart';
+import 'package:driver_app/services/auth_service.dart';
 import 'package:driver_app/models/booking_model.dart';
 
 import 'package:driver_app/providers/vehicle_type_provider.dart';
