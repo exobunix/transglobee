@@ -3,17 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/theme.dart';
+import 'core/url_strategy/url_strategy.dart';
 import 'services/auth_service.dart';
 import 'providers/app_providers.dart';
 import 'screens/onboarding_screen.dart';
-import 'screens/home_screen.dart';
 import 'screens/dashboard.dart';
+import 'screens/about_screen.dart';
+import 'screens/terms_screen.dart';
+import 'screens/privacy_policy_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/settings_screen.dart';
+import 'screens/support_screen.dart';
 import 'services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sizer/sizer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  configureUrlStrategy();
 
   // Initialize Firebase safely (prevents duplicate-app error on hot restarts)
   if (!kDemoMode) {
@@ -84,6 +91,22 @@ class _TransglobalAppState extends ConsumerState<TransglobalApp> {
               : (_showOnboarding
                   ? OnboardingScreen(onComplete: _completeOnboarding)
                   : const AuthWrapper()),
+          routes: {
+            AboutScreen.routeName: (context) => const AboutScreen(),
+            TermsScreen.routeName: (context) => const TermsScreen(),
+            PrivacyPolicyScreen.routeName: (context) => const PrivacyPolicyScreen(),
+            '/profile': (context) => const ProfileScreen(),
+            '/settings': (context) => const SettingsScreen(),
+            '/support': (context) => const SupportScreen(),
+          },
+          onUnknownRoute: (settings) => MaterialPageRoute(
+            settings: settings,
+            builder: (context) => _isLoading
+                ? const SplashScreen()
+                : (_showOnboarding
+                    ? OnboardingScreen(onComplete: _completeOnboarding)
+                    : const AuthWrapper()),
+          ),
         );
       },
     );

@@ -6,10 +6,10 @@ import '../providers/api_state_providers.dart';
 import '../providers/wallet_provider.dart';
 import '../services/auth_service.dart';
 import 'profile_screen.dart';
-import 'payments_screen.dart';
 import 'settings_screen.dart';
 import 'about_screen.dart';
-import 'support_screen.dart';
+import 'terms_screen.dart';
+import 'privacy_policy_screen.dart';
 import 'login_screen.dart';
 
 class AccountTab extends ConsumerWidget {
@@ -534,28 +534,28 @@ class AccountTab extends ConsumerWidget {
                 context,
                 Icons.person_outline_rounded,
                 "Personal Information",
-                () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen())),
+                () => Navigator.pushNamed(context, '/profile'),
               ),
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
               _buildMenuRow(
                 context,
                 Icons.location_on_outlined,
                 "Address Book",
-                () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen())),
+                () => Navigator.pushNamed(context, '/settings'),
               ),
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
               _buildMenuRow(
                 context,
                 Icons.notifications_none_outlined,
                 "Notification Preferences",
-                () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen())),
+                () => Navigator.pushNamed(context, '/settings'),
               ),
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
               _buildMenuRow(
                 context,
                 Icons.headset_mic_outlined,
                 "Support & Help",
-                () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SupportScreen())),
+                () => Navigator.pushNamed(context, '/support'),
               ),
             ],
           ),
@@ -705,21 +705,21 @@ class AccountTab extends ConsumerWidget {
                 context,
                 Icons.info_outline_rounded,
                 "About TransGlobe",
-                () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AboutScreen())),
+                () => Navigator.pushNamed(context, AboutScreen.routeName),
               ),
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
               _buildMenuRow(
                 context,
                 Icons.description_outlined,
                 "Terms & Conditions",
-                () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AboutScreen())),
+                () => Navigator.pushNamed(context, TermsScreen.routeName),
               ),
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
               _buildMenuRow(
                 context,
                 Icons.security_outlined,
                 "Privacy Policy",
-                () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AboutScreen())),
+                () => Navigator.pushNamed(context, PrivacyPolicyScreen.routeName),
               ),
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
               fullProfileAsync.value != null

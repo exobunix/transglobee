@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 
 class AboutScreen extends StatelessWidget {
+  static const String routeName = '/about';
+
   const AboutScreen({super.key});
 
   @override
@@ -138,6 +140,7 @@ class AboutScreen extends StatelessWidget {
                   Icons.description_outlined,
                   'Terms of Service',
                   Colors.blue,
+                  onTap: () => Navigator.pushNamed(context, '/terms'),
                 ),
                 Divider(
                   height: 1,
@@ -148,6 +151,7 @@ class AboutScreen extends StatelessWidget {
                   Icons.privacy_tip_outlined,
                   'Privacy Policy',
                   Colors.green,
+                  onTap: () => Navigator.pushNamed(context, '/privacy'),
                 ),
                 Divider(
                   height: 1,
@@ -249,8 +253,9 @@ class AboutScreen extends StatelessWidget {
     BuildContext context,
     IconData icon,
     String title,
-    Color color,
-  ) {
+    Color color, {
+    VoidCallback? onTap,
+  }) {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
@@ -266,11 +271,12 @@ class AboutScreen extends StatelessWidget {
         size: 20,
         color: context.colors.textSecondary,
       ),
-      onTap: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Opening $title...')));
-      },
+      onTap: onTap ??
+          () {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Opening $title...')));
+          },
     );
   }
 

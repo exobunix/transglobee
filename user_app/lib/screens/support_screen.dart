@@ -237,21 +237,27 @@ class _SupportScreenState extends State<SupportScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          "Terms of Service",
-                          style: TextStyle(
-                            color: context.theme.primaryColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                        GestureDetector(
+                          onTap: () => Navigator.pushNamed(context, '/terms'),
+                          child: Text(
+                            "Terms of Service",
+                            style: TextStyle(
+                              color: context.theme.primaryColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 24),
-                        Text(
-                          "Privacy Policy",
-                          style: TextStyle(
-                            color: context.theme.primaryColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                        GestureDetector(
+                          onTap: () => Navigator.pushNamed(context, '/privacy'),
+                          child: Text(
+                            "Privacy Policy",
+                            style: TextStyle(
+                              color: context.theme.primaryColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],

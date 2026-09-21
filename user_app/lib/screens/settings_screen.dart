@@ -242,7 +242,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.privacy_tip_outlined,
                   iconColor: Colors.blueGrey,
                   isDark: isDark,
-                  onTap: () {},
+                  onTap: () => Navigator.pushNamed(context, '/privacy'),
                 ),
               ],
             ),
