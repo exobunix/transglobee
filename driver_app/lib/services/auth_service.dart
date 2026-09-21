@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/id_generator.dart';
 import 'package:http/http.dart' as http;
@@ -227,33 +226,6 @@ class AuthService {
     return cred;
   }
 
-  // ─── Facebook Sign-In ──────────────────────────────────────────────────────
-  Future<UserCredential> signInWithFacebook() async {
-    // Step 1 - Trigger Facebook login
-    final LoginResult result = await FacebookAuth.instance.login(
-      permissions: ['email', 'public_profile'],
-    );
-
-    if (result.status == LoginStatus.success) {
-      if (result.accessToken == null) {
-        throw Exception('Facebook access token is null.');
-      }
-
-      // Create a Firebase credential
-      final OAuthCredential credential = FacebookAuthProvider.credential(
-        result.accessToken!.tokenString,
-      );
-
-      // Sign into Firebase
-      final cred = await FirebaseAuth.instance.signInWithCredential(credential);
-      await _persistLoginState(true);
-      return cred;
-    } else if (result.status == LoginStatus.cancelled) {
-      throw Exception('Facebook login was cancelled by the user.');
-    } else {
-      throw Exception('Facebook login failed: ${result.message}');
-    }
-  }
 
   // ─── Phone OTP Authentication ──────────────────────────────────────────────
   Future<void> verifyPhoneNumber({
@@ -337,13 +309,7 @@ class AuthService {
     try {
       await _googleSignIn.signOut();
     } catch (_) {}
-    try {
-      await FacebookAuth.instance.logOut();
-    } on MissingPluginException {
-      // Facebook plugin may not be registered in some release/device builds.
-    } catch (_) {
-      // Non-fatal logout provider error; continue clearing local session.
-    }
+
     if (!kDemoMode) {
       try {
         await auth.signOut();

@@ -130,21 +130,32 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
       _parseDouble(widget.dropoff['lng']),
     );
 
-    final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
-    if (mounted) {
-      setState(() {
-        final List<dynamic> rawPoints = routeData['points'] ?? [];
-        _routePoints = rawPoints.map((p) => LatLng(p[0], p[1])).toList();
-        _routeDistance = routeData['distance'] ?? 0.0;
-        _routeDurationMin = routeData['duration'] ?? 0.0;
-        _isRouteLoading = false;
-      });
-      // Refit bounds once we have the detailed route
-      _fitBounds();
-      
-      // Fetch dynamic pricing
-      if (widget.serviceType != 'truck') {
-        _fetchDynamicPricing();
+    try {
+      final routeData = await LocationService.getRouteData(pickupPos, dropoffPos);
+      if (mounted) {
+        setState(() {
+          final List<dynamic> rawPoints = routeData['points'] ?? [];
+          _routePoints = rawPoints.map((p) => LatLng(p[0], p[1])).toList();
+          _routeDistance = routeData['distance'] ?? 0.0;
+          _routeDurationMin = routeData['duration'] ?? 0.0;
+          _isRouteLoading = false;
+        });
+        _fitBounds();
+        
+        if (widget.serviceType != 'truck') {
+          _fetchDynamicPricing();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error loading route in RideBookingScreen: $e");
+      if (mounted) {
+        setState(() {
+          _isRouteLoading = false;
+        });
+        _fitBounds();
+        if (widget.serviceType != 'truck') {
+          _fetchDynamicPricing();
+        }
       }
     }
   }

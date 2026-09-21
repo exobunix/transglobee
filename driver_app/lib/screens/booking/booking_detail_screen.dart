@@ -11,6 +11,7 @@ import 'package:driver_app/services/socket_service.dart';
 import 'package:driver_app/services/auth_service.dart';
 import '../../core/theme.dart';
 import '../../providers/booking_provider.dart';
+import '../../providers/chat_provider.dart';
 import '../../features/driver/controllers/driver_providers.dart';
 import '../../widgets/delay_reason_sheet.dart';
 import '../navigation/navigation_screen.dart';
@@ -312,7 +313,9 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                     builder: (_) => ChatScreen(
                       receiverId: booking.userId ?? '',
                       receiverName: booking.userName,
+                      receiverPhone: booking.userPhone,
                       driverId: driverProfile.id,
+                      bookingId: booking.id,
                     ),
                   ),
                 );
@@ -769,6 +772,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                 bookingType: booking.dispatchType,
               );
               ref.read(bookingProvider.notifier).completeTrip(booking.id, fare);
+              ref.read(chatProvider.notifier).clearChat();
               Navigator.pop(context); // Close dialog
               Navigator.pop(context); // Back to Home
             },

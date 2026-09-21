@@ -215,13 +215,33 @@ class BookingModel {
       return parseOptionalDouble(json[flatKey]);
     }
 
-    final pickupRaw = json['pickup'] ?? json['pickupAddress'];
-    final dropRaw   = json['dropoff'] ?? json['dropAddress'] ?? json['receivedAddress'];
+    final pickupRaw = json['pickup'] ??
+        json['pickupAddress'] ??
+        json['pickupLocation'] ??
+        (json['locations'] is List && (json['locations'] as List).isNotEmpty ? json['locations'][0] : null);
+    final dropRaw = json['dropoff'] ??
+        json['dropAddress'] ??
+        json['dropLocation'] ??
+        json['receivedAddress'] ??
+        (json['locations'] is List && (json['locations'] as List).length > 1 ? json['locations'][1] : null);
+
+    final String resolvedUserName = json['userName']?.toString() ??
+        json['name']?.toString() ??
+        (json['user'] is Map ? json['user']['name']?.toString() : null) ??
+        (json['userId'] is Map ? json['userId']['name']?.toString() : null) ??
+        'Guest User';
+
+    final String resolvedUserPhone = json['userPhone']?.toString() ??
+        json['phone']?.toString() ??
+        json['mobileNumber']?.toString() ??
+        (json['user'] is Map ? (json['user']['mobileNumber'] ?? json['user']['phone'])?.toString() : null) ??
+        (json['userId'] is Map ? (json['userId']['mobileNumber'] ?? json['userId']['phone'])?.toString() : null) ??
+        '';
 
     return BookingModel(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      userName: json['userName']?.toString() ?? 'Customer',
-      userPhone: json['userPhone']?.toString() ?? json['phone']?.toString() ?? '',
+      userName: resolvedUserName,
+      userPhone: resolvedUserPhone,
       pickupAddress: resolveAddress(pickupRaw, 'pick'),
       dropAddress:   resolveAddress(dropRaw, 'drop'),
       fare: parseDouble(json['totalPrice'] ?? json['fare'] ?? json['vehiclePrice'] ?? 0),
@@ -233,7 +253,9 @@ class BookingModel {
       subType: mode?.toUpperCase() ?? dispatchType,
       dispatchType: dispatchType,
       status: mapStatus(json['status']?.toString()),
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'].toString()) : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? (DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now())
+          : DateTime.now(),
       otp: json['otp']?.toString(),
       actualFare: parseOptionalDouble(json['actualFare']),
       pickupLat: resolveLatFromObj(pickupRaw, 'pickupLat'),

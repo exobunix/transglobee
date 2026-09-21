@@ -488,11 +488,24 @@ class _HomeTabState extends ConsumerState<HomeTab> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: RefreshIndicator(
+          color: const Color(0xFF0F4A2C),
+          onRefresh: () async {
+            ref.invalidate(bannersProvider);
+            ref.invalidate(featuredBannersProvider);
+            ref.invalidate(recentBookingsProvider);
+            ref.invalidate(fullUserProfileProvider);
+            await Future.wait([
+              ref.refresh(bannersProvider.future),
+              ref.refresh(recentBookingsProvider.future),
+            ]).catchError((_) => []);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // 1. Header Row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -994,9 +1007,38 @@ class _HomeTabState extends ConsumerState<HomeTab> {
                     ],
                   );
                 },
-                loading: () => const SizedBox(
+                loading: () => Container(
                   height: 180,
-                  child: Center(child: CircularProgressIndicator()),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F4F3),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.grey.withOpacity(0.15)),
+                  ),
+                  child: Stack(
+                    children: [
+                      _buildDefaultHeroBannerContent(),
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.85),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F4A2C)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 error: (err, _) => _buildDefaultHeroBanner(),
               ),
@@ -1193,7 +1235,8 @@ class _HomeTabState extends ConsumerState<HomeTab> {
               ),
 
               // const SizedBox(height: 32),
-  ]
+              ],
+            ),
           ),
         ),
       ),

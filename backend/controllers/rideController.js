@@ -217,6 +217,13 @@ exports.getRideById = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Ride not found.' });
         }
 
+        let bookingUser = null;
+        if (ride.userId) {
+            try {
+                bookingUser = await User.findById(ride.userId).select('name mobileNumber').lean();
+            } catch (_) {}
+        }
+
         let reqDriverId = null;
         if (req.user) {
             const Driver = require('../models/Driver');
@@ -247,9 +254,17 @@ exports.getRideById = async (req, res) => {
             }
         }
 
+        const pickupAddr = ride.locations?.[0]?.address || ride.pickup?.address || ride.pickupLocation?.address || 'Pickup';
+        const dropAddr = ride.locations?.[1]?.address || ride.dropoff?.address || ride.dropLocation?.address || 'Dropoff';
+
         const payload = {
             ...ride,
             bookingId: ride._id,
+            userName: ride.userName || bookingUser?.name || ride.name || 'Guest User',
+            userPhone: ride.userPhone || bookingUser?.mobileNumber || ride.mobileNumber || ride.phone || '',
+            phone: ride.userPhone || bookingUser?.mobileNumber || ride.mobileNumber || ride.phone || '',
+            pickupAddress: pickupAddr,
+            dropAddress: dropAddr,
             otp: ride.otp,
             driver: driverForClient,
             driverSnapshot: ride.driverSnapshot || (driverForClient ? {
@@ -379,16 +394,18 @@ exports.getDriverBookings = async (req, res) => {
             $or: [
                 { driverId: currentDriver._id },
                 { "driverSnapshot.driver_id": currentDriver._id },
-                { rejectedBy: currentDriver._id }
+                { rejectedBy: currentDriver._id },
+                {
+                    status: { $in: ['pending', 'pending_for_driver'] },
+                    rejectedBy: { $ne: currentDriver._id }
+                }
             ]
         } : {
             createdAt: { $gte: lookbackDate },
-            _id: null
+            status: { $in: ['pending', 'pending_for_driver'] }
         };
 
-        const bookings = currentDriver?._id
-            ? await History.find(rideQuery).populate('userId', 'name').sort({ createdAt: -1 })
-            : [];
+        const bookings = await History.find(rideQuery).populate('userId', 'name').sort({ createdAt: -1 });
 
         // Merge with Logistics Bookings assigned to this driver or explicitly dispatched
         let logistics = [];
@@ -400,7 +417,12 @@ exports.getDriverBookings = async (req, res) => {
                     ...(currentDriverId ? [{ driverId: currentDriverId }] : []),
                     { "segments.driverId": currentDriver._id },
                     ...(currentDriverId ? [{ "segments.driverId": currentDriverId }] : []),
-                    { rejectedBy: currentDriver._id }
+                    { rejectedBy: currentDriver._id },
+                    {
+                        status: 'pending_for_driver',
+                        roadmapStatus: 'approved',
+                        rejectedBy: { $ne: currentDriver._id }
+                    }
                 ]
             }).sort({ createdAt: -1 });
         } else {
@@ -472,7 +494,12 @@ exports.getDriverBookings = async (req, res) => {
                     ...(currentDriverId ? [{ driverId: currentDriverId }] : []),
                     { "segments.driverId": currentDriver._id },
                     ...(currentDriverId ? [{ "segments.driverId": currentDriverId }] : []),
-                    { rejectedBy: currentDriver._id }
+                    { rejectedBy: currentDriver._id },
+                    {
+                        status: 'pending_for_driver',
+                        roadmapStatus: 'approved',
+                        rejectedBy: { $ne: currentDriver._id }
+                    }
                 ]
             }).sort({ createdAt: -1 });
         }
@@ -601,17 +628,17 @@ exports.createRideRequest = async (req, res) => {
         }
 
         // Resolve the booking user from any identity we have.
-        const authUid = req.user?.uid || req.user?.id || req.user?.firebaseId || req.user?.sub;
-        const authEmail = req.user?.email || req.user?.user_email || '';
+        let authUid = req.user?.uid || req.user?.id || req.user?.firebaseId || req.user?.sub;
+        let authEmail = req.user?.email || req.user?.user_email || '';
         let userPhone = normalizeMobileNumber(
             mobileNumber || req.user?.phone_number || req.user?.phoneNumber || req.user?.mobileNumber || req.user?.phone
         );
 
         if (!authUid && !userPhone && !authEmail) {
-            return res.status(401).json({
-                success: false,
-                message: "User identity could not be verified."
-            });
+            // Support guest user booking seamlessly
+            const guestId = `guest_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+            authUid = guestId;
+            userPhone = `+9199999${Math.floor(10000 + Math.random() * 90000)}`;
         }
 
         let user = await findUserByRideIdentity({
@@ -625,7 +652,6 @@ exports.createRideRequest = async (req, res) => {
             if (authUid && !user.uid) updateFields.uid = authUid;
             if (authEmail && !user.email) updateFields.email = authEmail;
             if (userPhone && !user.mobileNumber) updateFields.mobileNumber = userPhone;
-                        // if (req.user?.name && !user.name) updateFields.name = req.user.name;
             if ((name || req.user?.name) && !user.name) updateFields.name = name || req.user?.name;
 
             if (Object.keys(updateFields).length) {
@@ -644,7 +670,6 @@ exports.createRideRequest = async (req, res) => {
                 user = await User.create({
                     uid: authUid || undefined,
                     mobileNumber: userPhone || undefined,
-                                        // name: req.user?.name || '',
                     name: name || req.user?.name || 'Guest User',
                     email: authEmail || undefined,
                 });
@@ -664,10 +689,15 @@ exports.createRideRequest = async (req, res) => {
                 }
 
                 if (!user) {
-                    return res.status(500).json({
-                        success: false,
-                        message: "User record missing and auto-registration failed. Please register properly."
-                    });
+                    try {
+                        const fallbackUid = `guest_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+                        user = await User.create({
+                            uid: fallbackUid,
+                            name: name || 'Guest User',
+                        });
+                    } catch (e2) {
+                        user = await User.findOne();
+                    }
                 }
             }
         }
@@ -729,30 +759,22 @@ exports.createRideRequest = async (req, res) => {
                 vehicleType: vehicleType || rideMode,
                 status: 'pending',
                 userId: user._id.toString(),
+                userName: user.name || name || 'Guest User',
+                userPhone: user.mobileNumber || userPhone || '',
+                phone: user.mobileNumber || userPhone || '',
                 type: 'CAB',
                 bookingCategory: 'cab',
                 routeId: newRide.routeId ? newRide.routeId.toString() : null,
                 message: 'New cab ride requested',
             };
 
-            // Cab (Ola/Uber style): all online drivers + admin/supervisor dashboards
+            // Cab (Ola/Uber style): all drivers + admin/supervisor dashboards
             await broadcastNewRideToOnlineDrivers(req.io, socketData, {
                 pushTitle: 'New cab ride',
                 pushBody: `${locations.pickup.address} → ${locations.dropoff.address}`,
             });
 
-            notifyAdminAndSupervisor(req.io, {
-                id: newRide._id.toString(),
-                userName: user.name || 'Customer',
-                type: 'CAB',
-                bookingCategory: 'cab',
-                status: 'pending',
-                pickup: locations.pickup.address,
-                drop: locations.dropoff.address,
-                fare,
-                distance: distance || 0,
-                message: 'New cab ride requested',
-            });
+            notifyAdminAndSupervisor(req.io, socketData);
         }
 
         res.status(201).json({
@@ -924,6 +946,14 @@ exports.assignRide = async (req, res) => {
             isLogistics = true;
         }
 
+        // Concurrency Guard: Check if another driver has already accepted
+        if (ride.driverId && ride.status !== 'pending' && ride.status !== 'pending_for_driver') {
+            return res.status(409).json({
+                success: false,
+                message: 'This booking has already been accepted by another driver.'
+            });
+        }
+
         ride.status = isLogistics ? 'confirmed' : 'accepted';
         ride.driverActionAt = new Date();
         if (fare) ride.fare = fare;
@@ -953,10 +983,6 @@ exports.assignRide = async (req, res) => {
                 ? (ride.userPhone || '')
                 : (ride.mobileNumber || ride.userId?.mobileNumber || '');
             const userRooms = await resolveUserSocketRooms(ride);
-            let rideAcceptedEmitter = req.io;
-            userRooms.forEach((room) => {
-                rideAcceptedEmitter = rideAcceptedEmitter.to(room);
-            });
             console.log(`[RIDE-DEBUG] ride_accepted rooms: ${userRooms.join(', ')}`);
 
             const acceptedPayload = {
@@ -967,12 +993,19 @@ exports.assignRide = async (req, res) => {
                 otp: ride.otp,
                 type: isLogistics ? 'LOGISTICS' : 'CAB',
             };
-            rideAcceptedEmitter.emit("ride_accepted", acceptedPayload);
-            rideAcceptedEmitter.emit("ride_status_update", acceptedPayload);
+
+            // Emit to each user room
+            userRooms.forEach((room) => {
+                req.io.to(room).emit("ride_accepted", acceptedPayload);
+                req.io.to(room).emit("ride_status_update", acceptedPayload);
+            });
+            // Also emit directly to the ride room
+            req.io.to(ride._id.toString()).emit("ride_accepted", acceptedPayload);
+            req.io.to(ride._id.toString()).emit("ride_status_update", acceptedPayload);
 
             if (driver?.location?.coordinates?.length >= 2) {
                 const [lng, lat] = driver.location.coordinates;
-                rideAcceptedEmitter.emit("driver_location_update", {
+                req.io.to(ride._id.toString()).emit("driver_location_update", {
                     rideId: ride._id.toString(),
                     latitude: lat,
                     longitude: lng,
@@ -1006,8 +1039,8 @@ exports.assignRide = async (req, res) => {
                     transportNumber: ride.transportNumber
                 });
             }
-            // Also notify other drivers that this ride is taken
-            req.io.emit("ride_assigned", { rideId: ride._id.toString() });
+            // Also notify all other drivers that this ride is taken so popup immediately dismisses
+            req.io.emit("ride_assigned", { rideId: ride._id.toString(), bookingId: ride._id.toString() });
         }
 
         const { notifyUser } = require('../utils/notificationService');

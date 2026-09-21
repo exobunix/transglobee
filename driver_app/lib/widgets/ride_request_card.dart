@@ -76,8 +76,30 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
     }
 
     final vehicleType = _vehicleTypeFromRide();
-    final customerName = widget.rideData?['userName']?.toString() ?? 'Customer';
-    final customerPhone = widget.rideData?['phone']?.toString() ?? '';
+    final customerName = widget.rideData?['userName']?.toString() ??
+        widget.rideData?['name']?.toString() ??
+        widget.rideData?['customerName']?.toString() ??
+        (widget.rideData?['user'] is Map ? widget.rideData!['user']['name']?.toString() : null) ??
+        'Guest User';
+    final customerPhone = widget.rideData?['userPhone']?.toString() ??
+        widget.rideData?['phone']?.toString() ??
+        widget.rideData?['mobileNumber']?.toString() ??
+        (widget.rideData?['user'] is Map ? widget.rideData!['user']['phone']?.toString() : null) ??
+        '';
+    final pickText = widget.rideData?['pick']?.toString() ??
+        widget.rideData?['pickupLocation']?.toString() ??
+        widget.rideData?['pickupAddress']?.toString() ??
+        (widget.rideData?['pickup'] is Map
+            ? (widget.rideData!['pickup']['address'] ?? widget.rideData!['pickup']['name'])?.toString()
+            : null) ??
+        'Pick up location';
+    final dropText = widget.rideData?['drop']?.toString() ??
+        widget.rideData?['dropLocation']?.toString() ??
+        widget.rideData?['dropAddress']?.toString() ??
+        (widget.rideData?['dropoff'] is Map
+            ? (widget.rideData!['dropoff']['address'] ?? widget.rideData!['dropoff']['name'])?.toString()
+            : null) ??
+        'Drop location';
 
     return SlideTransition(
       position: _slideAnimation,
@@ -232,7 +254,7 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            widget.rideData?['pick'] ?? 'Pick up location',
+                            pickText,
                             style: const TextStyle(
                               color: AppTheme.darkTextPrimary,
                               fontSize: 13,
@@ -273,7 +295,7 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            widget.rideData?['drop'] ?? 'Drop location',
+                            dropText,
                             style: const TextStyle(
                               color: AppTheme.darkTextPrimary,
                               fontSize: 13,

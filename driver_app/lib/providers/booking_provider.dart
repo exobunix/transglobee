@@ -39,7 +39,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
     // ── 2. Another driver accepted — remove from ALL drivers' pending ────────
     socket.rideAssignedStream.listen((data) {
       final rideId =
-          data['rideId']?.toString() ?? data['bookingId']?.toString();
+          data['rideId']?.toString() ?? data['bookingId']?.toString() ?? data['id']?.toString();
       if (rideId != null) {
         state = state.where((b) {
           if (b.id != rideId) return true;
@@ -142,7 +142,7 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       fetchBookings();
     });
   }
@@ -332,11 +332,15 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
 
   /// Incoming dispatch (cab or approved logistics/shuttle) for the requests list.
   void addIncomingRequest(BookingModel booking) {
-    if (state.any((b) => b.id == booking.id)) return;
     if (_rejectedIds.contains(booking.id)) return;
     const incoming = {'pending', 'pending_for_driver'};
-    if (!incoming.contains(booking.status)) return;
-    state = [booking, ...state];
+    if (!incoming.contains(booking.status.toLowerCase())) return;
+    state = [booking, ...state.where((b) => b.id != booking.id)];
+  }
+
+  /// Remove a booking when another driver has accepted or when dismissed
+  void removeBooking(String id) {
+    state = state.where((b) => b.id != id).toList();
   }
 
   Future<void> verifyOtp(String id, String otp, {bool isDelivery = false}) async {

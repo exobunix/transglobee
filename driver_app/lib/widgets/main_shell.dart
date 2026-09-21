@@ -38,8 +38,8 @@ class MainShell extends ConsumerWidget {
       data: (driverProfile) {
         if (driverProfile == null) return _buildProfileNotLoaded(context, ref);
         
-        // Show pending screen only for unapproved profiles.
-        if (!driverProfile.isApproved) {
+        // Show pending screen only if account is explicitly suspended
+        if (driverProfile.status == 'suspended') {
           return const PendingApprovalScreen();
         }
 
@@ -50,15 +50,26 @@ class MainShell extends ConsumerWidget {
           ref.read(socketServiceProvider).connect(driverId);
         });
 
+        final activeBooking = ref.watch(currentActiveBookingProvider);
+        final Widget chatScreenWidget;
+        if (activeBooking != null &&
+            ['accepted', 'on_the_way', 'arrived', 'ongoing', 'confirmed', 'in_transit'].contains(activeBooking.status.toLowerCase())) {
+          chatScreenWidget = ChatScreen(
+            receiverId: activeBooking.userId?.isNotEmpty == true ? activeBooking.userId! : activeBooking.id,
+            receiverName: activeBooking.userName.trim().isNotEmpty ? activeBooking.userName : 'Customer',
+            receiverPhone: activeBooking.userPhone,
+            driverId: driverId,
+            bookingId: activeBooking.id,
+          );
+        } else {
+          chatScreenWidget = const NoActiveChatPlaceholder();
+        }
+
         final screens = [
           const DriverHomeScreen(),
           const BookingsScreen(),
           const EarningsScreen(),
-          ChatScreen(
-            receiverId: '69a2de748ab6043cb46fb7e2', // Admin ID
-            receiverName: 'Gaurav (Admin)',
-            driverId: driverId,
-          ),
+          chatScreenWidget,
           const ProfileScreen(),
         ];
 
@@ -359,5 +370,75 @@ class _NavItem extends StatelessWidget {
       ),
     );
   }
+}
+
+class NoActiveChatPlaceholder extends StatelessWidget {
+  const NoActiveChatPlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.darkBg,
+      appBar: AppBar(
+        backgroundColor: AppTheme.darkSurface,
+        elevation: 0,
+        title: const Text(
+          'Live Chat',
+          style: TextStyle(
+            color: AppTheme.darkTextPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: AppTheme.neonGreen.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.neonGreen.withValues(alpha: 0.25),
+                    width: 2,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  size: 44,
+                  color: AppTheme.neonGreen,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'No Active Chat',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Once a ride or delivery booking is confirmed, real-time chat with the customer will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppTheme.darkTextSecondary,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
+}
 

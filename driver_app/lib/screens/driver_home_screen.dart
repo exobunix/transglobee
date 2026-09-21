@@ -6,11 +6,11 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:driver_app/core/theme.dart';
 import 'package:driver_app/services/driver_service.dart';
+import 'package:driver_app/services/auth_service.dart';
 import 'package:driver_app/models/booking_model.dart';
 
 import 'package:driver_app/providers/vehicle_type_provider.dart';
 import 'package:driver_app/widgets/vehicle_type_selector.dart';
-import 'package:driver_app/widgets/earnings_dashboard.dart';
 import 'package:driver_app/widgets/ride_request_card.dart';
 
 import 'package:driver_app/widgets/status_chip.dart';
@@ -18,18 +18,18 @@ import 'package:driver_app/screens/booking/booking_detail_screen.dart';
 import 'package:driver_app/services/socket_service.dart';
 import 'package:driver_app/providers/booking_provider.dart';
 import 'package:driver_app/providers/active_ride_tracking_provider.dart';
-import 'package:flutter/foundation.dart';
 import 'package:driver_app/features/driver/controllers/driver_providers.dart';
 import 'package:driver_app/features/driver/models/request/update_location_request.dart';
 import 'package:driver_app/core/network/api_state.dart';
 import 'package:driver_app/features/driver/models/response/driver_profile_response.dart';
 
+import 'package:driver_app/services/beep_service.dart';
 import '../core/app_router.dart';
 
 // ── Providers ──
 class DriverStatusNotifier extends Notifier<DriverStatus> {
   @override
-  DriverStatus build() => DriverStatus.offline;
+  DriverStatus build() => DriverStatus.available;
   void set(DriverStatus value) {
     if (state == value) return;
     state = value;
@@ -55,8 +55,14 @@ final driverStatusProvider =
 class ShowRequestNotifier extends Notifier<bool> {
   @override
   bool build() => false;
-  void show() => state = true;
-  void hide() => state = false;
+  void show() {
+    state = true;
+    BeepService.startBeeping();
+  }
+  void hide() {
+    state = false;
+    BeepService.stopBeeping();
+  }
 }
 
 final showRequestProvider = NotifierProvider<ShowRequestNotifier, bool>(
@@ -146,13 +152,14 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
         final socketService = ref.read(socketServiceProvider);
         socketService.connect(driverProfile.id, name: driverProfile.name);
 
-        // Sync initial online status from database profile status
-        if (driverProfile.status == 'active') {
-          ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.available);
-          _onlineBannerController.forward();
-        } else {
+        // Sync initial online status from database profile status:
+        // Keep driver available unless account is explicitly suspended.
+        if (driverProfile.status == 'suspended') {
           ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.offline);
           _onlineBannerController.reverse();
+        } else {
+          ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.available);
+          _onlineBannerController.forward();
         }
 
         _connectionSub?.cancel();
@@ -174,21 +181,16 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
     // Polling fallback when socket missed a new_ride event
     ref.listenManual(incomingRideRequestsProvider, (previous, next) {
       try {
-        if (next.isEmpty ||
-            ref.read(driverStatusProvider) != DriverStatus.available) {
-          return;
-        }
+        if (next.isEmpty) return;
         if (ref.read(currentRideRequestProvider) != null) return;
 
-        final currentVehicleType = ref.read(vehicleTypeProvider).name; // 'cab', 'truck', 'bus'
-        // If driver is on Cab tab, show all types of bookings (Cab, Truck, Bus). Otherwise filter strictly.
-        final filteredNext = (currentVehicleType == 'cab')
-            ? next
-            : next.where((b) => b.vehicleType == currentVehicleType).toList();
-        if (filteredNext.isEmpty) return;
-
-        final firstRide = filteredNext.first;
+        final firstRide = next.first;
         debugPrint('[DISPATCH] Polling surfaced ride ${firstRide.id} (${firstRide.dispatchType})');
+
+        if (ref.read(driverStatusProvider) == DriverStatus.offline) {
+          ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.available);
+          _onlineBannerController.forward();
+        }
 
         ref.read(currentRideRequestProvider.notifier).setRide(firstRide.toRideRequestMap());
         ref.read(showRequestProvider.notifier).show();
@@ -224,23 +226,28 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authService = ref.read(authServiceProvider);
+      final currentAuthUser = authService.currentUser;
+      final fallbackId = currentAuthUser?.uid ?? 'driver';
+      final socketService = ref.read(socketServiceProvider);
+
       final profileState = ref.read(driverProfileControllerProvider);
       if (profileState.status == ApiStatus.success && profileState.data != null) {
-        ref
-            .read(socketServiceProvider)
-            .connect(profileState.data!.id, name: profileState.data!.name);
+        socketService.connect(profileState.data!.id, name: profileState.data!.name);
       } else {
+        socketService.connect(fallbackId, name: currentAuthUser?.displayName ?? 'Driver');
         ref.read(driverProfileControllerProvider.notifier).getDriverProfile();
       }
 
       // Fetch current booking to resume any active trip
       ref.read(currentBookingControllerProvider.notifier).getCurrentBooking();
 
-      final socketService = ref.read(socketServiceProvider);
+      // Fetch pending bookings via REST polling immediately
+      ref.read(bookingProvider.notifier).fetchBookings();
 
       _newRideSub?.cancel();
       _newRideSub = socketService.newRideStream.listen((data) {
-        print("Driver App Received New Ride Request: $data");
+        debugPrint("[DISPATCH] Driver App Received New Ride Request: $data");
 
         try {
           final bookingType = (data['type'] ?? data['bookingCategory'] ?? 'CAB')
@@ -249,27 +256,32 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
           final status = (data['status'] ?? 'pending').toString().toLowerCase();
 
           // Cab: show immediately. Logistics/shuttle: only after roadmap approval.
-          final isCab = bookingType == 'CAB' || bookingType == 'RETAIL';
+          final isCab = bookingType == 'CAB' || bookingType == 'RETAIL' || bookingType == 'RIDE' || bookingType.isEmpty;
           final isApprovedJob = status == 'pending_for_driver' ||
               (data['roadmapStatus']?.toString().toLowerCase() == 'approved');
           if (!isCab && !isApprovedJob) {
             return;
           }
 
-          final newBooking = BookingModel.fromJson(data);
-          ref.read(bookingProvider.notifier).addIncomingRequest(newBooking);
-
-          final currentVehicleType = ref.read(vehicleTypeProvider).name; // 'cab', 'truck', 'bus'
-          // If on Cab tab, accept all incoming booking requests, otherwise only matching vehicle type
-          final isEligibleTab = (currentVehicleType == 'cab') || (newBooking.vehicleType == currentVehicleType);
-          if (ref.read(driverStatusProvider) == DriverStatus.available && isEligibleTab) {
-            ref.read(currentRideRequestProvider.notifier).setRide(
-                  Map<String, dynamic>.from(data as Map),
-                );
-            ref.read(showRequestProvider.notifier).show();
+          BookingModel? newBooking;
+          try {
+            newBooking = BookingModel.fromJson(Map<String, dynamic>.from(data as Map));
+            ref.read(bookingProvider.notifier).addIncomingRequest(newBooking);
+          } catch (pe) {
+            debugPrint("Warning parsing BookingModel for incoming request: $pe");
           }
+
+          // Auto-switch driver to available if offline
+          if (ref.read(driverStatusProvider) == DriverStatus.offline) {
+            ref.read(driverStatusProvider.notifier).updateLocal(DriverStatus.available);
+            _onlineBannerController.forward();
+          }
+
+          final rideMap = newBooking?.toRideRequestMap() ?? Map<String, dynamic>.from(data as Map);
+          ref.read(currentRideRequestProvider.notifier).setRide(rideMap);
+          ref.read(showRequestProvider.notifier).show();
         } catch (e) {
-          print("Error processing new ride: $e");
+          debugPrint("Error processing new ride: $e");
         }
       });
 
@@ -277,11 +289,18 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       _rideAssignedSub = socketService.rideAssignedStream.listen((data) {
         final currentRide = ref.read(currentRideRequestProvider);
         final takenId = data['rideId']?.toString() ?? data['bookingId']?.toString();
-        if (currentRide != null && currentRide['id']?.toString() == takenId) {
-          print(
-              "Hiding ride request card as it was assigned to another driver");
-          ref.read(showRequestProvider.notifier).hide();
-          ref.read(currentRideRequestProvider.notifier).setRide(null);
+        if (takenId != null && takenId.isNotEmpty) {
+          // Remove from incoming bookings so polling doesn't resurrect the card
+          ref.read(bookingProvider.notifier).removeBooking(takenId);
+
+          final currentId = currentRide?['id']?.toString() ??
+              currentRide?['_id']?.toString() ??
+              currentRide?['bookingId']?.toString();
+          if (currentId != null && currentId == takenId) {
+            print("Hiding ride request card as it was assigned to another driver");
+            ref.read(showRequestProvider.notifier).hide();
+            ref.read(currentRideRequestProvider.notifier).setRide(null);
+          }
         }
       });
 
@@ -289,10 +308,17 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       _rideCancelledSub = socketService.rideCancelledStream.listen((data) {
         final currentRide = ref.read(currentRideRequestProvider);
         final cancelledId = data['rideId']?.toString() ?? data['bookingId']?.toString();
-        if (currentRide != null && currentRide['id']?.toString() == cancelledId) {
-          print("Hiding ride request card as it was cancelled by user");
-          ref.read(showRequestProvider.notifier).hide();
-          ref.read(currentRideRequestProvider.notifier).setRide(null);
+        if (cancelledId != null && cancelledId.isNotEmpty) {
+          ref.read(bookingProvider.notifier).removeBooking(cancelledId);
+
+          final currentId = currentRide?['id']?.toString() ??
+              currentRide?['_id']?.toString() ??
+              currentRide?['bookingId']?.toString();
+          if (currentId != null && currentId == cancelledId) {
+            print("Hiding ride request card as it was cancelled by user");
+            ref.read(showRequestProvider.notifier).hide();
+            ref.read(currentRideRequestProvider.notifier).setRide(null);
+          }
         }
       });
 
@@ -352,6 +378,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
 
   @override
   void dispose() {
+    BeepService.stopBeeping();
     _newRideSub?.cancel();
     _rideAssignedSub?.cancel();
     _rideCancelledSub?.cancel();
@@ -699,7 +726,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
             //   ),
 
             // RIDE REQUEST CARD
-            if (isOnline && showRequest)
+            if (showRequest)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -786,10 +813,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
               ),
 
             // CURRENT LOCATION BUTTON (Fixed & Repositioned)
-            Positioned(
-              right: 16,
-              bottom: isOnline ? 100 : 40,
-              child: _buildActionFab(
+            if (!showRequest)
+              Positioned(
+                right: 16,
+                bottom: isOnline ? 100 : 40,
+                child: _buildActionFab(
                 _isLoading ? Icons.hourglass_empty : Icons.my_location,
                 _getCurrentLocation,
                 color: _isLoading ? AppTheme.darkTextSecondary : AppTheme.neonGreen,

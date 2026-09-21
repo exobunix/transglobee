@@ -38,9 +38,9 @@ class SocketService {
     if (_socket != null) {
       if (!(_socket!.connected)) {
         _socket!.connect();
-      } else {
-        _socket!.emit("register", {"userId": userId, "name": name ?? "Driver"});
       }
+      _socket!.emit("register", {"userId": userId, "name": name ?? "Driver"});
+      _socket!.emit("join_drivers", {"userId": userId});
       return;
     }
 
@@ -49,8 +49,11 @@ class SocketService {
     _socket = IO.io(
       baseUrl,
       IO.OptionBuilder()
-          .setTransports(['websocket']) // Force websocket transport
-          .disableAutoConnect()
+          .setTransports(['websocket', 'polling']) // Support polling fallback on mobile networks
+          .enableAutoConnect()
+          .enableReconnection()
+          .setReconnectionDelay(1000)
+          .setReconnectionAttempts(20)
           .build(),
     );
 
@@ -59,6 +62,13 @@ class SocketService {
     _socket?.onConnect((_) {
       print("Socket Connected Successfully: $userId");
       _socket?.emit("register", {"userId": userId, "name": name ?? "Driver"});
+      _socket?.emit("join_drivers", {"userId": userId});
+    });
+
+    _socket?.onReconnect((_) {
+      print("Socket Reconnected: $userId");
+      _socket?.emit("register", {"userId": userId, "name": name ?? "Driver"});
+      _socket?.emit("join_drivers", {"userId": userId});
     });
 
     _socket?.on("connection_success", (data) {

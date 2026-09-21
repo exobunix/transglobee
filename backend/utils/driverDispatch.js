@@ -9,61 +9,37 @@ async function broadcastNewRideToOnlineDrivers(io, socketData, options = {}) {
         return { sent: 0 };
     }
 
-    // Determine target online drivers. If routeId is present, restrict to drivers assigned to vehicles running on this route.
+    // Determine target drivers. For CAB bookings, dispatch universally to all non-suspended drivers.
     const routeId = socketData.routeId || options.routeId;
-    const maxDistanceMeters = 10000; // 10 km radius
-    const pickupLat = socketData.pickupLat !== undefined ? Number(socketData.pickupLat) : undefined;
-    const pickupLng = socketData.pickupLng !== undefined ? Number(socketData.pickupLng) : undefined;
+    const isCab = (socketData.type === 'CAB' || socketData.type === 'RETAIL' || socketData.bookingCategory === 'cab');
 
-    let onlineDrivers = [];
-    let query = { isOnline: true };
+    let targetDrivers = [];
 
-    if (routeId) {
-        const Vehicle = require('../models/Vehicle');
-        const vehicles = await Vehicle.find({ routes: routeId }).select('driverId').lean();
-        const driverIds = vehicles.map(v => v.driverId?.toString()).filter(Boolean);
-        query._id = { $in: driverIds };
-    }
-
-    if (pickupLat !== undefined && pickupLng !== undefined && !isNaN(pickupLat) && !isNaN(pickupLng)) {
-        try {
-            // Attempt geospatial query using MongoDB $near (requires 2dsphere index)
-            const geoQuery = {
-                ...query,
-                location: {
-                    $near: {
-                        $geometry: {
-                            type: 'Point',
-                            coordinates: [pickupLng, pickupLat]
-                        },
-                        $maxDistance: maxDistanceMeters
-                    }
-                }
-            };
-            onlineDrivers = await Driver.find(geoQuery).select('_id uid name fcmToken location').lean();
-        } catch (geoError) {
-            console.error('[DISPATCH] Geospatial query failed, falling back to manual in-memory filtering:', geoError.message);
-            // Fallback: Fetch all online drivers matching the query and filter manually in memory
-            const allOnline = await Driver.find(query).select('_id uid name fcmToken location').lean();
-            onlineDrivers = allOnline.filter(driver => {
-                if (!driver.location || !driver.location.coordinates || driver.location.coordinates.length < 2) {
-                    return false;
-                }
-                const [dLng, dLat] = driver.location.coordinates;
-                const dist = calculateHaversineDistance(pickupLat, pickupLng, dLat, dLng);
-                return dist <= (maxDistanceMeters / 1000.0);
-            });
-        }
+    if (isCab) {
+        // Universal Cab Dispatch: Send to ALL registered drivers who are not suspended
+        targetDrivers = await Driver.find({ 
+            status: { $ne: 'suspended' } 
+        }).select('_id uid name fcmToken isOnline location').lean();
     } else {
-        onlineDrivers = await Driver.find(query).select('_id uid name fcmToken').lean();
+        let query = { isOnline: true };
+        if (routeId) {
+            const Vehicle = require('../models/Vehicle');
+            const vehicles = await Vehicle.find({ routes: routeId }).select('driverId').lean();
+            const driverIds = vehicles.map(v => v.driverId?.toString()).filter(Boolean);
+            query._id = { $in: driverIds };
+        }
+        targetDrivers = await Driver.find(query).select('_id uid name fcmToken location').lean();
+        if (!targetDrivers.length) {
+            targetDrivers = await Driver.find({ status: { $ne: 'suspended' } }).select('_id uid name fcmToken').lean();
+        }
     }
 
-    if (!onlineDrivers.length) {
-        console.log(`[DISPATCH] No online drivers to notify near pickup: ${pickupLat || 'N/A'}, ${pickupLng || 'N/A'} for route: ${routeId || 'all'}`);
-        return { sent: 0 };
-    }
+    // Broadcast globally to all connected clients & drivers room
+    io.emit('new_ride', socketData);
+    io.to('drivers').emit('new_ride', socketData);
 
-    onlineDrivers.forEach((driver) => {
+    // Also emit to individual driver rooms
+    targetDrivers.forEach((driver) => {
         const roomId = driver._id.toString();
         io.to(roomId).emit('new_ride', socketData);
         if (driver.uid) {
@@ -72,18 +48,18 @@ async function broadcastNewRideToOnlineDrivers(io, socketData, options = {}) {
     });
 
     if (options.push !== false) {
-        const label = socketData.type === 'CAB' || socketData.type === 'RETAIL'
+        const label = isCab
             ? 'New cab ride'
             : (socketData.type === 'SHUTTLE' ? 'New shuttle job' : 'New logistics job');
         
-        const tokens = onlineDrivers.map(d => d.fcmToken).filter(t => t);
+        const tokens = targetDrivers.map(d => d.fcmToken).filter(Boolean);
         if (tokens.length > 0) {
             const { sendPushNotification } = require('./notificationService');
             await sendPushNotification(tokens, {
                 title: options.pushTitle || label,
                 body: options.pushBody || `${socketData.pick || 'Pickup'} → ${socketData.drop || 'Drop'}`,
                 data: {
-                    rideId: String(socketData.id || ''),
+                    rideId: String(socketData.id || socketData.bookingId || ''),
                     type: String(socketData.type || 'CAB'),
                     bookingCategory: String(socketData.bookingCategory || socketData.type || ''),
                 },
@@ -91,8 +67,8 @@ async function broadcastNewRideToOnlineDrivers(io, socketData, options = {}) {
         }
     }
 
-    console.log(`[DISPATCH] new_ride sent to ${onlineDrivers.length} online driver(s) (${socketData.type}) for route: ${routeId || 'all'}`);
-    return { sent: onlineDrivers.length };
+    console.log(`[DISPATCH] new_ride sent to ${targetDrivers.length} driver(s) (${socketData.type})`);
+    return { sent: targetDrivers.length };
 }
 
 /** Admin + supervisor dashboards only — never drivers. */
@@ -100,6 +76,7 @@ function notifyAdminAndSupervisor(io, socketData) {
     if (!io || !socketData) return;
     io.emit('admin_new_booking', socketData);
     io.emit('supervisor_new_booking', socketData);
+    io.emit('new_booking', socketData);
 }
 
 /**
