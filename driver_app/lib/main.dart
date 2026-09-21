@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme.dart';
 import 'core/theme_provider.dart';
 import 'core/app_router.dart';
+import 'core/url_strategy/url_strategy.dart';
 import 'services/auth_service.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'widgets/main_shell.dart';
@@ -13,6 +14,7 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  configureUrlStrategy();
 
   try {
     await Firebase.initializeApp(

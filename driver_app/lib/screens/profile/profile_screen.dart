@@ -8,7 +8,6 @@ import '../../core/app_router.dart';
 import '../../features/driver/controllers/driver_providers.dart';
 import '../../features/driver/models/response/driver_profile_response.dart';
 import '../../core/network/api_state.dart';
-import '../wallet/wallet_screen.dart';
 import '../../models/driver_model.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -289,7 +288,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         }),
                         const Divider(height: 1, indent: 16, endIndent: 16),
                         _buildArrowTile(Icons.account_balance_wallet_outlined, 'My Wallet', 'Check balance & history', AppTheme.earningsAmber, onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
+                          Navigator.pushNamed(context, AppRouter.wallet);
                         }),
                         const Divider(height: 1, indent: 16, endIndent: 16),
                         _buildToggle('Dark Mode', Icons.dark_mode_outlined, AppTheme.earningsAmber, isDark, (v) => ref.read(themeProvider.notifier).toggle()),
@@ -300,9 +299,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         const Divider(height: 1, indent: 16, endIndent: 16),
                         _buildArrowTile(Icons.language, 'Language', 'English', AppTheme.busPurple),
                         const Divider(height: 1, indent: 16, endIndent: 16),
-                        _buildArrowTile(Icons.help_outline, 'Support & Help', '', AppTheme.earningsAmber),
-                        const Divider(color: AppTheme.darkDivider, height: 1, indent: 16, endIndent: 16),
-                        _buildArrowTile(Icons.policy_outlined, 'Terms & Privacy', '', AppTheme.darkTextSecondary),
+                        _buildArrowTile(Icons.headset_mic_outlined, 'Support & Help', '24/7 Driver Helpdesk', AppTheme.earningsAmber, onTap: () {
+                          Navigator.pushNamed(context, AppRouter.support);
+                        }),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        _buildArrowTile(Icons.info_outline_rounded, 'About TransGlobe', 'Partner information & version', AppTheme.neonGreen, onTap: () {
+                          Navigator.pushNamed(context, AppRouter.about);
+                        }),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        _buildArrowTile(Icons.description_outlined, 'Terms & Conditions', 'Partner terms & policies', AppTheme.cabBlue, onTap: () {
+                          Navigator.pushNamed(context, AppRouter.terms);
+                        }),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        _buildArrowTile(Icons.security_outlined, 'Privacy Policy', 'Data usage & driver rights', AppTheme.darkTextSecondary, onTap: () {
+                          Navigator.pushNamed(context, AppRouter.privacy);
+                        }),
                       ],
                     ),
                   ),
