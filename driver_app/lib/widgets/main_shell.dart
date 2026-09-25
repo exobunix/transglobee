@@ -14,6 +14,7 @@ import '../providers/booking_provider.dart';
 import '../services/socket_service.dart';
 import '../services/auth_service.dart';
 import '../screens/auth/pending_approval_screen.dart';
+import 'status_chip.dart';
 
 class CurrentTabNotifier extends Notifier<int> {
   @override
@@ -80,8 +81,26 @@ class MainShell extends ConsumerWidget {
             : AppBar(
                 backgroundColor: AppTheme.darkSurface,
                 elevation: 0,
-                title: Text(_getTitle(currentTab)),
-                centerTitle: true,
+                title: currentTab == 0
+                    ? Row(
+                        children: [
+                          const Text(
+                            'Home',
+                            style: TextStyle(
+                              color: AppTheme.darkTextPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const Spacer(),
+                          StatusChip(
+                            status: ref.watch(driverStatusProvider),
+                            onTap: () => toggleDriverOnlineStatus(context, ref),
+                          ),
+                        ],
+                      )
+                    : Text(_getTitle(currentTab)),
+                centerTitle: currentTab != 0,
                 actions: [
                   // Manual Sync / Alarm Button
                   Stack(

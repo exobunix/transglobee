@@ -24,7 +24,6 @@ import 'package:driver_app/core/network/api_state.dart';
 import 'package:driver_app/features/driver/models/response/driver_profile_response.dart';
 
 import 'package:driver_app/services/beep_service.dart';
-import '../core/app_router.dart';
 
 // ── Providers ──
 class DriverStatusNotifier extends Notifier<DriverStatus> {
@@ -51,6 +50,75 @@ final driverStatusProvider =
     NotifierProvider<DriverStatusNotifier, DriverStatus>(
   DriverStatusNotifier.new,
 );
+
+void showDriverStatusPicker(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: AppTheme.darkSurface,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    builder: (_) => Container(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Set Your Status',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          _globalStatusOption(context, ref, DriverStatus.available, 'Available',
+              'Receive new booking requests', AppTheme.neonGreen),
+          _globalStatusOption(context, ref, DriverStatus.busy, 'Busy',
+              'Finish current tasks first', AppTheme.earningsAmber),
+          _globalStatusOption(context, ref, DriverStatus.offline, 'Offline', 'Go off duty',
+              AppTheme.offlineRed),
+          const SizedBox(height: 12),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _globalStatusOption(BuildContext context, WidgetRef ref,
+    DriverStatus status, String title, String sub, Color color) {
+  return ListTile(
+    onTap: () {
+      Navigator.pop(context);
+      ref.read(driverStatusProvider.notifier).set(status);
+    },
+    leading: Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+          color: color.withOpacity(0.1), shape: BoxShape.circle),
+      child: Icon(
+          status == DriverStatus.available
+              ? Icons.check_circle
+              : (status == DriverStatus.busy
+                  ? Icons.schedule
+                  : Icons.power_settings_new),
+          color: color,
+          size: 24),
+    ),
+    title: Text(title,
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.bold)),
+    subtitle: Text(sub,
+        style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+    trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+  );
+}
+
+void toggleDriverOnlineStatus(BuildContext context, WidgetRef ref) {
+  final currentStatus = ref.read(driverStatusProvider);
+  if (currentStatus != DriverStatus.offline) {
+    ref.read(driverStatusProvider.notifier).set(DriverStatus.offline);
+  } else {
+    showDriverStatusPicker(context, ref);
+  }
+}
+
 
 class ShowRequestNotifier extends Notifier<bool> {
   @override
@@ -144,6 +212,16 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
     _bannerFade = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _onlineBannerController, curve: Curves.easeIn),
     );
+
+    // Listen to driverStatusProvider updates for banner animation and request dismissal
+    ref.listenManual(driverStatusProvider, (previous, next) {
+      if (next == DriverStatus.available) {
+        _onlineBannerController.forward();
+      } else {
+        _onlineBannerController.reverse();
+        ref.read(showRequestProvider.notifier).hide();
+      }
+    });
 
     // Listen to profile updates
     ref.listenManual(driverProfileControllerProvider, (previous, next) {
@@ -491,80 +569,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
   }
 
   Future<void> _toggleOnlineStatus() async {
-    final currentStatus = ref.read(driverStatusProvider);
-
-    if (currentStatus != DriverStatus.offline) {
-      ref.read(driverStatusProvider.notifier).set(DriverStatus.offline);
-      ref.read(showRequestProvider.notifier).hide();
-      _onlineBannerController.reverse();
-    } else {
-      _showStatusPicker();
-    }
-  }
-
-  void _showStatusPicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.darkSurface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Set Your Status',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            _statusOption(DriverStatus.available, 'Available',
-                'Receive new booking requests', AppTheme.neonGreen),
-            _statusOption(DriverStatus.busy, 'Busy',
-                'Finish current tasks first', AppTheme.earningsAmber),
-            _statusOption(DriverStatus.offline, 'Offline', 'Go off duty',
-                AppTheme.offlineRed),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statusOption(
-      DriverStatus status, String title, String sub, Color color) {
-    return ListTile(
-      onTap: () {
-        Navigator.pop(context);
-        ref.read(driverStatusProvider.notifier).set(status);
-        if (status == DriverStatus.available) {
-          _onlineBannerController.forward();
-        } else {
-          _onlineBannerController.reverse();
-          ref.read(showRequestProvider.notifier).hide();
-        }
-      },
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-            color: color.withOpacity(0.1), shape: BoxShape.circle),
-        child: Icon(
-            status == DriverStatus.available
-                ? Icons.check_circle
-                : (status == DriverStatus.busy
-                    ? Icons.schedule
-                    : Icons.power_settings_new),
-            color: color,
-            size: 24),
-      ),
-      title: Text(title,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold)),
-      subtitle: Text(sub,
-          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-      trailing: const Icon(Icons.chevron_right, color: Colors.white24),
-    );
+    toggleDriverOnlineStatus(context, ref);
   }
 
   @override
@@ -579,7 +584,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
       data: AppTheme.darkDriverTheme,
       child: Scaffold(
         backgroundColor: AppTheme.darkBg,
-        drawer: _buildDrawer(context, driverProfileState, vehicleType),
+        // drawer: _buildDrawer(context, driverProfileState, vehicleType),
         body: Stack(
           children: [
             // MAP LAYER (Always rendered immediately - never blocked by loading)
@@ -665,24 +670,24 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen>
               ),
 
             // TOP HEADER
-            SafeArea(
+            const SafeArea(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        _buildProfileAvatar(driverProfileState),
-                        const Spacer(),
-                        StatusChip(
-                          status: status,
-                          onTap: _toggleOnlineStatus,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const VehicleTypeSelector(),
+                    // Row(
+                    //   children: [
+                    //     // _buildProfileAvatar(driverProfileState),
+                    //     const Spacer(),
+                    //     StatusChip(
+                    //       status: status,
+                    //       onTap: _toggleOnlineStatus,
+                    //     ),
+                    //   ],
+                    // ),
+                    // const SizedBox(height: 12),
+                    VehicleTypeSelector(),
                     // const SizedBox(height: 10),
                     // const VehicleSubOptions(),
                   ],
@@ -1274,29 +1279,30 @@ Widget _buildDrawer(BuildContext context,
               ],
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _drawerItem(Icons.history, 'Trips History', () {
-                  Navigator.pop(context);
-                }),
-                _drawerItem(Icons.account_balance_wallet, 'Wallet', () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, AppRouter.wallet);
-                }),
-                _drawerItem(Icons.star, 'Ratings', () {}),
-                _drawerItem(Icons.help_outline, 'Support', () {}),
-                _drawerItem(Icons.settings, 'Settings', () {}),
-                const Divider(
-                    color: AppTheme.darkDivider,
-                    indent: 20,
-                    endIndent: 20,
-                    height: 40),
-                _drawerItem(Icons.logout, 'Log Out', () {}),
-              ],
-            ),
-          ),
+          // Expanded(
+          //   child: ListView(
+          //     padding: EdgeInsets.zero,
+          //     children: [
+          //       _drawerItem(Icons.history, 'Trips History', () {
+          //         Navigator.pop(context);
+          //       }),
+          //       _drawerItem(Icons.account_balance_wallet, 'Wallet', () {
+          //         Navigator.pop(context);
+          //         Navigator.pushNamed(context, AppRouter.wallet);
+          //       }),
+          //       _drawerItem(Icons.star, 'Ratings', () {}),
+          //       _drawerItem(Icons.help_outline, 'Support', () {}),
+          //       _drawerItem(Icons.settings, 'Settings', () {}),
+          //       const Divider(
+          //           color: AppTheme.darkDivider,
+          //           indent: 20,
+          //           endIndent: 20,
+          //           height: 40),
+          //       _drawerItem(Icons.logout, 'Log Out', () {}),
+          //     ],
+          //   ),
+          // ),
+     
         ],
       ),
     ),
