@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:sizer/sizer.dart';
 import '../../../core/theme.dart';
@@ -179,8 +178,8 @@ class LocationInputSection extends StatelessWidget {
                     child: _buildSearchFieldRedesigned(
                       controller: pickupSearchController,
                       focusNode: pickupFocusNode,
-                      label: 'Pickup Location',
-                      hint: 'Search Pickup Location',
+                      label: 'Pickup Address (Add in details)',
+                      hint: 'Add your pickup address in details for pickup',
                       isPickup: true,
                     ),
                   ),
@@ -206,8 +205,8 @@ class LocationInputSection extends StatelessWidget {
               _buildSearchFieldRedesigned(
                 controller: dropoffSearchController,
                 focusNode: dropoffFocusNode,
-                label: 'Drop Location',
-                hint: 'Search Drop Location',
+                label: 'Drop Address (Add in details)',
+                hint: 'Add your drop address in details for drop',
                 isPickup: false,
               ),
             ],

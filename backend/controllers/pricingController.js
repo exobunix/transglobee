@@ -64,6 +64,7 @@ const DEFAULT_PRICING_CONFIGS = [
     cancellationFee: 50,
     surgeMultiplier: 1.1,
     nightChargePercentage: 15,
+    helperCost: 800,
     tagline: "Goods delivery & freight transport",
     icon: "truck",
     isActive: true,
@@ -247,8 +248,16 @@ exports.updatePricingConfig = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
+    const queryConditions = [
+      { vehicleCategoryId: id },
+      { categoryName: new RegExp(`^${id}$`, 'i') },
+    ];
+    if (mongoose.isValidObjectId(id)) {
+      queryConditions.unshift({ _id: id });
+    }
+
     let config = await PricingConfig.findOneAndUpdate(
-      { $or: [{ _id: id }, { vehicleCategoryId: id }] },
+      { $or: queryConditions },
       { $set: updateData },
       { new: true, upsert: true }
     );
@@ -262,6 +271,31 @@ exports.updatePricingConfig = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update pricing configuration: " + error.message,
+    });
+  }
+};
+
+/**
+ * GET /api/pricing/helper-cost
+ * Public endpoint to fetch current configured helper cost for logistics
+ */
+exports.getHelperCost = async (req, res) => {
+  try {
+    const config = await PricingConfig.findOne({
+      $or: [
+        { categoryName: /logistics/i },
+        { vehicleCategoryId: "logistics_03" },
+      ],
+    });
+    const helperCost = (config && config.helperCost != null) ? config.helperCost : 800;
+    return res.status(200).json({
+      success: true,
+      helperCost: helperCost,
+    });
+  } catch (error) {
+    return res.status(200).json({
+      success: true,
+      helperCost: 800,
     });
   }
 };

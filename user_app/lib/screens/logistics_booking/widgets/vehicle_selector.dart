@@ -164,7 +164,7 @@ class VehicleSelector extends StatelessWidget {
                             text: TextSpan(
                               children: [
                                 TextSpan(
-                                  text: '₹${vehicle.basePrice.toInt()}',
+                                  text: '₹${(vehicle.pricePerKm > 0 ? vehicle.pricePerKm : (vehicle.basePrice > 0 ? vehicle.basePrice : 25.0)).toInt()}',
                                   style: TextStyle(
                                     fontSize: 15.sp,
                                     fontWeight: FontWeight.bold,

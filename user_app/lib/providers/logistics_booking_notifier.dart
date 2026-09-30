@@ -76,16 +76,27 @@ class LogisticsBookingNotifier extends Notifier<LogisticsBookingState> {
   }
 
   // Helper getters/computations
-  double get helperCostPerPerson => state.selectedVehicleData?.helperCostRate ?? 800.0;
+  double get helperCostPerPerson {
+    final rate = state.selectedVehicleData?.helperCostRate;
+    if (rate != null && rate > 0) return rate;
+    return 800.0;
+  }
   double get helperCost => state.helperCount * helperCostPerPerson;
   
   double get vehiclePrice {
     if (state.selectedVehicleData == null) return 0.0;
-    double total = state.selectedVehicleData!.basePrice;
-    if (state.pickup != null && state.dropoff != null) {
-      total += state.selectedVehicleData!.pricePerKm * state.distance;
+    final vehicle = state.selectedVehicleData!;
+    final double perKm = vehicle.pricePerKm > 0 ? vehicle.pricePerKm : 25.0;
+    double total = vehicle.basePrice;
+    if (state.distance > 0) {
+      total += perKm * state.distance;
+    } else if (state.pickup != null && state.dropoff != null) {
+      final double routeDist = state.selectedRoute?.distance ?? 1.0;
+      total += perKm * (routeDist > 0 ? routeDist : 1.0);
+    } else {
+      total += perKm;
     }
-    total += state.selectedVehicleData!.pricePerPiece * state.addedItems.length;
+    total += vehicle.pricePerPiece * state.addedItems.length;
     return total;
   }
 

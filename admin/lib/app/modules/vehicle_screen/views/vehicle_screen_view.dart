@@ -472,6 +472,20 @@ class VehicleScreenView extends GetView<VehicleScreenController> {
                                   color: Colors.grey[500],
                                   fontFamily: AppThemeData.regular,
                                 ),
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppThemData.primary500.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: TextCustom(
+                                  title: "₹${(vehicle.pricePerKm ?? 0).toStringAsFixed(0)}/km",
+                                  fontSize: 12,
+                                  fontFamily: AppThemeData.bold,
+                                  color: AppThemData.primary500,
+                                ),
+                              ),
                             ],
                           ),
                           if (vehicle.routes != null && vehicle.routes!.isNotEmpty) ...[
@@ -775,6 +789,14 @@ class VehicleAddEditDialog extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 16),
+
+                // Pricing: Price Per KM
+                CustomTextFormField(
+                  title: "Price Per KM (₹/KM)".tr,
+                  hintText: "Enter per KM price (e.g. 25)".tr,
+                  controller: controller.pricePerKmController,
                 ),
                 const SizedBox(height: 16),
 
@@ -1104,6 +1126,7 @@ class VehicleDetailsDialog extends StatelessWidget {
               _buildDetailRow(context, "Passenger Capacity".tr, "${vehicle.passengerCapacity ?? 0}"),
               _buildDetailRow(context, "Luggage Capacity".tr, "${vehicle.luggageCapacity ?? 0}"),
               _buildDetailRow(context, "Truck Load Capacity".tr, "${vehicle.truckLoadCapacity ?? 0.0} tonnes"),
+              _buildDetailRow(context, "Price Per KM".tr, "₹${(vehicle.pricePerKm ?? 0).toStringAsFixed(0)}/km"),
               _buildDetailRow(context, "Assigned Driver".tr, vehicle.driverName ?? 'Unassigned'),
               _buildDetailRow(context, "Status".tr, (vehicle.status ?? 'active').toUpperCase()),
               if (vehicle.routes != null && vehicle.routes!.isNotEmpty)

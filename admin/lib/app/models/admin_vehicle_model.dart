@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 class AdminVehicleModel {
   String? id;
@@ -23,6 +22,7 @@ class AdminVehicleModel {
   String? pucDetails;
   String? permitDetails;
 
+  double? pricePerKm;
   List<AdminVehicleRoute>? routes;
 
   AdminVehicleModel({
@@ -46,6 +46,7 @@ class AdminVehicleModel {
     this.insuranceDetails,
     this.pucDetails,
     this.permitDetails,
+    this.pricePerKm,
     this.routes,
   });
 
@@ -91,6 +92,11 @@ class AdminVehicleModel {
       insuranceDetails: json['insuranceDetails']?.toString(),
       pucDetails: json['pucDetails']?.toString(),
       permitDetails: json['permitDetails']?.toString(),
+      pricePerKm: json['pricePerKm'] is num
+          ? (json['pricePerKm'] as num).toDouble()
+          : (json['pricing'] is Map && json['pricing']['pricePerKm'] is num)
+              ? (json['pricing']['pricePerKm'] as num).toDouble()
+              : double.tryParse(json['pricePerKm']?.toString() ?? json['pricing']?['pricePerKm']?.toString() ?? ''),
       routes: routesList,
     );
   }
@@ -117,6 +123,10 @@ class AdminVehicleModel {
       'insuranceDetails': insuranceDetails,
       'pucDetails': pucDetails,
       'permitDetails': permitDetails,
+      'pricePerKm': pricePerKm,
+      'pricing': {
+        'pricePerKm': pricePerKm ?? 0.0,
+      },
     };
   }
 }

@@ -22,6 +22,7 @@ class ServicePricingModel {
   double surgeMultiplier;
   double nightChargePercentage;
   double cancellationFee;
+  double helperCost;
 
   ServicePricingModel({
     required this.serviceName,
@@ -33,6 +34,7 @@ class ServicePricingModel {
     required this.surgeMultiplier,
     required this.nightChargePercentage,
     required this.cancellationFee,
+    this.helperCost = 800.0,
   });
 }
 
@@ -47,6 +49,7 @@ class PricingSettingController extends GetxController {
   Rx<TextEditingController> surgeMultiplier = TextEditingController().obs;
   Rx<TextEditingController> nightChargePercentage = TextEditingController().obs;
   Rx<TextEditingController> cancellationFee = TextEditingController().obs;
+  Rx<TextEditingController> helperCost = TextEditingController(text: '800').obs;
 
   RxString selectedCategory = "Cab Service".obs;
   final List<String> categories = [
@@ -66,6 +69,7 @@ class PricingSettingController extends GetxController {
       surgeMultiplier: 1.0,
       nightChargePercentage: 10.0,
       cancellationFee: 30.0,
+      helperCost: 0.0,
     ),
     "Shuttle Service": ServicePricingModel(
       serviceName: "Shuttle Service",
@@ -77,6 +81,7 @@ class PricingSettingController extends GetxController {
       surgeMultiplier: 1.0,
       nightChargePercentage: 5.0,
       cancellationFee: 15.0,
+      helperCost: 0.0,
     ),
     "Logistics Service": ServicePricingModel(
       serviceName: "Logistics Service",
@@ -88,6 +93,7 @@ class PricingSettingController extends GetxController {
       surgeMultiplier: 1.1,
       nightChargePercentage: 15.0,
       cancellationFee: 50.0,
+      helperCost: 800.0,
     ),
   }.obs;
 
@@ -109,6 +115,7 @@ class PricingSettingController extends GetxController {
       surgeMultiplier.value.text = model.surgeMultiplier.toStringAsFixed(1);
       nightChargePercentage.value.text = model.nightChargePercentage.toStringAsFixed(0);
       cancellationFee.value.text = model.cancellationFee.toStringAsFixed(0);
+      helperCost.value.text = (model.helperCost > 0 ? model.helperCost : 800.0).toStringAsFixed(0);
     }
   }
 
@@ -132,6 +139,7 @@ class PricingSettingController extends GetxController {
                 surgeMultiplier: (item['surgeMultiplier'] ?? 1.0).toDouble(),
                 nightChargePercentage: (item['nightChargePercentage'] ?? 10.0).toDouble(),
                 cancellationFee: (item['cancellationFee'] ?? 30.0).toDouble(),
+                helperCost: item['helperCost'] is num ? (item['helperCost'] as num).toDouble() : (name == "Logistics Service" ? 800.0 : 0.0),
               );
             }
           }
@@ -155,6 +163,7 @@ class PricingSettingController extends GetxController {
     double surge = double.tryParse(surgeMultiplier.value.text) ?? 1.0;
     double night = double.tryParse(nightChargePercentage.value.text) ?? 10.0;
     double cancelFee = double.tryParse(cancellationFee.value.text) ?? 30.0;
+    double hCost = double.tryParse(helperCost.value.text) ?? 800.0;
 
     savedPricings[selectedCategory.value] = ServicePricingModel(
       serviceName: selectedCategory.value,
@@ -166,6 +175,7 @@ class PricingSettingController extends GetxController {
       surgeMultiplier: surge,
       nightChargePercentage: night,
       cancellationFee: cancelFee,
+      helperCost: hCost,
     );
     savedPricings.refresh();
 
@@ -183,6 +193,7 @@ class PricingSettingController extends GetxController {
           "surgeMultiplier": surge,
           "nightChargePercentage": night,
           "cancellationFee": cancelFee,
+          "helperCost": hCost,
         }),
       ).timeout(const Duration(seconds: 4));
 
@@ -319,6 +330,8 @@ class PricingSettingView extends StatelessWidget {
                               Text("Per Min Rate: ₹${model?.perMinuteRate.toStringAsFixed(1)}/Min", style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[300] : Colors.grey[800])),
                               Text("Surge Multiplier: ${model?.surgeMultiplier}x", style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[300] : Colors.grey[800])),
                               Text("Night Extra: ${model?.nightChargePercentage.toStringAsFixed(0)}%", style: TextStyle(fontSize: 12, color: isDark ? Colors.grey[300] : Colors.grey[800])),
+                              if (cat == "Logistics Service")
+                                Text("Helper Rate: ₹${(model?.helperCost ?? 800).toStringAsFixed(0)}/helper", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppThemData.primary500)),
                             ],
                           ),
                         ),
@@ -456,6 +469,32 @@ class PricingSettingView extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+
+                // Helper Cost Field (Logistics Service specific)
+                Obx(() => controller.selectedCategory.value == "Logistics Service"
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextCustom(title: 'Logistics Helper & Porter Cost'.tr, fontSize: 16, fontWeight: FontWeight.w700),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: CustomTextFormField(
+                                  title: "Helper Cost (₹ per helper)".tr,
+                                  hintText: "800",
+                                  controller: controller.helperCost.value,
+                                ),
+                              ),
+                              spaceW(),
+                              const Expanded(child: SizedBox()),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      )
+                    : const SizedBox.shrink()),
                 const SizedBox(height: 24),
               ],
             ),

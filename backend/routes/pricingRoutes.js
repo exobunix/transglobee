@@ -7,6 +7,7 @@ router.post("/estimate-fare", pricingController.estimateFare);
 
 // Admin Panel endpoints to get & update pricing configurations
 router.get("/configs", pricingController.getPricingConfigs);
+router.get("/helper-cost", pricingController.getHelperCost);
 router.put("/config/:id", pricingController.updatePricingConfig);
 router.post("/seed", pricingController.seedInitialPricing);
 

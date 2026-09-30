@@ -7,6 +7,7 @@ import '../../../models/address_model.dart';
 class AddressSelectorWidget extends StatelessWidget {
   final String title;
   final String subtitle;
+  final String? instruction;
   final AddressEntry? selected;
   final VoidCallback onTap;
 
@@ -14,6 +15,7 @@ class AddressSelectorWidget extends StatelessWidget {
     super.key,
     required this.title,
     required this.subtitle,
+    this.instruction,
     required this.selected,
     required this.onTap,
   });
@@ -23,14 +25,14 @@ class AddressSelectorWidget extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: context.theme.cardColor,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected != null
                 ? const Color(0xFF0F5A3B)
-                : Colors.grey.shade200,
+                : Colors.grey.shade300,
             width: selected != null ? 2.0 : 1.5,
           ),
           boxShadow: [
@@ -56,11 +58,22 @@ class AddressSelectorWidget extends StatelessWidget {
                 size: 26,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (instruction != null && instruction!.isNotEmpty) ...[
+                    Text(
+                      instruction!,
+                      style: TextStyle(
+                        fontSize: 11.5.sp,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F5A3B),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
                   Text(
                     selected?.label ?? title,
                     style: TextStyle(
@@ -71,12 +84,14 @@ class AddressSelectorWidget extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    selected?.fullAddress ?? subtitle,
+                    selected != null
+                        ? "${selected!.fullAddress.isNotEmpty ? selected!.fullAddress : selected!.city} (Tap to change)"
+                        : subtitle,
                     style: TextStyle(
-                      fontSize: 14.sp,
+                      fontSize: 13.sp,
                       color: context.colors.textSecondary,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],

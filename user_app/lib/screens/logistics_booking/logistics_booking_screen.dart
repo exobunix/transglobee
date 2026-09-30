@@ -773,10 +773,28 @@ class _LogisticsBookingScreenState
 
                   // ── Pickup & Delivery Address Selector ───────────────────
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.my_location_rounded, size: 16, color: Color(0xFF0F5A3B)),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Add your pickup address in details for pickup',
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w600,
+                            color: context.colors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     child: AddressSelectorWidget(
                       title: 'Pickup Address',
-                      subtitle: 'Select saved home/office address',
+                      subtitle: 'Add your pickup address in details for pickup',
+                      instruction: 'Add your pickup address in details for pickup',
                       selected: _selectedPickupAddress,
                       onTap: () => Navigator.push(
                         context,
@@ -791,10 +809,28 @@ class _LogisticsBookingScreenState
                   ),
 
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_on_rounded, size: 16, color: Color(0xFF0F5A3B)),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Add your drop address in details for drop',
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w600,
+                            color: context.colors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     child: AddressSelectorWidget(
                       title: 'Delivery Address',
-                      subtitle: 'Select saved destination address',
+                      subtitle: 'Add your drop address in details for drop',
+                      instruction: 'Add your drop address in details for drop',
                       selected: _selectedDeliveryAddress,
                       onTap: () => Navigator.push(
                         context,

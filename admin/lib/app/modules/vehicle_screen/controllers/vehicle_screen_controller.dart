@@ -46,6 +46,7 @@ class VehicleScreenController extends GetxController {
   final passengerCapacityController = TextEditingController();
   final luggageCapacityController = TextEditingController();
   final truckLoadCapacityController = TextEditingController();
+  final pricePerKmController = TextEditingController();
   final imageController = TextEditingController();
 
   RxString selectedVehicleType = 'car'.obs;
@@ -85,6 +86,7 @@ class VehicleScreenController extends GetxController {
     passengerCapacityController.clear();
     luggageCapacityController.clear();
     truckLoadCapacityController.clear();
+    pricePerKmController.clear();
     imageController.clear();
     selectedVehicleType.value = 'car';
     selectedStatus.value = 'active';
@@ -108,6 +110,9 @@ class VehicleScreenController extends GetxController {
     passengerCapacityController.text = vehicle.passengerCapacity?.toString() ?? '0';
     luggageCapacityController.text = vehicle.luggageCapacity?.toString() ?? '0';
     truckLoadCapacityController.text = vehicle.truckLoadCapacity?.toString() ?? '0';
+    pricePerKmController.text = (vehicle.pricePerKm != null && vehicle.pricePerKm! > 0)
+        ? vehicle.pricePerKm!.toStringAsFixed(0)
+        : '';
     imageController.text = vehicle.vehicleImage ?? '';
     selectedVehicleType.value = vehicle.vehicleType ?? 'car';
     selectedStatus.value = vehicle.status ?? 'active';
@@ -271,6 +276,7 @@ class VehicleScreenController extends GetxController {
       }
 
       String token = await AppSharedPreference.getString('adminToken');
+      final pKm = double.tryParse(pricePerKmController.text.trim()) ?? 0.0;
       final body = {
         "vehicleType": selectedVehicleType.value,
         "vehicleName": nameController.text.trim(),
@@ -281,6 +287,10 @@ class VehicleScreenController extends GetxController {
         "passengerCapacity": int.tryParse(passengerCapacityController.text.trim()) ?? 0,
         "luggageCapacity": int.tryParse(luggageCapacityController.text.trim()) ?? 0,
         "truckLoadCapacity": double.tryParse(truckLoadCapacityController.text.trim()) ?? 0.0,
+        "pricePerKm": pKm,
+        "pricing": {
+          "pricePerKm": pKm,
+        },
         "driverId": selectedDriverId.value.isNotEmpty ? selectedDriverId.value : null,
         "status": selectedStatus.value,
         "vehicleImage": imageUrl,
@@ -326,6 +336,7 @@ class VehicleScreenController extends GetxController {
       }
 
       String token = await AppSharedPreference.getString('adminToken');
+      final pKm = double.tryParse(pricePerKmController.text.trim()) ?? 0.0;
       final body = {
         "vehicleType": selectedVehicleType.value,
         "vehicleName": nameController.text.trim(),
@@ -336,6 +347,10 @@ class VehicleScreenController extends GetxController {
         "passengerCapacity": int.tryParse(passengerCapacityController.text.trim()) ?? 0,
         "luggageCapacity": int.tryParse(luggageCapacityController.text.trim()) ?? 0,
         "truckLoadCapacity": double.tryParse(truckLoadCapacityController.text.trim()) ?? 0.0,
+        "pricePerKm": pKm,
+        "pricing": {
+          "pricePerKm": pKm,
+        },
         "driverId": selectedDriverId.value.isNotEmpty ? selectedDriverId.value : null,
         "status": selectedStatus.value,
         "vehicleImage": imageUrl,

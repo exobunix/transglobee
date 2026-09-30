@@ -93,6 +93,10 @@ const vehicleSchema = new mongoose.Schema({
         }
     },
 
+    // ─── Price & Helper Defaults ──────────────────────────────
+    pricePerKm: { type: Number, default: 0 },
+    helperCost: { type: Number, default: 800 },
+
     // ─── Pricing ──────────────────────────────────────────────
     pricing: {
         pricePerKm:           { type: Number, default: 0 },
@@ -101,7 +105,8 @@ const vehicleSchema = new mongoose.Schema({
         nightCharges:         { type: Number, default: 0 },
         waitingCharges:       { type: Number, default: 0 },
         parkingCharges:       { type: Number, default: 0 },
-        loadingUnloadingCharges: { type: Number, default: 0 },
+        loadingUnloadingCharges: { type: Number, default: 800 },
+        helperCost:           { type: Number, default: 800 },
         extraHourCharges:     { type: Number, default: 0 },
         stateTax:             { type: Number, default: 0 },
         convenienceCharges:   { type: Number, default: 0 },

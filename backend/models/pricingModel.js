@@ -60,6 +60,10 @@ const pricingConfigSchema = new mongoose.Schema(
       type: String,
       default: "car",
     },
+    helperCost: {
+      type: Number,
+      default: 800, // Default porter / helper cost per person for logistics
+    },
     isActive: {
       type: Boolean,
       default: true,

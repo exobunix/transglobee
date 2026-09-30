@@ -51,6 +51,16 @@ exports.addVehicle = async (req, res) => {
             });
         }
 
+        const pricePerKmNum = Number(req.body.pricePerKm) || (req.body.pricing && Number(req.body.pricing.pricePerKm)) || 0;
+        const helperCostNum = Number(req.body.helperCost) || (req.body.pricing && Number(req.body.pricing.loadingUnloadingCharges)) || 800;
+
+        const pricingData = {
+            ...(pricing || {}),
+            pricePerKm: pricePerKmNum,
+            loadingUnloadingCharges: helperCostNum,
+            helperCost: helperCostNum
+        };
+
         const vehicle = new Vehicle({
             vehicleType,
             vehicleName,
@@ -58,6 +68,8 @@ exports.addVehicle = async (req, res) => {
             model:             model             || '',
             year:              year              || '',
             numberPlate,
+            pricePerKm:        pricePerKmNum,
+            helperCost:        helperCostNum,
             vehicleStatus:    vehicleStatus     || '',
             vendorDetail:     vendorDetail      || '',
             insuranceDetails: insuranceDetails  || '',
@@ -67,7 +79,7 @@ exports.addVehicle = async (req, res) => {
             luggageCapacity:   luggageCapacity   || 0,
             truckLoadCapacity: truckLoadCapacity || 0,
             driverId:          driverId          || null,
-            pricing:           pricing           || {},
+            pricing:           pricingData,
             status:            status            || 'active',
             isEnabled:         true,
             vehicleImage:      vehicleImage      || '',
@@ -167,6 +179,17 @@ exports.updateVehicle = async (req, res) => {
     try {
         if (req.body.vehicleImage !== undefined) {
             req.body.photos = req.body.vehicleImage ? [req.body.vehicleImage] : [];
+        }
+        if (req.body.pricePerKm !== undefined) {
+            const pKm = Number(req.body.pricePerKm) || 0;
+            req.body.pricePerKm = pKm;
+            req.body['pricing.pricePerKm'] = pKm;
+        }
+        if (req.body.helperCost !== undefined) {
+            const hCost = Number(req.body.helperCost) || 800;
+            req.body.helperCost = hCost;
+            req.body['pricing.helperCost'] = hCost;
+            req.body['pricing.loadingUnloadingCharges'] = hCost;
         }
         const vehicle = await Vehicle.findByIdAndUpdate(
             req.params.id,
