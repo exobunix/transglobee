@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -10,7 +10,6 @@ import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/rest_api_repository.dart';
-import 'api_state_providers.dart';
 import 'logistics_booking_state.dart';
 import 'logistics_vehicle_provider.dart';
 
@@ -280,6 +279,192 @@ class LogisticsBookingNotifier extends Notifier<LogisticsBookingState> {
     return null;
   }
 
+  Future<Map<String, double>?> geocodeAddress(String query) async {
+    if (query.trim().isEmpty) return null;
+
+    // 1. Try Google Maps Autocomplete + Details via existing proxy or Google API
+    try {
+      final apiKey = AppConfig.googleMapsApiKey;
+      final apiService = ref.read(apiServiceProvider);
+      final response = await apiService.get(
+        '/maps/autocomplete?input=${Uri.encodeComponent(query)}&key=$apiKey&components=country:in',
+      );
+      final List predictions = (response as Map<String, dynamic>)['predictions'] ?? [];
+      if (predictions.isNotEmpty) {
+        final placeId = predictions[0]['place_id'];
+        final details = await apiService.get(
+          '/maps/details?place_id=$placeId&key=$apiKey&fields=geometry',
+        );
+        final loc = (details as Map<String, dynamic>)['result']?['geometry']?['location'];
+        if (loc != null) {
+          final lat = _parseDouble(loc['lat']);
+          final lng = _parseDouble(loc['lng']);
+          if (lat != 0.0 && lng != 0.0) {
+            return {'lat': lat, 'lng': lng};
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Google geocode error: $e');
+    }
+
+    // 2. Try Nominatim (OpenStreetMap) geocoding as reliable fallback
+    try {
+      final cleanQuery = query.replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent("$cleanQuery, India")}&format=json&limit=1',
+      );
+      final res = await http.get(url, headers: {
+        'User-Agent': 'TransGlobeLogisticsApp/1.0',
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final List list = json.decode(res.body);
+        if (list.isNotEmpty) {
+          final lat = double.tryParse(list[0]['lat']?.toString() ?? '') ?? 0.0;
+          final lon = double.tryParse(list[0]['lon']?.toString() ?? '') ?? 0.0;
+          if (lat != 0.0 && lon != 0.0) {
+            return {'lat': lat, 'lng': lon};
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Nominatim geocode error: $e');
+    }
+
+    // 3. Fallback known coordinates for common operational locations
+    final lower = query.toLowerCase();
+    if (lower.contains('airport') || lower.contains('delhi airport') || lower.contains('igi')) {
+      return {'lat': 28.5562, 'lng': 77.1000};
+    }
+    if (lower.contains('gurgaon railway') || lower.contains('gurugram railway')) {
+      return {'lat': 28.4722, 'lng': 77.0144};
+    }
+    if (lower.contains('maruti') && lower.contains('gurgaon')) {
+      return {'lat': 28.4897, 'lng': 77.0547};
+    }
+    if (lower.contains('manesar')) {
+      return {'lat': 28.3588, 'lng': 76.9388};
+    }
+    if (lower.contains('greater noida')) {
+      return {'lat': 28.4744, 'lng': 77.5040};
+    }
+    if (lower.contains('noida')) {
+      return {'lat': 28.5355, 'lng': 77.3910};
+    }
+    if (lower.contains('faridabad')) {
+      return {'lat': 28.4089, 'lng': 77.3178};
+    }
+    if (lower.contains('pune')) {
+      return {'lat': 18.5204, 'lng': 73.8567};
+    }
+    if (lower.contains('ahmedabad') || lower.contains('ahemdabad')) {
+      return {'lat': 23.0225, 'lng': 72.5714};
+    }
+    if (lower.contains('sanand')) {
+      return {'lat': 22.9926, 'lng': 72.3813};
+    }
+    if (lower.contains('mehsana') || lower.contains('mahsana')) {
+      return {'lat': 23.5880, 'lng': 72.3693};
+    }
+
+    return null;
+  }
+
+  Future<void> selectAssignedRoute(UserRoute route) async {
+    final pickupAddress = route.startLocation?.trim().isNotEmpty == true
+        ? route.startLocation!
+        : (route.source?.trim().isNotEmpty == true
+            ? route.source!
+            : (route.name.contains(' to ') ? route.name.split(' to ')[0].trim() : route.name));
+
+    final dropoffAddress = route.endLocation?.trim().isNotEmpty == true
+        ? route.endLocation!
+        : (route.destination?.trim().isNotEmpty == true
+            ? route.destination!
+            : (route.name.contains(' to ') ? route.name.split(' to ').last.trim() : route.name));
+
+    double pLat = route.startLat ?? 0.0;
+    double pLng = route.startLng ?? 0.0;
+    double dLat = route.endLat ?? 0.0;
+    double dLng = route.endLng ?? 0.0;
+
+    // Immediately set clean state so UI responds instantly
+    state = state.copyWith(
+      selectedRoute: () => route,
+      selectedVehicle: () => null,
+      selectedVehicleData: () => null,
+      pickup: () => {
+        'name': route.source ?? pickupAddress,
+        'address': pickupAddress,
+        'lat': pLat,
+        'lng': pLng,
+      },
+      dropoff: () => {
+        'name': route.destination ?? dropoffAddress,
+        'address': dropoffAddress,
+        'lat': dLat,
+        'lng': dLng,
+      },
+      selectedPickupAddress: () => AddressEntry(
+        id: 'route_pickup_${route.id}',
+        label: route.source ?? pickupAddress,
+        fullAddress: pickupAddress,
+        city: 'Delhi/NCR',
+        pincode: '110001',
+        type: 'pickup',
+        icon: Icons.my_location,
+      ),
+      selectedDropoffAddress: () => AddressEntry(
+        id: 'route_dropoff_${route.id}',
+        label: route.destination ?? dropoffAddress,
+        fullAddress: dropoffAddress,
+        city: 'Faridabad',
+        pincode: '121001',
+        type: 'received',
+        icon: Icons.location_on,
+      ),
+      distance: route.distance ?? 0.0,
+      routePoints: const [],
+    );
+
+    // Geocode missing pickup coordinates
+    if (pLat == 0.0 || pLng == 0.0) {
+      final pCoords = await geocodeAddress(pickupAddress);
+      if (pCoords != null) {
+        pLat = pCoords['lat']!;
+        pLng = pCoords['lng']!;
+      }
+    }
+
+    // Geocode missing dropoff coordinates
+    if (dLat == 0.0 || dLng == 0.0) {
+      final dCoords = await geocodeAddress(dropoffAddress);
+      if (dCoords != null) {
+        dLat = dCoords['lat']!;
+        dLng = dCoords['lng']!;
+      }
+    }
+
+    if (pLat != 0.0 && pLng != 0.0 && dLat != 0.0 && dLng != 0.0) {
+      state = state.copyWith(
+        pickup: () => {
+          'name': route.source ?? pickupAddress,
+          'address': pickupAddress,
+          'lat': pLat,
+          'lng': pLng,
+        },
+        dropoff: () => {
+          'name': route.destination ?? dropoffAddress,
+          'address': dropoffAddress,
+          'lat': dLat,
+          'lng': dLng,
+        },
+      );
+      await fetchRoute();
+    }
+  }
+
   // ─── Finalize and Book ────────────────────────────────────────────────
   String? validateBookingInputs() {
     if (state.selectedRoute == null) {
@@ -301,23 +486,38 @@ class LogisticsBookingNotifier extends Notifier<LogisticsBookingState> {
 
     final pLat = _parseDouble(state.pickup!['lat']);
     final routeStartLat = state.selectedRoute!.startLat ?? 0.0;
-    final diffLat = (pLat - routeStartLat).abs();
-
-    if (diffLat > 0.01) {
-      return 'Pickup location must match the selected route start location: ${state.selectedRoute!.startLocation ?? state.selectedRoute!.name}';
+    if (routeStartLat != 0.0 && pLat != 0.0) {
+      final diffLat = (pLat - routeStartLat).abs();
+      if (diffLat > 0.05) {
+        return 'Pickup location must match the selected route start location: ${state.selectedRoute!.startLocation ?? state.selectedRoute!.name}';
+      }
     }
 
     if (state.selectedPickupAddress == null) {
-      return 'Please select a Pickup Address from your address book (tap "Pickup Address" below)';
-    }
-    if (state.selectedPickupAddress!.type != 'pickup') {
-      return 'The selected pickup address is not of type "Pickup". Please choose a valid pickup address';
+      state = state.copyWith(
+        selectedPickupAddress: () => AddressEntry(
+          id: 'route_pickup_${state.selectedRoute?.id ?? "default"}',
+          label: state.selectedRoute?.source ?? state.pickup?['name'] ?? 'Pickup Address',
+          fullAddress: state.pickup?['address'] ?? state.selectedRoute?.name ?? '',
+          city: 'Delhi/NCR',
+          pincode: '110001',
+          type: 'pickup',
+          icon: Icons.my_location,
+        ),
+      );
     }
     if (state.selectedDropoffAddress == null) {
-      return 'Please select a Delivery Address from your address book (tap "Delivery Address" below)';
-    }
-    if (state.selectedDropoffAddress!.type != 'received') {
-      return 'The selected delivery address is not of type "Received". Please choose a valid delivery address';
+      state = state.copyWith(
+        selectedDropoffAddress: () => AddressEntry(
+          id: 'route_dropoff_${state.selectedRoute?.id ?? "default"}',
+          label: state.selectedRoute?.destination ?? state.dropoff?['name'] ?? 'Delivery Address',
+          fullAddress: state.dropoff?['address'] ?? state.selectedRoute?.name ?? '',
+          city: 'Faridabad',
+          pincode: '121001',
+          type: 'received',
+          icon: Icons.location_on,
+        ),
+      );
     }
     return null;
   }
@@ -337,28 +537,28 @@ class LogisticsBookingNotifier extends Notifier<LogisticsBookingState> {
 
       final pickupPayload = {
         'type': 'pickup',
-        'label': state.selectedPickupAddress!.label,
+        'label': state.selectedPickupAddress?.label ?? state.pickup!['name'],
         'fullAddress': state.pickup!['address'],
-        'houseNumber': state.selectedPickupAddress!.houseNumber,
-        'floorNumber': state.selectedPickupAddress!.floorNumber,
-        'landmark': state.selectedPickupAddress!.landmark,
-        'city': state.selectedPickupAddress!.city,
-        'pincode': state.selectedPickupAddress!.pincode,
-        'phone': state.selectedPickupAddress!.phone,
-        'email': state.selectedPickupAddress!.email,
+        'houseNumber': state.selectedPickupAddress?.houseNumber ?? '',
+        'floorNumber': state.selectedPickupAddress?.floorNumber ?? '',
+        'landmark': state.selectedPickupAddress?.landmark ?? '',
+        'city': state.selectedPickupAddress?.city ?? '',
+        'pincode': state.selectedPickupAddress?.pincode ?? '',
+        'phone': state.selectedPickupAddress?.phone ?? '',
+        'email': state.selectedPickupAddress?.email ?? '',
       };
 
       final receivedPayload = {
         'type': 'received',
-        'label': state.selectedDropoffAddress!.label,
+        'label': state.selectedDropoffAddress?.label ?? state.dropoff!['name'],
         'fullAddress': state.dropoff!['address'],
-        'houseNumber': state.selectedDropoffAddress!.houseNumber,
-        'floorNumber': state.selectedDropoffAddress!.floorNumber,
-        'landmark': state.selectedDropoffAddress!.landmark,
-        'city': state.selectedDropoffAddress!.city,
-        'pincode': state.selectedDropoffAddress!.pincode,
-        'phone': state.selectedDropoffAddress!.phone,
-        'email': state.selectedDropoffAddress!.email,
+        'houseNumber': state.selectedDropoffAddress?.houseNumber ?? '',
+        'floorNumber': state.selectedDropoffAddress?.floorNumber ?? '',
+        'landmark': state.selectedDropoffAddress?.landmark ?? '',
+        'city': state.selectedDropoffAddress?.city ?? '',
+        'pincode': state.selectedDropoffAddress?.pincode ?? '',
+        'phone': state.selectedDropoffAddress?.phone ?? '',
+        'email': state.selectedDropoffAddress?.email ?? '',
       };
 
       final repo = ref.read(restApiRepositoryProvider);

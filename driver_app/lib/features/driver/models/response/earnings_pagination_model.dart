@@ -1,5 +1,24 @@
 import 'package:equatable/equatable.dart';
 
+double _toDouble(dynamic val, [double defaultVal = 0.0]) {
+  if (val == null) return defaultVal;
+  if (val is num) return val.toDouble();
+  if (val is String) {
+    return double.tryParse(val) ?? defaultVal;
+  }
+  return defaultVal;
+}
+
+int _toInt(dynamic val, [int defaultVal = 0]) {
+  if (val == null) return defaultVal;
+  if (val is int) return val;
+  if (val is num) return val.toInt();
+  if (val is String) {
+    return int.tryParse(val) ?? defaultVal;
+  }
+  return defaultVal;
+}
+
 class EarningsRecordModel extends Equatable {
   final String bookingId;
   final double amount;
@@ -21,13 +40,13 @@ class EarningsRecordModel extends Equatable {
 
   factory EarningsRecordModel.fromJson(Map<String, dynamic> json) {
     return EarningsRecordModel(
-      bookingId: json['bookingId']?.toString() ?? '',
-      amount: (json['amount'] ?? json['driverEarnings'] ?? 0.0).toDouble(),
-      date: json['date']?.toString() ?? '',
-      tripDistance: (json['tripDistance'] ?? 0.0).toDouble(),
+      bookingId: json['bookingId']?.toString() ?? json['id']?.toString() ?? '',
+      amount: _toDouble(json['amount'] ?? json['driverEarnings'] ?? json['fare']),
+      date: json['date']?.toString() ?? json['completedAt']?.toString() ?? json['createdAt']?.toString() ?? '',
+      tripDistance: _toDouble(json['tripDistance'] ?? json['distance']),
       status: json['status']?.toString() ?? '',
       userName: json['userName']?.toString() ?? 'Customer',
-      vehicleType: json['vehicleType']?.toString() ?? 'Ride',
+      vehicleType: json['vehicleType']?.toString() ?? json['rideMode'] ?? 'Ride',
     );
   }
 
@@ -44,8 +63,8 @@ class DailyEarningModel extends Equatable {
 
   factory DailyEarningModel.fromJson(Map<String, dynamic> json) {
     return DailyEarningModel(
-      label: json['label']?.toString() ?? '',
-      earnings: (json['earnings'] ?? 0.0).toDouble(),
+      label: json['label']?.toString() ?? json['date']?.toString() ?? '',
+      earnings: _toDouble(json['earnings'] ?? json['totalIncome'] ?? json['amount']),
     );
   }
 
@@ -84,28 +103,33 @@ class EarningsPaginationModel extends Equatable {
     final rawRecords = json['records'] ??
         json['recentTrips'] ??
         json['recentTransactions'] ??
+        json['completedBookings'] ??
+        json['bookings'] ??
         [];
     final list = rawRecords is List ? rawRecords : [];
-    final recordsList =
-        list.map((i) => EarningsRecordModel.fromJson(Map<String, dynamic>.from(i as Map))).toList();
+    final recordsList = list
+        .whereType<Map>()
+        .map((i) => EarningsRecordModel.fromJson(Map<String, dynamic>.from(i)))
+        .toList();
 
     final rawDaily = json['dailyBreakdown'] as List? ?? [];
     final dailyList = rawDaily
-        .map((i) => DailyEarningModel.fromJson(Map<String, dynamic>.from(i as Map)))
+        .whereType<Map>()
+        .map((i) => DailyEarningModel.fromJson(Map<String, dynamic>.from(i)))
         .toList();
 
     return EarningsPaginationModel(
-      totalEarnings: (json['totalEarnings'] ?? 0.0).toDouble(),
-      todayEarnings: (json['todayEarnings'] ?? 0.0).toDouble(),
-      weeklyEarnings: (json['weeklyEarnings'] ?? 0.0).toDouble(),
-      monthlyEarnings: (json['monthlyEarnings'] ?? 0.0).toDouble(),
-      page: json['page'] ?? 1,
-      limit: json['limit'] ?? 20,
+      totalEarnings: _toDouble(json['totalEarnings']),
+      todayEarnings: _toDouble(json['todayEarnings']),
+      weeklyEarnings: _toDouble(json['weeklyEarnings']),
+      monthlyEarnings: _toDouble(json['monthlyEarnings']),
+      page: _toInt(json['page'], 1),
+      limit: _toInt(json['limit'], 20),
       records: recordsList,
       dailyBreakdown: dailyList,
-      weeklyCompletedRides: json['weeklyCompletedRides'] ?? 0,
-      bonusTarget: json['bonusTarget'] ?? 15,
-      bonusAmount: (json['bonusAmount'] ?? 1000).toDouble(),
+      weeklyCompletedRides: _toInt(json['weeklyCompletedRides']),
+      bonusTarget: _toInt(json['bonusTarget'], 15),
+      bonusAmount: _toDouble(json['bonusAmount'], 1000),
     );
   }
 

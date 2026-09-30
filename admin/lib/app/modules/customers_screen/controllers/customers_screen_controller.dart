@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:admin/app/utils/http_client.dart' as http;
 import 'package:admin/app/constant/api_constant.dart';
 import 'package:admin/app/services/shared_preferences/app_preference.dart';
-import 'package:admin/app/constant/collection_name.dart';
 import 'package:admin/app/constant/constants.dart';
 import 'package:admin/app/constant/show_toast.dart';
 import 'package:admin/app/models/user_model.dart';
@@ -13,15 +12,17 @@ import 'package:admin/app/utils/fire_store_utils.dart';
 import 'package:admin/app/utils/toast.dart';
 import 'package:admin/app/utils/web_download_helper.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:nb_utils/nb_utils.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:admin/app/utils/app_colors.dart';
+import 'package:admin/app/utils/app_them_data.dart';
+import 'package:admin/app/utils/dark_theme_provider.dart';
 
 class CustomersScreenController extends GetxController {
   RxString title = "Customers".tr.obs;
@@ -117,21 +118,26 @@ class CustomersScreenController extends GetxController {
     required String phone,
     required String password,
     required String company,
+    List<String>? assignedRoutes,
   }) async {
     isLoading.value = true;
     try {
       String token = await AppSharedPreference.getString('adminToken');
+      final bodyData = <String, dynamic>{
+        "name": name,
+        "email": email,
+        "mobileNumber": phone,
+        "password": password,
+        // "companyName": company,
+        "status": "active"
+      };
+      if (assignedRoutes != null && assignedRoutes.isNotEmpty) {
+        bodyData["assignedRoutes"] = assignedRoutes;
+      }
       final response = await http.post(
         Uri.parse(ApiConstant.adminUsersCreate),
         headers: ApiConstant.headers(token: token),
-        body: jsonEncode({
-          "name": name,
-          "email": email,
-          "mobileNumber": phone,
-          "password": password,
-          // "companyName": company,
-          "status": "active"
-        }),
+        body: jsonEncode(bodyData),
       );
       final responseData = jsonDecode(response.body);
       if (response.statusCode == 201 || responseData['success'] == true) {
@@ -179,67 +185,240 @@ class CustomersScreenController extends GetxController {
     final phoneCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
     final companyCtrl = TextEditingController();
+    final addRouteSearchCtrl = TextEditingController();
+    final RxString addRouteSearchQuery = ''.obs;
+    final RxList<String> addUserSelectedRoutes = <String>[].obs;
 
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text("Add New User".tr),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: InputDecoration(labelText: "Full Name *".tr),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: emailCtrl,
-                  decoration: InputDecoration(labelText: "Email Address *".tr),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: phoneCtrl,
-                  decoration: InputDecoration(labelText: "Phone Number".tr),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: passwordCtrl,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: "Password *".tr),
-                ),
-                // const SizedBox(height: 10),
-                // TextField(
-                //   controller: companyCtrl,
-                //   decoration: InputDecoration(labelText: "Company Name".tr),
-                // ),
-              ],
+        final themeChange = Provider.of<DarkThemeProvider>(context);
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            width: 550,
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Add New User".tr,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontFamily: AppThemeData.bold,
+                          color: themeChange.isDarkTheme() ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: InputDecoration(
+                      labelText: "Full Name *".tr,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailCtrl,
+                    decoration: InputDecoration(
+                      labelText: "Email Address *".tr,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phoneCtrl,
+                    decoration: InputDecoration(
+                      labelText: "Phone Number".tr,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordCtrl,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: "Password *".tr,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Route Assignment with Search
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Assign Routes (Optional)".tr,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontFamily: AppThemeData.medium,
+                          color: themeChange.isDarkTheme() ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      Obx(
+                        () => Text(
+                          "${addUserSelectedRoutes.length} ${'selected'.tr}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppThemData.primary500,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Search field for routes
+                  TextField(
+                    controller: addRouteSearchCtrl,
+                    decoration: InputDecoration(
+                      hintText: "Search routes by name or location...".tr,
+                      hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                      prefixIcon: const Icon(Icons.search, size: 20, color: Colors.grey),
+                      suffixIcon: Obx(
+                        () => addRouteSearchQuery.value.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  addRouteSearchCtrl.clear();
+                                  addRouteSearchQuery.value = '';
+                                },
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onChanged: (val) {
+                      addRouteSearchQuery.value = val;
+                    },
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Routes list box
+                  Obx(
+                    () {
+                      final q = addRouteSearchQuery.value.toLowerCase().trim();
+                      final filteredList = q.isEmpty
+                          ? allRoutes
+                          : allRoutes.where((r) {
+                              final name = (r.name ?? '').toLowerCase();
+                              final source = (r.source ?? '').toLowerCase();
+                              final dest = (r.destination ?? '').toLowerCase();
+                              return name.contains(q) || source.contains(q) || dest.contains(q);
+                            }).toList();
+
+                      return Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: themeChange.isDarkTheme() ? AppThemData.greyShade700 : AppThemData.greyShade300,
+                          ),
+                        ),
+                        constraints: const BoxConstraints(maxHeight: 160),
+                        child: filteredList.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Center(
+                                  child: Text(
+                                    allRoutes.isEmpty
+                                        ? "No routes available".tr
+                                        : "No matching routes found".tr,
+                                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: filteredList.length,
+                                itemBuilder: (context, index) {
+                                  final route = filteredList[index];
+                                  final isChecked = addUserSelectedRoutes.contains(route.id);
+                                  return CheckboxListTile(
+                                    dense: true,
+                                    title: Text(
+                                      "${route.name ?? ''} (${route.source ?? ''} -> ${route.destination ?? ''})",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: themeChange.isDarkTheme() ? Colors.white : Colors.black87,
+                                      ),
+                                    ),
+                                    value: isChecked,
+                                    activeColor: AppThemData.primary500,
+                                    controlAffinity: ListTileControlAffinity.leading,
+                                    onChanged: (val) {
+                                      if (val == true) {
+                                        if (!addUserSelectedRoutes.contains(route.id)) {
+                                          addUserSelectedRoutes.add(route.id!);
+                                        }
+                                      } else {
+                                        addUserSelectedRoutes.remove(route.id!);
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text("Cancel".tr),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppThemData.primary500,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: () async {
+                          if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty || passwordCtrl.text.isEmpty) {
+                            ShowToastDialog.toast("Please fill all required fields".tr);
+                            return;
+                          }
+                          Navigator.pop(context);
+                          await createUser(
+                            name: nameCtrl.text.trim(),
+                            email: emailCtrl.text.trim(),
+                            phone: phoneCtrl.text.trim(),
+                            password: passwordCtrl.text.trim(),
+                            company: companyCtrl.text.trim(),
+                            assignedRoutes: addUserSelectedRoutes.toList(),
+                          );
+                        },
+                        child: Text("Submit".tr, style: const TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Get.back(),
-              child: Text("Cancel".tr),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty || passwordCtrl.text.isEmpty) {
-                  ShowToastDialog.toast("Please fill all required fields".tr);
-                  return;
-                }
-                Get.back();
-                await createUser(
-                  name: nameCtrl.text.trim(),
-                  email: emailCtrl.text.trim(),
-                  phone: phoneCtrl.text.trim(),
-                  password: passwordCtrl.text.trim(),
-                  company: companyCtrl.text.trim(),
-                );
-              },
-              child: Text("Submit".tr),
-            ),
-          ],
         );
       },
     );
@@ -349,6 +528,21 @@ class CustomersScreenController extends GetxController {
 
   RxList<AdminRouteModel> allRoutes = <AdminRouteModel>[].obs;
   RxList<String> selectedRouteIds = <String>[].obs;
+  final routeSearchController = TextEditingController();
+  RxString routeSearchQuery = ''.obs;
+
+  List<AdminRouteModel> get filteredRoutes {
+    if (routeSearchQuery.value.trim().isEmpty) {
+      return allRoutes;
+    }
+    final q = routeSearchQuery.value.toLowerCase().trim();
+    return allRoutes.where((route) {
+      final name = (route.name ?? '').toLowerCase();
+      final source = (route.source ?? '').toLowerCase();
+      final dest = (route.destination ?? '').toLowerCase();
+      return name.contains(q) || source.contains(q) || dest.contains(q);
+    }).toList();
+  }
 
   void getArgument(UserModel usersModel) {
     userModel.value = usersModel;
@@ -361,6 +555,8 @@ class CustomersScreenController extends GetxController {
     imageController.value.text = userModel.value.profilePic!;
     editingId.value = userModel.value.id!;
     selectedRouteIds.value = usersModel.assignedRoutes?.map((e) => e.id ?? "").where((id) => id.isNotEmpty).toList() ?? [];
+    routeSearchController.clear();
+    routeSearchQuery.value = '';
   }
 
   Future<void> walletTopUp() async {

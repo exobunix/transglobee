@@ -52,8 +52,12 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
       final lng = _parseDouble(widget.location!['lng']);
       if (lat != 0.0 && lng != 0.0) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _mapController.camera.center.latitude.isFinite) {
-            _animatedMapMove(LatLng(lat, lng), 15.0);
+          if (mounted) {
+            try {
+              if (_mapController.camera.center.latitude.isFinite) {
+                _animatedMapMove(LatLng(lat, lng), 15.0);
+              }
+            } catch (_) {}
           }
         });
       }
@@ -84,71 +88,112 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
       }
     }
 
-    if (points.isNotEmpty && points.length > 1) {
-      final bounds = LatLngBounds.fromPoints(points);
+    // Filter out invalid 0,0 or non-finite coordinates
+    final validPoints = points.where((p) {
+      return p.latitude != 0.0 &&
+          p.longitude != 0.0 &&
+          p.latitude.isFinite &&
+          p.longitude.isFinite;
+    }).toList();
+
+    if (validPoints.length > 1) {
+      final first = validPoints.first;
+      final bool hasDistinct = validPoints.any((p) =>
+          (p.latitude - first.latitude).abs() > 0.0001 ||
+          (p.longitude - first.longitude).abs() > 0.0001);
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _mapController.fitCamera(
-            CameraFit.bounds(
-              bounds: bounds,
-              padding: const EdgeInsets.all(50.0),
-            ),
-          );
+        if (!mounted) return;
+        try {
+          if (hasDistinct) {
+            final bounds = LatLngBounds.fromPoints(validPoints);
+            if (bounds.north != bounds.south && bounds.east != bounds.west) {
+              _mapController.fitCamera(
+                CameraFit.bounds(
+                  bounds: bounds,
+                  padding: const EdgeInsets.all(50.0),
+                ),
+              );
+              return;
+            }
+          }
+          _mapController.move(first, 14.0);
+        } catch (e) {
+          debugPrint('Error fitting map bounds: $e');
+        }
+      });
+    } else if (validPoints.length == 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        try {
+          _mapController.move(validPoints.first, 14.0);
+        } catch (e) {
+          debugPrint('Error moving map: $e');
         }
       });
     }
   }
 
   void _animatedMapMove(LatLng destLocation, double destZoom) {
-    if (!mounted || !_mapController.camera.center.latitude.isFinite) return;
+    if (!mounted) return;
+    try {
+      if (!_mapController.camera.center.latitude.isFinite) return;
+      if (destLocation.latitude == 0.0 && destLocation.longitude == 0.0) return;
+      if (!destLocation.latitude.isFinite || !destLocation.longitude.isFinite) return;
+      if (!destZoom.isFinite) return;
 
-    _moveAnimationController?.stop();
-    _moveAnimationController?.dispose();
+      _moveAnimationController?.stop();
+      _moveAnimationController?.dispose();
 
-    final latTween = Tween<double>(
-      begin: _mapController.camera.center.latitude,
-      end: destLocation.latitude,
-    );
-    final lngTween = Tween<double>(
-      begin: _mapController.camera.center.longitude,
-      end: destLocation.longitude,
-    );
-    final zoomTween = Tween<double>(
-      begin: _mapController.camera.zoom,
-      end: destZoom,
-    );
+      final latTween = Tween<double>(
+        begin: _mapController.camera.center.latitude,
+        end: destLocation.latitude,
+      );
+      final lngTween = Tween<double>(
+        begin: _mapController.camera.center.longitude,
+        end: destLocation.longitude,
+      );
+      final zoomTween = Tween<double>(
+        begin: _mapController.camera.zoom,
+        end: destZoom,
+      );
 
-    final controller = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    _moveAnimationController = controller;
+      final controller = AnimationController(
+        duration: const Duration(milliseconds: 1000),
+        vsync: this,
+      );
+      _moveAnimationController = controller;
 
-    final Animation<double> animation = CurvedAnimation(
-      parent: controller,
-      curve: Curves.fastOutSlowIn,
-    );
+      final Animation<double> animation = CurvedAnimation(
+        parent: controller,
+        curve: Curves.fastOutSlowIn,
+      );
 
-    controller.addListener(() {
-      if (mounted) {
-        _mapController.move(
-          LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
-          zoomTween.evaluate(animation),
-        );
-      }
-    });
-
-    animation.addStatusListener((status) {
-      if (status == AnimationStatus.completed ||
-          status == AnimationStatus.dismissed) {
-        if (_moveAnimationController == controller) {
-          controller.dispose();
-          _moveAnimationController = null;
+      controller.addListener(() {
+        if (mounted) {
+          try {
+            _mapController.move(
+              LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+              zoomTween.evaluate(animation),
+            );
+          } catch (_) {}
         }
-      }
-    });
+      });
 
-    controller.forward();
+      animation.addStatusListener((status) {
+        if (status == AnimationStatus.completed ||
+            status == AnimationStatus.dismissed) {
+          if (_moveAnimationController == controller) {
+            controller.dispose();
+            _moveAnimationController = null;
+          }
+        }
+      });
+
+      controller.forward();
+    } catch (e) {
+      debugPrint('Error in _animatedMapMove: $e');
+    }
   }
 
   double _parseDouble(dynamic val) {
@@ -210,7 +255,9 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
           ),
         MarkerLayer(
           markers: [
-            if (widget.location != null)
+            if (widget.location != null &&
+                _parseDouble(widget.location!['lat']) != 0.0 &&
+                _parseDouble(widget.location!['lng']) != 0.0)
               Marker(
                 point: LatLng(
                   _parseDouble(widget.location!['lat']),

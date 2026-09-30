@@ -302,7 +302,8 @@ const createUser = async (req, res) => {
             gstNumber,
             corporateId,
             username,
-            status
+            status,
+            assignedRoutes
         } = req.body;
 
         // Validate required fields
@@ -373,7 +374,8 @@ const createUser = async (req, res) => {
             gstNumber:    gstNumber     || '',
             corporateId:  corporateId   || '',
             role:         'corporate',
-            status:       status        || 'active'
+            status:       status        || 'active',
+            assignedRoutes: Array.isArray(assignedRoutes) ? assignedRoutes : []
         });
 
         await user.save();
@@ -579,16 +581,208 @@ const getAllBookings = async (req, res) => {
         const formattedLogistics = logistics.map(b => ({ ...b.toObject(), bookingId: b._id, type: 'logistics', pickup: b.pickup?.address, drop: b.dropoff?.address }));
         const formattedShuttles = shuttles.map(b => ({ ...b.toObject(), bookingId: b._id, type: 'shuttle', pickup: b.pickupLocation, drop: b.dropoffLocation }));
 
+        const allBookings = [...formattedRides, ...formattedLogistics, ...formattedShuttles];
+
         res.status(200).json({ 
             success: true, 
-            bookings: { 
-                rides: formattedRides, 
-                logistics: formattedLogistics, 
-                shuttles: formattedShuttles 
-            } 
+            bookings: allBookings,
+            all: allBookings,
+            rides: formattedRides, 
+            logistics: formattedLogistics, 
+            shuttles: formattedShuttles 
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+const getDriverDailyIncomeAndBookings = async (req, res) => {
+    try {
+        const { driverId } = req.params;
+        const query = [{ uid: driverId }, { firebaseId: driverId }, { mobileNumber: driverId }];
+        if (mongoose.Types.ObjectId.isValid(driverId)) {
+            query.push({ _id: driverId });
+        }
+        const driver = await Driver.findOne({ $or: query });
+
+        if (!driver) {
+            return res.status(404).json({ success: false, message: 'Driver not found' });
+        }
+
+        const driverIds = [driver._id, driver._id.toString(), driver.uid, driver.firebaseId].filter(Boolean);
+
+        // Fetch all bookings for this driver across Cabs, Logistics, and Shuttles
+        const [cabs, logistics, shuttles] = await Promise.all([
+            History.find({ driverId: { $in: driverIds } })
+                .populate('userId', 'name mobileNumber email')
+                .sort({ createdAt: -1 })
+                .lean(),
+            LogisticsBooking.find({
+                $or: [
+                    { driverId: { $in: driverIds } },
+                    { 'segments.driverId': { $in: driverIds } }
+                ]
+            })
+                .sort({ createdAt: -1 })
+                .lean(),
+            ShuttleBooking.find({ driverId: { $in: driverIds } })
+                .populate('routeId')
+                .sort({ createdAt: -1 })
+                .lean(),
+        ]);
+
+        const getFare = (b) => Number(b.actualFare ?? b.fare ?? b.totalPrice ?? b.vehiclePrice ?? 0);
+
+        const formattedBookings = [
+            ...cabs.map(b => ({
+                id: b._id.toString(),
+                bookingId: b._id.toString(),
+                type: 'ride',
+                category: 'CAB',
+                serviceType: b.rideMode || 'CAB',
+                customerName: b.userId?.name || b.userName || 'Customer',
+                customerPhone: b.userId?.mobileNumber || b.mobileNumber || '',
+                pickup: b.locations?.[0]?.address || b.locations?.[0]?.title || b.pickupLocation || '',
+                drop: b.locations?.[1]?.address || b.locations?.[1]?.title || b.dropoffLocation || '',
+                pickupLocation: b.locations?.[0]?.address || b.locations?.[0]?.title || b.pickupLocation || '',
+                dropoffLocation: b.locations?.[1]?.address || b.locations?.[1]?.title || b.dropoffLocation || '',
+                distance: parseFloat(b.distance) || 0,
+                fare: getFare(b),
+                amount: getFare(b),
+                subTotal: getFare(b).toString(),
+                status: b.status,
+                bookingStatus: b.status === 'completed' ? 'booking_completed' : `booking_${b.status}`,
+                paymentStatus: (b.paymentStatus === 'paid' || b.status === 'completed') ? 'true' : 'false',
+                paymentMode: b.paymentMode || 'cash',
+                createdAt: b.createdAt,
+                completedAt: b.completedAt || b.updatedAt,
+                date: b.completedAt || b.createdAt
+            })),
+            ...logistics.map(b => ({
+                id: b._id.toString(),
+                bookingId: b._id.toString(),
+                type: 'logistics',
+                category: 'LOGISTICS',
+                serviceType: b.vehicleType || 'LOGISTICS',
+                customerName: b.userName || 'Customer',
+                customerPhone: b.userPhone || '',
+                pickup: b.pickup?.address || b.pickup?.name || '',
+                drop: b.dropoff?.address || b.dropoff?.name || '',
+                pickupLocation: b.pickup?.address || b.pickup?.name || '',
+                dropoffLocation: b.dropoff?.address || b.dropoff?.name || '',
+                distance: b.distanceKm || 0,
+                fare: getFare(b),
+                amount: getFare(b),
+                subTotal: getFare(b).toString(),
+                status: b.status,
+                bookingStatus: b.status === 'delivered' ? 'booking_completed' : `booking_${b.status}`,
+                paymentStatus: (b.status === 'delivered') ? 'true' : 'false',
+                paymentMode: 'online',
+                createdAt: b.createdAt,
+                completedAt: b.completedAt || b.updatedAt,
+                date: b.completedAt || b.createdAt
+            })),
+            ...shuttles.map(b => ({
+                id: b._id.toString(),
+                bookingId: b._id.toString(),
+                type: 'shuttle',
+                category: 'SHUTTLE',
+                serviceType: 'SHUTTLE',
+                customerName: b.userName || 'Customer',
+                customerPhone: b.userPhone || '',
+                pickup: b.pickupLocation || '',
+                drop: b.dropoffLocation || '',
+                pickupLocation: b.pickupLocation || '',
+                dropoffLocation: b.dropoffLocation || '',
+                distance: 0,
+                fare: getFare(b),
+                amount: getFare(b),
+                subTotal: getFare(b).toString(),
+                status: b.status,
+                bookingStatus: b.status === 'completed' ? 'booking_completed' : `booking_${b.status}`,
+                paymentStatus: (b.status === 'completed') ? 'true' : 'false',
+                paymentMode: 'online',
+                createdAt: b.createdAt,
+                completedAt: b.completedAt || b.updatedAt,
+                date: b.completedAt || b.createdAt
+            }))
+        ].sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+
+        const completedBookings = formattedBookings.filter(b => 
+            b.status === 'completed' || b.status === 'delivered' || b.status === 'Completed' || b.status === 'Delivered'
+        );
+
+        const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        let todayEarnings = 0;
+        let weeklyEarnings = 0;
+        let monthlyEarnings = 0;
+        let totalEarnings = 0;
+
+        const dailyIncomeMap = {};
+
+        completedBookings.forEach(b => {
+            const bDate = new Date(b.date || b.createdAt);
+            const amt = b.fare || 0;
+            totalEarnings += amt;
+
+            if (bDate >= todayStart) {
+                todayEarnings += amt;
+            }
+            if (bDate >= weekAgo) {
+                weeklyEarnings += amt;
+            }
+            if (bDate >= monthAgo) {
+                monthlyEarnings += amt;
+            }
+
+            const dayKey = bDate.toISOString().split('T')[0];
+            if (!dailyIncomeMap[dayKey]) {
+                dailyIncomeMap[dayKey] = {
+                    date: dayKey,
+                    totalIncome: 0,
+                    bookingCount: 0,
+                    bookings: []
+                };
+            }
+            dailyIncomeMap[dayKey].totalIncome += amt;
+            dailyIncomeMap[dayKey].bookingCount += 1;
+            dailyIncomeMap[dayKey].bookings.push(b);
+        });
+
+        const dailyBreakdown = Object.values(dailyIncomeMap).sort((a, b) => b.date.localeCompare(a.date));
+
+        return res.status(200).json({
+            success: true,
+            driver: {
+                id: driver._id,
+                name: driver.name,
+                mobileNumber: driver.mobileNumber || driver.phone,
+                vehicleNumberPlate: driver.vehicleNumberPlate,
+                vehicleModel: driver.vehicleModel,
+                walletBalance: driver.walletBalance || 0,
+                status: driver.status,
+            },
+            earnings: {
+                todayEarnings,
+                weeklyEarnings,
+                monthlyEarnings,
+                totalEarnings,
+                walletBalance: driver.walletBalance || 0,
+                totalCompletedTrips: completedBookings.length,
+                totalBookings: formattedBookings.length
+            },
+            dailyBreakdown,
+            bookings: formattedBookings,
+            completedBookings
+        });
+    } catch (error) {
+        console.error('Error fetching driver daily income and bookings:', error);
+        return res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
 };
 
@@ -986,6 +1180,7 @@ module.exports = {
     updateUserProfile,
     blacklistUser,
     deleteDriver,
+    getDriverDailyIncomeAndBookings,
     deleteUser,
     getUserBookings,
     getAllComplaints,

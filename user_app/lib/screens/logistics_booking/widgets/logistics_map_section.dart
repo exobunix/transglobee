@@ -35,7 +35,15 @@ class LogisticsMapSection extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: LeafletMap(
-          location: pickup ?? dropoff,
+          location: (pickup != null &&
+                  _parseDouble(pickup!['lat']) != 0.0 &&
+                  _parseDouble(pickup!['lng']) != 0.0)
+              ? pickup
+              : ((dropoff != null &&
+                      _parseDouble(dropoff!['lat']) != 0.0 &&
+                      _parseDouble(dropoff!['lng']) != 0.0)
+                  ? dropoff
+                  : null),
           polylines: [
             if (routePoints.isNotEmpty)
               Polyline(
@@ -45,7 +53,9 @@ class LogisticsMapSection extends StatelessWidget {
               ),
           ],
           markers: [
-            if (pickup != null)
+            if (pickup != null &&
+                _parseDouble(pickup!['lat']) != 0.0 &&
+                _parseDouble(pickup!['lng']) != 0.0)
               Marker(
                 point: LatLng(
                   _parseDouble(pickup!['lat']),
@@ -59,7 +69,9 @@ class LogisticsMapSection extends StatelessWidget {
                   size: 24,
                 ),
               ),
-            if (dropoff != null)
+            if (dropoff != null &&
+                _parseDouble(dropoff!['lat']) != 0.0 &&
+                _parseDouble(dropoff!['lng']) != 0.0)
               Marker(
                 point: LatLng(
                   _parseDouble(dropoff!['lat']),

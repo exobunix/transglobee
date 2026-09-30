@@ -187,6 +187,8 @@ class DriverDetailScreenView extends StatelessWidget {
                                         ],
                                       ),
                                       spaceH(height: 20),
+                                      _buildEarningsSummaryCards(context, controller, themeChange),
+                                      spaceH(height: 20),
                                       ResponsiveWidget(
                                         desktop: Row(
                                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,7 +232,26 @@ class DriverDetailScreenView extends StatelessWidget {
                                           ],
                                         ),
                                       ),
-                                      spaceH(height: 20),
+                                      _buildDailyBreakdownSection(context, controller, themeChange),
+                                      spaceH(height: 24),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          TextCustom(
+                                            title: "DRIVER BOOKING DETAILS".tr,
+                                            fontSize: 16,
+                                            fontFamily: AppThemeData.bold,
+                                            color: AppThemData.primary500,
+                                          ),
+                                          Obx(() => TextCustom(
+                                            title: "${controller.bookingList.length} Total Bookings",
+                                            fontSize: 14,
+                                            fontFamily: AppThemeData.medium,
+                                            color: AppThemData.greyShade500,
+                                          )),
+                                        ],
+                                      ),
+                                      spaceH(height: 14),
                                       Obx(
                                         () => SingleChildScrollView(
                                           scrollDirection: Axis.horizontal,
@@ -578,6 +599,208 @@ class DriverDetailScreenView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildEarningsSummaryCards(BuildContext context, DriverDetailScreenController controller, DarkThemeProvider themeChange) {
+    return Obx(() {
+      final isDark = themeChange.isDarkTheme();
+      final cards = [
+        {
+          'title': "Today's Income",
+          'value': "₹${controller.todayIncome.value.toStringAsFixed(0)}",
+          'icon': Icons.today,
+          'color': Colors.green,
+          'bg': Colors.green.withOpacity(0.12),
+        },
+        {
+          'title': "This Week",
+          'value': "₹${controller.weeklyIncome.value.toStringAsFixed(0)}",
+          'icon': Icons.date_range,
+          'color': Colors.blue,
+          'bg': Colors.blue.withOpacity(0.12),
+        },
+        {
+          'title': "This Month",
+          'value': "₹${controller.monthlyIncome.value.toStringAsFixed(0)}",
+          'icon': Icons.calendar_month,
+          'color': Colors.orange,
+          'bg': Colors.orange.withOpacity(0.12),
+        },
+        {
+          'title': "Total Earnings",
+          'value': "₹${controller.totalIncome.value.toStringAsFixed(0)}",
+          'icon': Icons.account_balance_wallet,
+          'color': Colors.purple,
+          'bg': Colors.purple.withOpacity(0.12),
+        },
+        {
+          'title': "Wallet Balance",
+          'value': Constant.amountShow(amount: controller.driverUserModel.value.walletAmount ?? "0"),
+          'icon': Icons.account_balance,
+          'color': AppThemData.primary500,
+          'bg': AppThemData.primary500.withOpacity(0.12),
+        },
+      ];
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          int count = constraints.maxWidth > 1100 ? 5 : (constraints.maxWidth > 700 ? 3 : 2);
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: count,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              mainAxisExtent: 95,
+            ),
+            itemCount: cards.length,
+            itemBuilder: (context, index) {
+              final card = cards[index];
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? AppThemData.greyShade900 : AppThemData.primaryWhite,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? AppThemData.greyShade800 : AppThemData.greyShade200,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: card['bg'] as Color,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        card['icon'] as IconData,
+                        color: card['color'] as Color,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextCustom(
+                            title: card['title'] as String,
+                            fontSize: 12,
+                            fontFamily: AppThemeData.medium,
+                            color: isDark ? AppThemData.greyShade400 : AppThemData.greyShade600,
+                          ),
+                          const SizedBox(height: 4),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: TextCustom(
+                              title: card['value'] as String,
+                              fontSize: 18,
+                              fontFamily: AppThemeData.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    });
+  }
+
+  Widget _buildDailyBreakdownSection(BuildContext context, DriverDetailScreenController controller, DarkThemeProvider themeChange) {
+    return Obx(() {
+      if (controller.dailyBreakdown.isEmpty) return const SizedBox.shrink();
+      final isDark = themeChange.isDarkTheme();
+      return Container(
+        margin: const EdgeInsets.only(top: 20),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDark ? AppThemData.greyShade900 : AppThemData.primaryWhite,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? AppThemData.greyShade800 : AppThemData.greyShade200,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextCustom(
+                  title: "DRIVER DAILY INCOME BREAKDOWN".tr,
+                  fontSize: 15,
+                  fontFamily: AppThemeData.bold,
+                  color: AppThemData.primary500,
+                ),
+                TextCustom(
+                  title: "Recent Days",
+                  fontSize: 13,
+                  fontFamily: AppThemeData.medium,
+                  color: isDark ? AppThemData.greyShade400 : AppThemData.greyShade600,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: controller.dailyBreakdown.take(7).map((item) {
+                  final date = item['date'] ?? '';
+                  final count = item['bookingCount'] ?? 0;
+                  final income = (item['totalIncome'] ?? 0).toDouble();
+                  return Container(
+                    margin: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppThemData.greyShade800 : AppThemData.greyShade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? AppThemData.greyShade700 : AppThemData.greyShade200,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextCustom(
+                          title: date,
+                          fontSize: 12,
+                          fontFamily: AppThemeData.medium,
+                          color: isDark ? AppThemData.greyShade400 : AppThemData.greyShade600,
+                        ),
+                        const SizedBox(height: 4),
+                        TextCustom(
+                          title: "₹${income.toStringAsFixed(0)}",
+                          fontSize: 16,
+                          fontFamily: AppThemeData.bold,
+                          color: Colors.green,
+                        ),
+                        const SizedBox(height: 2),
+                        TextCustom(
+                          title: "$count Trips",
+                          fontSize: 11,
+                          fontFamily: AppThemeData.regular,
+                          color: isDark ? AppThemData.greyShade400 : AppThemData.greyShade600,
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildWalletCard(BuildContext context, DriverDetailScreenController controller, DarkThemeProvider themeChange) {

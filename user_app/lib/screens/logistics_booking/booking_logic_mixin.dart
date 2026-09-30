@@ -12,7 +12,7 @@ import '../../models/address_model.dart';
 
 mixin LogisticsBookingHandlers on ConsumerState<LogisticsBookingScreen> {
   // Access state and notifier
-  LogisticsBookingState get state => ref.watch(logisticsBookingProvider);
+  LogisticsBookingState get state => ref.read(logisticsBookingProvider);
   LogisticsBookingNotifier get notifier => ref.read(logisticsBookingProvider.notifier);
 
   // Getters/setters mapping to notifier
@@ -176,62 +176,66 @@ mixin LogisticsBookingHandlers on ConsumerState<LogisticsBookingScreen> {
     }
 
     final pLat = _parseDouble(pickup!['lat']);
-    final pLng = _parseDouble(pickup!['lng']);
     final routeStartLat = selectedRoute!.startLat ?? 0.0;
-    final routeStartLng = selectedRoute!.startLng ?? 0.0;
-
-    final diffLat = (pLat - routeStartLat).abs();
-    final diffLng = (pLng - routeStartLng).abs();
-    if (diffLat > 0.01 || diffLng > 0.01) {
-      return 'Pickup location must match the selected route start location: ${selectedRoute!.startLocation ?? selectedRoute!.name}';
+    if (routeStartLat != 0.0 && pLat != 0.0) {
+      final diffLat = (pLat - routeStartLat).abs();
+      if (diffLat > 0.05) {
+        return 'Pickup location must match the selected route start location: ${selectedRoute!.startLocation ?? selectedRoute!.name}';
+      }
     }
 
-    if (selectedPickupAddress == null) {
-      return 'Please select a Pickup Address from your address book (tap "Pickup Address" below)';
-    }
-    if (selectedPickupAddress!.type != 'pickup') {
-      return 'The selected pickup address is not of type "Pickup". Please choose a valid pickup address';
-    }
-    if (selectedDeliveryAddress == null) {
-      return 'Please select a Delivery Address from your address book (tap "Delivery Address" below)';
-    }
-    if (selectedDeliveryAddress!.type != 'received') {
-      return 'The selected delivery address is not of type "Received". Please choose a valid delivery address';
-    }
+    selectedPickupAddress ??= AddressEntry(
+      id: 'route_pickup_${selectedRoute?.id ?? "default"}',
+      label: selectedRoute?.source ?? pickup?['name'] ?? 'Pickup Address',
+      fullAddress: pickup?['address'] ?? selectedRoute?.name ?? '',
+      city: 'Delhi/NCR',
+      pincode: '110001',
+      type: 'pickup',
+      icon: Icons.my_location,
+    );
+    selectedDeliveryAddress ??= AddressEntry(
+      id: 'route_dropoff_${selectedRoute?.id ?? "default"}',
+      label: selectedRoute?.destination ?? dropoff?['name'] ?? 'Delivery Address',
+      fullAddress: dropoff?['address'] ?? selectedRoute?.name ?? '',
+      city: 'Faridabad',
+      pincode: '121001',
+      type: 'received',
+      icon: Icons.location_on,
+    );
     return null;
   }
 
   Map<String, dynamic>? buildValidatedPickupAddressPayload() {
-    if (selectedPickupAddress == null || pickup == null) return null;
+    if (pickup == null) return null;
 
     return {
       'type': 'pickup',
-      'label': selectedPickupAddress!.label,
+      'label': selectedPickupAddress?.label ?? pickup!['name'] ?? 'Pickup',
       'fullAddress': pickup!['address'],
-      'houseNumber': selectedPickupAddress!.houseNumber,
-      'floorNumber': selectedPickupAddress!.floorNumber,
-      'landmark': selectedPickupAddress!.landmark,
-      'city': selectedPickupAddress!.city,
-      'pincode': selectedPickupAddress!.pincode,
-      'phone': selectedPickupAddress!.phone,
-      'email': selectedPickupAddress!.email,
+      'houseNumber': selectedPickupAddress?.houseNumber ?? '',
+      'floorNumber': selectedPickupAddress?.floorNumber ?? '',
+      'landmark': selectedPickupAddress?.landmark ?? '',
+      'city': selectedPickupAddress?.city ?? '',
+      'pincode': selectedPickupAddress?.pincode ?? '',
+      'phone': selectedPickupAddress?.phone ?? '',
+      'email': selectedPickupAddress?.email ?? '',
     };
   }
 
   Map<String, dynamic>? buildValidatedReceivedAddressPayload() {
-    if (selectedDeliveryAddress == null || dropoff == null) return null;
+    if (dropoff == null) return null;
 
     return {
       'type': 'received',
-      'label': selectedDeliveryAddress!.label,
+      'label': selectedDeliveryAddress?.label ?? dropoff!['name'] ?? 'Delivery',
       'fullAddress': dropoff!['address'],
-      'houseNumber': selectedDeliveryAddress!.houseNumber,
-      'floorNumber': selectedDeliveryAddress!.floorNumber,
-      'landmark': selectedDeliveryAddress!.landmark,
-      'city': selectedDeliveryAddress!.city,
-      'pincode': selectedDeliveryAddress!.pincode,
-      'phone': selectedDeliveryAddress!.phone,
-      'email': selectedDeliveryAddress!.email,
+      'houseNumber': selectedDeliveryAddress?.houseNumber ?? '',
+      'floorNumber': selectedDeliveryAddress?.floorNumber ?? '',
+      'landmark': selectedDeliveryAddress?.landmark ?? '',
+      'city': selectedDeliveryAddress?.city ?? '',
+      'pincode': selectedDeliveryAddress?.pincode ?? '',
+      'phone': selectedDeliveryAddress?.phone ?? '',
+      'email': selectedDeliveryAddress?.email ?? '',
     };
   }
 
@@ -363,38 +367,31 @@ mixin LogisticsBookingHandlers on ConsumerState<LogisticsBookingScreen> {
                       trailing: isSelected
                           ? const Icon(Icons.check_circle, color: Color(0xFF0F5A3B))
                           : null,
-                      onTap: () {
-                        setState(() {
-                          selectedRoute = route;
-                          final pickupAddress =
-                              route.startLocation ??
-                              route.source ??
-                              route.name.split(' to ')[0];
-                          pickup = {
-                            'name': route.source ?? route.name.split(' to ')[0],
-                            'address': pickupAddress,
-                            'lat': route.startLat ?? 0.0,
-                            'lng': route.startLng ?? 0.0,
-                          };
-                          pickupSearchController.text = pickupAddress;
-
-                          final dropoffAddress =
-                              route.endLocation ??
-                              route.destination ??
-                              route.name.split(' to ').last;
-                          dropoff = {
-                            'name': route.destination ?? route.name.split(' to ').last,
-                            'address': dropoffAddress,
-                            'lat': route.endLat ?? 0.0,
-                            'lng': route.endLng ?? 0.0,
-                          };
-                          dropoffSearchController.text = dropoffAddress;
-
-                          selectedVehicle = null;
-                          selectedVehicleData = null;
-                        });
-                        fetchRoute();
+                      onTap: () async {
                         Navigator.pop(context);
+                        final pickupAddress = route.startLocation?.trim().isNotEmpty == true
+                            ? route.startLocation!
+                            : (route.source?.trim().isNotEmpty == true
+                                ? route.source!
+                                : (route.name.contains(' to ') ? route.name.split(' to ')[0].trim() : route.name));
+
+                        final dropoffAddress = route.endLocation?.trim().isNotEmpty == true
+                            ? route.endLocation!
+                            : (route.destination?.trim().isNotEmpty == true
+                                ? route.destination!
+                                : (route.name.contains(' to ') ? route.name.split(' to ').last.trim() : route.name));
+
+                        pickupSearchController.text = pickupAddress;
+                        dropoffSearchController.text = dropoffAddress;
+
+                        await notifier.selectAssignedRoute(route);
+
+                        if (mounted) {
+                          setState(() {
+                            pickupSearchController.text = pickup?['address'] ?? pickupAddress;
+                            dropoffSearchController.text = dropoff?['address'] ?? dropoffAddress;
+                          });
+                        }
                       },
                     );
                   },

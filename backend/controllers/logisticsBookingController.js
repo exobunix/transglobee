@@ -538,6 +538,18 @@ exports.updateStatus = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Booking not found.' });
         }
 
+        // Credit driver wallet & create Transaction record if delivered/completed
+        if (status === 'delivered' || status === 'completed') {
+            const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
+            await creditDriverForCompletedBooking({
+                booking,
+                bookingType: isShuttle ? 'shuttle' : 'logistics',
+                driverId: booking.driverId || req.user?.id || req.user?.uid,
+                actualFare: Number(req.body.actualFare || booking.totalPrice || booking.vehiclePrice || 0),
+                io: req.io
+            });
+        }
+
         // --- Push Notification To User ---
         const { notifyUser } = require('../utils/notificationService');
         let bodyText = `Your shipment is now: ${status.toUpperCase()}`;

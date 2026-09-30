@@ -679,8 +679,8 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                                     : controller.currentPageUser.isEmpty
                                         ? TextCustom(title: "No Data available".tr)
                                         : DataTable(
-                                            horizontalMargin: 20,
-                                            columnSpacing: 30,
+                                            horizontalMargin: 12,
+                                            columnSpacing: ResponsiveWidget.isMobile(context) ? 10 : 16,
                                             dataRowMaxHeight: 65,
                                             headingRowHeight: 65,
                                             border: TableBorder.all(
@@ -689,20 +689,20 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                                             ),
                                             headingRowColor: MaterialStateColor.resolveWith((states) => themeChange.isDarkTheme() ? AppThemData.greyShade800 : AppThemData.greyShade100),
                                             columns: [
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Profile Image".tr, width: 150),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Full Name".tr, width: ResponsiveWidget.isMobile(context) ? 150 : MediaQuery.of(context).size.width * 0.12),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Password".tr, width: ResponsiveWidget.isMobile(context) ? 120 : MediaQuery.of(context).size.width * 0.10),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Created At".tr, width: 220),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Wallet Amount".tr, width: 140),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Status".tr, width: ResponsiveWidget.isMobile(context) ? 100 : MediaQuery.of(context).size.width * 0.10),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Action".tr, width: ResponsiveWidget.isMobile(context) ? 100 : MediaQuery.of(context).size.width * 0.08)
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Profile Image".tr, width: 85),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Full Name".tr, width: ResponsiveWidget.isMobile(context) ? 130 : 150),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Password".tr, width: ResponsiveWidget.isMobile(context) ? 80 : 95),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Created At".tr, width: ResponsiveWidget.isMobile(context) ? 130 : 155),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Wallet Amount".tr, width: ResponsiveWidget.isMobile(context) ? 80 : 95),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Status".tr, width: ResponsiveWidget.isMobile(context) ? 65 : 75),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Action".tr, width: ResponsiveWidget.isMobile(context) ? 85 : 95)
                                             ],
                                             rows: controller.currentPageUser
                                                 .map((userModel) => DataRow(cells: [
                                                       DataCell(
                                                         Container(
                                                           alignment: Alignment.center,
-                                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                                                           child: NetworkImageWidget(
                                                             imageUrl: '${userModel.profilePic}',
                                                             height: 37,
@@ -733,7 +733,7 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                                                       ),
                                                       DataCell(Container(
                                                         alignment: Alignment.center,
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                                                         child: Row(
                                                           mainAxisAlignment: MainAxisAlignment.start,
                                                           children: [
@@ -749,7 +749,7 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                                                                 width: 16,
                                                               ),
                                                             ),
-                                                            spaceW(width: 20),
+                                                            spaceW(width: 12),
                                                             InkWell(
                                                               onTap: () {
                                                                 controller.getArgument(userModel);
@@ -762,7 +762,7 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                                                                 width: 16,
                                                               ),
                                                             ),
-                                                            spaceW(width: 20),
+                                                            spaceW(width: 12),
                                                             InkWell(
                                                               onTap: () async {
                                                                 if (Constant.isDemo) {
@@ -976,49 +976,130 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                               controller: TextEditingController(text: controller.userModel.value.password),
                             ),
                             const SizedBox(height: 20),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextCustom(
-                                title: "Assign Routes".tr,
-                                fontSize: 14,
-                                fontFamily: AppThemeData.medium,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                TextCustom(
+                                  title: "Assign Routes".tr,
+                                  fontSize: 14,
+                                  fontFamily: AppThemeData.medium,
+                                ),
+                                Obx(
+                                  () => TextCustom(
+                                    title: "${controller.selectedRouteIds.length} ${'selected'.tr}",
+                                    fontSize: 12,
+                                    fontFamily: AppThemeData.medium,
+                                    color: AppThemData.primary500,
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 10),
+
+                            // Search routes field
+                            TextFormField(
+                              controller: controller.routeSearchController,
+                              decoration: InputDecoration(
+                                hintText: "Search routes by name or location...".tr,
+                                hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                                prefixIcon: const Icon(Icons.search, size: 20, color: Colors.grey),
+                                suffixIcon: Obx(
+                                  () => controller.routeSearchQuery.value.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear, size: 18),
+                                          onPressed: () {
+                                            controller.routeSearchController.clear();
+                                            controller.routeSearchQuery.value = '';
+                                          },
+                                        )
+                                      : const SizedBox.shrink(),
+                                ),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                    color: themeChange.isDarkTheme() ? AppThemData.greyShade700 : AppThemData.greyShade300,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                    color: themeChange.isDarkTheme() ? AppThemData.greyShade700 : AppThemData.greyShade300,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(
+                                    color: AppThemData.primary500,
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                              onChanged: (val) {
+                                controller.routeSearchQuery.value = val;
+                              },
+                            ),
+                            const SizedBox(height: 10),
+
                             Obx(
-                              () => controller.allRoutes.isEmpty
-                                  ? Text("No routes available".tr, style: const TextStyle(color: Colors.grey))
-                                  : Container(
-                                      decoration: BoxDecoration(
-                                        color: themeChange.isDarkTheme() ? AppThemData.greyShade900 : AppThemData.greyShade100,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      padding: const EdgeInsets.all(8.0),
-                                      child: Column(
-                                        children: controller.allRoutes.map((route) {
-                                          bool isChecked = controller.selectedRouteIds.contains(route.id);
-                                          return CheckboxListTile(
-                                            value: isChecked,
-                                            title: Text(
-                                              "${route.name} (${route.source} -> ${route.destination})",
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: themeChange.isDarkTheme() ? Colors.white : Colors.black,
-                                              ),
-                                            ),
-                                            activeColor: AppThemData.primary500,
-                                            controlAffinity: ListTileControlAffinity.leading,
-                                            onChanged: (bool? val) {
-                                              if (val == true) {
-                                                controller.selectedRouteIds.add(route.id!);
-                                              } else {
-                                                controller.selectedRouteIds.remove(route.id!);
-                                              }
-                                            },
-                                          );
-                                        }).toList(),
-                                      ),
+                              () {
+                                final routes = controller.filteredRoutes;
+                                if (controller.allRoutes.isEmpty) {
+                                  return Text("No routes available".tr, style: const TextStyle(color: Colors.grey));
+                                }
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: themeChange.isDarkTheme() ? AppThemData.greyShade900 : AppThemData.greyShade100,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: themeChange.isDarkTheme() ? AppThemData.greyShade800 : AppThemData.greyShade200,
                                     ),
+                                  ),
+                                  constraints: const BoxConstraints(maxHeight: 220),
+                                  child: routes.isEmpty
+                                      ? Padding(
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: Center(
+                                            child: TextCustom(
+                                              title: "No matching routes found".tr,
+                                              fontSize: 13,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        )
+                                      : ListView.builder(
+                                          shrinkWrap: true,
+                                          itemCount: routes.length,
+                                          itemBuilder: (context, index) {
+                                            final route = routes[index];
+                                            bool isChecked = controller.selectedRouteIds.contains(route.id);
+                                            return CheckboxListTile(
+                                              dense: true,
+                                              value: isChecked,
+                                              title: Text(
+                                                "${route.name} (${route.source} -> ${route.destination})",
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: themeChange.isDarkTheme() ? Colors.white : Colors.black,
+                                                ),
+                                              ),
+                                              activeColor: AppThemData.primary500,
+                                              controlAffinity: ListTileControlAffinity.leading,
+                                              onChanged: (bool? val) {
+                                                if (val == true) {
+                                                  if (!controller.selectedRouteIds.contains(route.id)) {
+                                                    controller.selectedRouteIds.add(route.id!);
+                                                  }
+                                                } else {
+                                                  controller.selectedRouteIds.remove(route.id!);
+                                                }
+                                              },
+                                            );
+                                          },
+                                        ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 20),
                           ],

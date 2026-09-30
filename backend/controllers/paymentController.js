@@ -484,8 +484,8 @@ exports.getWalletHistory = async (req, res) => {
 
 exports.getDriverEarnings = async (req, res) => {
     try {
-        const { driverId } = req.params;
-        const driver = await findDriver(driverId);
+        const targetId = req.params.driverId || req.query.driverId || req.user?.id || req.user?.uid;
+        const driver = await findDriver(targetId);
         if (!driver) return res.status(404).json({ success: false, message: 'Driver not found.' });
 
         const History = require('../models/History');
@@ -494,17 +494,49 @@ exports.getDriverEarnings = async (req, res) => {
         todayStart.setHours(0, 0, 0, 0);
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const completedStatuses = ['completed', 'delivered'];
+        const completedStatuses = ['completed', 'delivered', 'Completed', 'Delivered'];
 
         const getRideEarning = (ride) =>
-            Number(ride.actualFare ?? ride.fare ?? ride.totalPrice ?? 0);
+            Number(ride.actualFare ?? ride.fare ?? ride.totalPrice ?? ride.vehiclePrice ?? 0);
 
-        const rideFilter = (since) => {
+        const driverIds = [driver._id, driver._id.toString(), driver.uid, driver.firebaseId].filter(Boolean);
+
+        const buildCabFilter = (since) => {
             const filter = {
-                driverId: driver._id,
+                driverId: { $in: driverIds },
                 status: { $in: completedStatuses },
             };
-            if (since) filter.updatedAt = { $gte: since };
+            if (since) {
+                filter.$or = [
+                    { completedAt: { $gte: since } },
+                    { updatedAt: { $gte: since } },
+                    { createdAt: { $gte: since } }
+                ];
+            }
+            return filter;
+        };
+
+        const buildLogisticsFilter = (since) => {
+            const filter = {
+                $and: [
+                    {
+                        $or: [
+                            { driverId: { $in: driverIds } },
+                            { 'segments.driverId': { $in: driverIds } }
+                        ]
+                    },
+                    { status: { $in: completedStatuses } }
+                ]
+            };
+            if (since) {
+                filter.$and.push({
+                    $or: [
+                        { completedAt: { $gte: since } },
+                        { updatedAt: { $gte: since } },
+                        { createdAt: { $gte: since } }
+                    ]
+                });
+            }
             return filter;
         };
 
@@ -520,22 +552,22 @@ exports.getDriverEarnings = async (req, res) => {
             recentCabs,
             recentLogistics,
         ] = await Promise.all([
-            History.find(rideFilter(todayStart)).lean(),
-            LogisticsBooking.find(rideFilter(todayStart)).lean(),
-            History.find(rideFilter(weekAgo)).lean(),
-            LogisticsBooking.find(rideFilter(weekAgo)).lean(),
-            History.find(rideFilter(monthAgo)).lean(),
-            LogisticsBooking.find(rideFilter(monthAgo)).lean(),
-            History.find(rideFilter(null)).lean(),
-            LogisticsBooking.find(rideFilter(null)).lean(),
-            History.find(rideFilter(null))
-                .sort({ updatedAt: -1 })
-                .limit(15)
+            History.find(buildCabFilter(todayStart)).lean(),
+            LogisticsBooking.find(buildLogisticsFilter(todayStart)).lean(),
+            History.find(buildCabFilter(weekAgo)).lean(),
+            LogisticsBooking.find(buildLogisticsFilter(weekAgo)).lean(),
+            History.find(buildCabFilter(monthAgo)).lean(),
+            LogisticsBooking.find(buildLogisticsFilter(monthAgo)).lean(),
+            History.find(buildCabFilter(null)).lean(),
+            LogisticsBooking.find(buildLogisticsFilter(null)).lean(),
+            History.find(buildCabFilter(null))
+                .sort({ completedAt: -1, updatedAt: -1, createdAt: -1 })
+                .limit(20)
                 .populate('userId', 'name')
                 .lean(),
-            LogisticsBooking.find(rideFilter(null))
-                .sort({ updatedAt: -1 })
-                .limit(15)
+            LogisticsBooking.find(buildLogisticsFilter(null))
+                .sort({ completedAt: -1, updatedAt: -1, createdAt: -1 })
+                .limit(20)
                 .lean(),
         ]);
 
@@ -561,7 +593,7 @@ exports.getDriverEarnings = async (req, res) => {
 
             const dayEarnings = weekRides
                 .filter((ride) => {
-                    const rideTime = new Date(ride.updatedAt || ride.createdAt);
+                    const rideTime = new Date(ride.completedAt || ride.updatedAt || ride.createdAt);
                     return rideTime >= dayStart && rideTime <= dayEnd;
                 })
                 .reduce((acc, ride) => acc + getRideEarning(ride), 0);
@@ -569,25 +601,41 @@ exports.getDriverEarnings = async (req, res) => {
             dailyBreakdown.push({
                 label: dayLabels[dayStart.getDay()],
                 earnings: dayEarnings,
+                date: dayStart.toISOString().split('T')[0]
             });
         }
 
-        const mapTrip = (ride, type) => ({
-            bookingId: ride._id?.toString(),
-            userName: ride.userId?.name || ride.userName || 'Customer',
-            amount: getRideEarning(ride),
-            tripDistance: Number.parseFloat(ride.distance) || ride.distanceKm || 0,
-            vehicleType: ride.rideMode || ride.vehicleType || type,
-            date: ride.updatedAt || ride.createdAt,
-            status: ride.status,
-        });
+        const mapTrip = (ride, type) => {
+            let pickup = '';
+            let dropoff = '';
+            if (type === 'CAB') {
+                pickup = ride.locations?.[0]?.address || ride.locations?.[0]?.title || ride.pickupLocation || '';
+                dropoff = ride.locations?.[1]?.address || ride.locations?.[1]?.title || ride.dropoffLocation || '';
+            } else {
+                pickup = ride.pickup?.address || ride.pickup?.name || '';
+                dropoff = ride.dropoff?.address || ride.dropoff?.name || '';
+            }
+            return {
+                bookingId: ride._id?.toString(),
+                id: ride._id?.toString(),
+                userName: ride.userId?.name || ride.userName || 'Customer',
+                amount: getRideEarning(ride),
+                tripDistance: Number.parseFloat(ride.distance) || ride.distanceKm || 0,
+                vehicleType: ride.rideMode || ride.vehicleType || type,
+                date: ride.completedAt || ride.updatedAt || ride.createdAt,
+                status: ride.status,
+                pickup,
+                dropoff,
+                bookingCategory: type.toLowerCase(),
+            };
+        };
 
         const records = [
             ...recentCabs.map((ride) => mapTrip(ride, 'CAB')),
             ...recentLogistics.map((ride) => mapTrip(ride, 'LOGISTICS')),
         ]
             .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 10);
+            .slice(0, 20);
 
         const bonusTarget = 15;
         const bonusAmount = 1000;
@@ -597,6 +645,7 @@ exports.getDriverEarnings = async (req, res) => {
             data: {
                 balance: Number(driver.walletBalance || 0),
                 walletBalance: Number(driver.walletBalance || 0),
+                walletAmount: Number(driver.walletBalance || 0),
                 todayEarnings,
                 weeklyEarnings,
                 monthlyEarnings,
@@ -617,14 +666,15 @@ exports.getDriverEarnings = async (req, res) => {
 
 exports.getDriverWallet = async (req, res) => {
     try {
-        const driver = await findDriver(req.user?.id || req.user?.uid || req.query.driverId);
+        const targetId = req.user?.id || req.user?.uid || req.query.driverId || req.params.driverId;
+        const driver = await findDriver(targetId);
         if (!driver) return res.status(404).json({ success: false, message: 'Driver not found.' });
 
         const now = new Date();
         const todayStart = new Date(now);
         todayStart.setHours(0, 0, 0, 0);
         const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const [today, week, payouts] = await Promise.all([
+        const [todayTx, weekTx, payouts] = await Promise.all([
             Transaction.aggregate([{ $match: { driverId: driver._id, status: 'completed', createdAt: { $gte: todayStart } } }, { $group: { _id: null, total: { $sum: '$driverEarnings' } } }]),
             Transaction.aggregate([{ $match: { driverId: driver._id, status: 'completed', createdAt: { $gte: weekStart } } }, { $group: { _id: null, total: { $sum: '$driverEarnings' } } }]),
             Transaction.find({ driverId: driver._id, type: 'withdrawal' }).sort({ createdAt: -1 }).limit(10),
@@ -635,8 +685,8 @@ exports.getDriverWallet = async (req, res) => {
             balance: Number(driver.walletBalance || 0),
             walletBalance: Number(driver.walletBalance || 0),
             pendingPayout: Number(driver.walletBalance || 0),
-            todayEarnings: today[0]?.total || 0,
-            weekEarnings: week[0]?.total || 0,
+            todayEarnings: todayTx[0]?.total || 0,
+            weekEarnings: weekTx[0]?.total || 0,
             payoutHistory: payouts,
         });
     } catch (error) {

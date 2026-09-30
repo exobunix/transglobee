@@ -122,13 +122,18 @@ class BookingModel {
             : (json["userId"] is Map
                 ? json["userId"]["_id"]?.toString()
                 : json["customerId"]?.toString() ?? json["userId"]?.toString()),
-        customerName: json["customerId"] is Map
-            ? json["customerId"]["fullName"]?.toString()
-            : (json["userId"] is Map
-                ? json["userId"]["fullName"]?.toString()
-                : null),
+        customerName: json["customerName"]?.toString() ??
+            (json["customerId"] is Map
+                ? (json["customerId"]["fullName"] ?? json["customerId"]["name"])?.toString()
+                : (json["userId"] is Map
+                    ? (json["userId"]["fullName"] ?? json["userId"]["name"])?.toString()
+                    : json["userName"]?.toString())),
         paymentType: json["paymentType"] ?? json["paymentMethod"] ?? '',
-        paymentStatus: json["paymentStatus"] is bool ? json["paymentStatus"] : (json["paymentStatus"] == 'completed' || json["paymentStatus"] == 'paid'),
+        paymentStatus: json["paymentStatus"] is bool
+            ? json["paymentStatus"]
+            : (json["paymentStatus"] == 'completed' ||
+                json["paymentStatus"] == 'paid' ||
+                json["paymentStatus"] == 'true'),
         cancelledBy: json["cancelledBy"] ?? '',
         cancelledReason: json["cancelledReason"] ?? '',
         discount: json["discount"]?.toString(),

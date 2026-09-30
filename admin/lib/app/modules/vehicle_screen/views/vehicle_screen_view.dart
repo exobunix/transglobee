@@ -802,47 +802,122 @@ class VehicleAddEditDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Assign Routes Checklist
-                TextCustom(title: "Assign Routes".tr, fontSize: 14, fontFamily: AppThemeData.medium),
+                // Assign Routes Checklist with Search
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextCustom(title: "Assign Routes".tr, fontSize: 14, fontFamily: AppThemeData.medium),
+                    Obx(
+                      () => TextCustom(
+                        title: "${controller.selectedRouteIds.length} ${'selected'.tr}",
+                        fontSize: 12,
+                        fontFamily: AppThemeData.medium,
+                        color: AppThemData.primary500,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
-                Obx(
-                  () => Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
+
+                // Search Routes Field
+                TextFormField(
+                  controller: controller.routeSearchController,
+                  decoration: InputDecoration(
+                    hintText: "Search routes by name or location...".tr,
+                    hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                    prefixIcon: const Icon(Icons.search, size: 20, color: Colors.grey),
+                    suffixIcon: Obx(
+                      () => controller.routeSearchQuery.value.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                controller.routeSearchController.clear();
+                                controller.routeSearchQuery.value = '';
+                              },
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
                         color: themeChange.isDarkTheme() ? AppThemData.greyShade700 : AppThemData.greyShade300,
                       ),
-                      borderRadius: BorderRadius.circular(12),
                     ),
-                    constraints: const BoxConstraints(maxHeight: 150),
-                    child: controller.dbRoutesList.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: TextCustom(title: "No Routes Available".tr, fontSize: 13),
-                          )
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: controller.dbRoutesList.length,
-                            itemBuilder: (context, index) {
-                              final route = controller.dbRoutesList[index];
-                              final isChecked = controller.selectedRouteIds.contains(route.id);
-                              return CheckboxListTile(
-                                title: TextCustom(
-                                  title: "${route.name ?? ''} (${route.source ?? ''} -> ${route.destination ?? ''})",
-                                  fontSize: 13,
-                                ),
-                                value: isChecked,
-                                activeColor: AppThemData.primary500,
-                                onChanged: (val) {
-                                  if (val == true) {
-                                    controller.selectedRouteIds.add(route.id!);
-                                  } else {
-                                    controller.selectedRouteIds.remove(route.id!);
-                                  }
-                                },
-                              );
-                            },
-                          ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: themeChange.isDarkTheme() ? AppThemData.greyShade700 : AppThemData.greyShade300,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: AppThemData.primary500,
+                        width: 1.5,
+                      ),
+                    ),
                   ),
+                  onChanged: (val) {
+                    controller.routeSearchQuery.value = val;
+                  },
+                ),
+                const SizedBox(height: 8),
+
+                Obx(
+                  () {
+                    final routes = controller.filteredRoutes;
+                    return Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: themeChange.isDarkTheme() ? AppThemData.greyShade700 : AppThemData.greyShade300,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      constraints: const BoxConstraints(maxHeight: 180),
+                      child: routes.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Center(
+                                child: TextCustom(
+                                  title: controller.dbRoutesList.isEmpty
+                                      ? "No Routes Available".tr
+                                      : "No matching routes found".tr,
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: routes.length,
+                              itemBuilder: (context, index) {
+                                final route = routes[index];
+                                final isChecked = controller.selectedRouteIds.contains(route.id);
+                                return CheckboxListTile(
+                                  dense: true,
+                                  title: TextCustom(
+                                    title: "${route.name ?? ''} (${route.source ?? ''} -> ${route.destination ?? ''})",
+                                    fontSize: 13,
+                                  ),
+                                  value: isChecked,
+                                  activeColor: AppThemData.primary500,
+                                  controlAffinity: ListTileControlAffinity.leading,
+                                  onChanged: (val) {
+                                    if (val == true) {
+                                      if (!controller.selectedRouteIds.contains(route.id)) {
+                                        controller.selectedRouteIds.add(route.id!);
+                                      }
+                                    } else {
+                                      controller.selectedRouteIds.remove(route.id!);
+                                    }
+                                  },
+                                );
+                              },
+                            ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 

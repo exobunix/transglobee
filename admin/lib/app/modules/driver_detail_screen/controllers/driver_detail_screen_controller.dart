@@ -31,6 +31,13 @@ class DriverDetailScreenController extends GetxController {
   RxList<WalletTransactionModel> walletTransactionList = <WalletTransactionModel>[].obs;
   RxList<WalletTransactionModel> currentPageWalletTransaction = <WalletTransactionModel>[].obs;
 
+  RxDouble todayIncome = 0.0.obs;
+  RxDouble weeklyIncome = 0.0.obs;
+  RxDouble monthlyIncome = 0.0.obs;
+  RxDouble totalIncome = 0.0.obs;
+  RxInt totalCompletedTrips = 0.obs;
+  RxList<Map<String, dynamic>> dailyBreakdown = <Map<String, dynamic>>[].obs;
+
   var currentPage = 1.obs;
   var startIndex = 1.obs;
   var endIndex = 1.obs;
@@ -139,29 +146,71 @@ class DriverDetailScreenController extends GetxController {
     isLoading.value = true;
     try {
       String token = await AppSharedPreference.getString('adminToken');
+      final driverId = driverUserModel.value.id;
+
+      // 1. Fetch from specialized driver daily-income endpoint
+      if (driverId != null && driverId.isNotEmpty) {
+        try {
+          final incomeResponse = await http.get(
+            Uri.parse("${ApiConstant.baseUrl}/admin/drivers/$driverId/daily-income"),
+            headers: ApiConstant.headers(token: token),
+          );
+          if (incomeResponse.statusCode == 200) {
+            final data = jsonDecode(incomeResponse.body);
+            if (data['earnings'] != null) {
+              todayIncome.value = (data['earnings']['todayEarnings'] ?? 0).toDouble();
+              weeklyIncome.value = (data['earnings']['weeklyEarnings'] ?? 0).toDouble();
+              monthlyIncome.value = (data['earnings']['monthlyEarnings'] ?? 0).toDouble();
+              totalIncome.value = (data['earnings']['totalEarnings'] ?? 0).toDouble();
+              totalCompletedTrips.value = (data['earnings']['totalCompletedTrips'] ?? 0).toInt();
+              if (data['earnings']['walletBalance'] != null) {
+                driverUserModel.value.walletAmount = data['earnings']['walletBalance'].toString();
+                driverUserModel.refresh();
+              }
+            }
+            if (data['dailyBreakdown'] != null && data['dailyBreakdown'] is List) {
+              dailyBreakdown.value = List<Map<String, dynamic>>.from(data['dailyBreakdown']);
+            }
+            if (data['bookings'] != null && data['bookings'] is List) {
+              List list = data['bookings'];
+              bookingList.value = list.map((item) => BookingModel.fromJson(item)).toList();
+              setPagination(totalItemPerPage.value);
+              isLoading.value = false;
+              return;
+            }
+          }
+        } catch (e) {
+          log("Error fetching driver daily income: $e");
+        }
+      }
+
+      // Fallback: general admin bookings
       final response = await http.get(
         Uri.parse("${ApiConstant.baseUrl}/admin/bookings"),
         headers: ApiConstant.headers(token: token),
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['bookings'] != null) {
-          List list = data['bookings'];
-          List<BookingModel> driverBookings = [];
-          for (var item in list) {
-            var driverObj = item['driverId'];
-            String? bDriverId;
-            if (driverObj is Map) {
-              bDriverId = driverObj['id'] ?? driverObj['_id'];
-            } else if (driverObj is String) {
-              bDriverId = driverObj;
-            }
-            if (bDriverId != null && bDriverId == driverUserModel.value.id) {
-              driverBookings.add(BookingModel.fromJson(item));
-            }
-          }
-          bookingList.value = driverBookings;
+        List list = [];
+        if (data['bookings'] is List) {
+          list = data['bookings'];
+        } else if (data['all'] is List) {
+          list = data['all'];
         }
+        List<BookingModel> driverBookings = [];
+        for (var item in list) {
+          var driverObj = item['driverId'];
+          String? bDriverId;
+          if (driverObj is Map) {
+            bDriverId = driverObj['id'] ?? driverObj['_id'];
+          } else if (driverObj != null) {
+            bDriverId = driverObj.toString();
+          }
+          if (bDriverId != null && bDriverId == driverUserModel.value.id) {
+            driverBookings.add(BookingModel.fromJson(item));
+          }
+        }
+        bookingList.value = driverBookings;
       }
     } catch (e) {
       log("Error fetching bookings from API: $e");

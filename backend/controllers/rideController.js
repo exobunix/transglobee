@@ -1230,27 +1230,18 @@ exports.updateRideStatus = async (req, res) => {
             }
         }
 
-        // record which driver made the change; driverId may be passed
-        if (driverId) {
+        // record which driver made the change; driverId may be passed in body or extracted from authenticated token
+        const effectiveDriverId = driverId || (req.user?.role === 'driver' || !ride.driverId ? (req.user?.id || req.user?.uid) : null);
+        if (effectiveDriverId) {
             ride.driverActionAt = new Date();
-            const Driver = require('../models/Driver');
-            const mongoose = require('mongoose');
-            let driver;
-            if (mongoose.Types.ObjectId.isValid(driverId)) {
-                driver = await Driver.findById(driverId).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
-            }
-            if (!driver) {
-                driver = await Driver.findOne({ uid: driverId }).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
-            }
-            if (!driver) {
-                driver = await Driver.findOne({ firebaseId: driverId }).select('name mobileNumber vehicleNumberPlate vehicleModel photo _id');
-            }
+            const { resolveDriver } = require('../utils/driverEarningsService');
+            const driver = await resolveDriver(effectiveDriverId);
             if (driver) {
                 ride.driverId = driver._id;              // ensure link
                 ride.driverSnapshot = {
                     driver_id: driver._id.toString(),
                     name: driver.name || 'Driver',
-                    phone: driver.mobileNumber || '',
+                    phone: driver.mobileNumber || driver.phoneNumber || '',
                     vehicle_number: driver.vehicleNumberPlate || 'N/A',
                     vehicle_name: driver.vehicleModel || 'Vehicle',
                     photo: driver.photo || ''
@@ -1260,15 +1251,16 @@ exports.updateRideStatus = async (req, res) => {
 
         await ride.save();
 
-        // Credit driver wallet if completed/delivered
+        // Credit driver wallet & create Transaction record if completed/delivered
         if ((ride.status === 'completed' || ride.status === 'delivered') && oldStatus !== 'completed' && oldStatus !== 'delivered') {
-            const fareEarned = Number(ride.actualFare || ride.fare || ride.totalPrice || actualFare || 0);
-            if (fareEarned > 0 && ride.driverId) {
-                const Driver = require('../models/Driver');
-                await Driver.findByIdAndUpdate(ride.driverId, {
-                    $inc: { walletBalance: fareEarned }
-                });
-            }
+            const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
+            await creditDriverForCompletedBooking({
+                booking: ride,
+                bookingType: isLogistics ? 'logistics' : 'ride',
+                driverId: ride.driverId || effectiveDriverId,
+                actualFare: Number(ride.actualFare || ride.fare || ride.totalPrice || actualFare || 0),
+                io: req.io
+            });
         }
         if (req.io) {
             // Emit to user's personal room AND the specific ride room
@@ -1386,6 +1378,15 @@ exports.verifyRideOtp = async (req, res) => {
                 ride.segments[activeSegIndex].status = 'completed';
                 await ride.save();
 
+                const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
+                await creditDriverForCompletedBooking({
+                    booking: ride,
+                    bookingType: isShuttle ? 'shuttle' : 'logistics',
+                    driverId: driverId || ride.driverId,
+                    actualFare: ride.totalPrice,
+                    io: req.io
+                });
+
                 res.json({ success: true, message: "OTP verified correctly. Shipment delivered successfully." });
 
                 // Socket notification to user
@@ -1467,6 +1468,17 @@ exports.verifyRideOtp = async (req, res) => {
         const isTransit = (isLogistics || isShuttle);
         ride.status = isTransit ? (ride.status === 'in_transit' ? 'delivered' : 'in_transit') : (ride.status === 'ongoing' ? 'completed' : 'ongoing');
         await ride.save();
+
+        if (ride.status === 'completed' || ride.status === 'delivered') {
+            const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
+            await creditDriverForCompletedBooking({
+                booking: ride,
+                bookingType: isTransit ? (isShuttle ? 'shuttle' : 'logistics') : 'ride',
+                driverId: ride.driverId || req.user?.id || req.user?.uid,
+                actualFare: Number(ride.actualFare || ride.fare || ride.totalPrice || 0),
+                io: req.io
+            });
+        }
 
         res.json({ success: true, message: "OTP verified correctly." });
 

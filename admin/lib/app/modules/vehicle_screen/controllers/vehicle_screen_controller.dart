@@ -17,6 +17,22 @@ class VehicleScreenController extends GetxController {
   RxList<DriverUserModel> driverList = <DriverUserModel>[].obs;
   RxList<AdminVehicleRoute> dbRoutesList = <AdminVehicleRoute>[].obs;
   RxList<String> selectedRouteIds = <String>[].obs;
+  final routeSearchController = TextEditingController();
+  RxString routeSearchQuery = ''.obs;
+
+  List<AdminVehicleRoute> get filteredRoutes {
+    if (routeSearchQuery.value.trim().isEmpty) {
+      return dbRoutesList;
+    }
+    final q = routeSearchQuery.value.toLowerCase().trim();
+    return dbRoutesList.where((route) {
+      final name = (route.name ?? '').toLowerCase();
+      final source = (route.source ?? '').toLowerCase();
+      final dest = (route.destination ?? '').toLowerCase();
+      return name.contains(q) || source.contains(q) || dest.contains(q);
+    }).toList();
+  }
+
   RxBool isLoading = false.obs;
   RxString selectedTab = 'All'.obs;
 
@@ -79,6 +95,8 @@ class VehicleScreenController extends GetxController {
     imageBytes.clear();
     selectedImageName.value = '';
     selectedRouteIds.clear();
+    routeSearchController.clear();
+    routeSearchQuery.value = '';
   }
 
   void fillForm(AdminVehicleModel vehicle) {
@@ -100,6 +118,8 @@ class VehicleScreenController extends GetxController {
     imageBytes.clear();
     selectedImageName.value = '';
     selectedRouteIds.value = vehicle.routes?.map((r) => r.id ?? '').where((id) => id.isNotEmpty).toList() ?? [];
+    routeSearchController.clear();
+    routeSearchQuery.value = '';
   }
 
   Future<void> getVehicles() async {

@@ -53,6 +53,8 @@ router.put('/drivers/:driverId/status', requireStrictAdmin, adminController.upda
 router.put('/drivers/:driverId/password', requireStrictAdmin, adminController.resetDriverPassword);
 router.put('/drivers/:driverId/warn', requireStrictAdmin, adminController.warnDriver);
 router.delete('/drivers/:driverId', requireStrictAdmin, adminController.deleteDriver);
+router.get('/drivers/:driverId/daily-income', requireSupervisorRole, adminController.getDriverDailyIncomeAndBookings);
+router.get('/drivers/:driverId/earnings', requireSupervisorRole, adminController.getDriverDailyIncomeAndBookings);
 
 // User management
 router.get('/users', requireStrictAdmin, adminController.getAllUsers);

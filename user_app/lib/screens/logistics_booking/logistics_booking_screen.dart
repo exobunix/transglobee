@@ -143,6 +143,7 @@ class _LogisticsBookingScreenState
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(logisticsBookingProvider);
     // final typeGoodsAsync = ref.watch(typeGoodsProvider);
     final vehiclesAsync = ref.watch(logisticsVehiclesProvider);
     final userAsync = ref.watch(fullUserProfileProvider);

@@ -39,23 +39,37 @@ class VehicleSelector extends StatelessWidget {
           );
         }
 
-        final filteredVehicles = vehicles.where((v) {
+        var filteredVehicles = vehicles.where((v) {
           return v.routes.contains(selectedRoute!.id);
         }).toList();
 
         if (filteredVehicles.isEmpty) {
-          return const Center(
+          filteredVehicles = vehicles.where((v) => v.routes.isEmpty).toList();
+        }
+
+        if (filteredVehicles.isEmpty && vehicles.isNotEmpty) {
+          filteredVehicles = vehicles;
+        }
+
+        if (filteredVehicles.isEmpty) {
+          return Center(
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Text(
-                'No vehicles assigned to the selected route.',
-                style: TextStyle(
+                'No vehicles assigned to ${selectedRoute!.name}.',
+                style: const TextStyle(
                   color: Colors.red,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           );
+        }
+
+        if (selectedVehicle == null && filteredVehicles.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            onVehicleSelected(filteredVehicles.first);
+          });
         }
 
         return SingleChildScrollView(

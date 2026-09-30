@@ -27,20 +27,46 @@ class UserRoute {
     this.estimatedDuration,
   });
 
+  static double? _parseDouble(dynamic val) {
+    if (val == null) return null;
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val);
+    return null;
+  }
+
   factory UserRoute.fromJson(Map<String, dynamic> json) {
+    final stops = json['stops'] as List?;
+    double? stopStartLat;
+    double? stopStartLng;
+    double? stopEndLat;
+    double? stopEndLng;
+
+    if (stops != null && stops.isNotEmpty) {
+      final firstStop = stops.first;
+      if (firstStop is Map && firstStop['coordinates'] is Map) {
+        stopStartLat = _parseDouble(firstStop['coordinates']['lat']);
+        stopStartLng = _parseDouble(firstStop['coordinates']['lng']);
+      }
+      final lastStop = stops.last;
+      if (lastStop is Map && lastStop['coordinates'] is Map) {
+        stopEndLat = _parseDouble(lastStop['coordinates']['lat']);
+        stopEndLng = _parseDouble(lastStop['coordinates']['lng']);
+      }
+    }
+
     return UserRoute(
-      id: json['_id'] ?? json['id'] ?? '',
-      name: json['name'] ?? '',
-      source: json['source'],
-      destination: json['destination'],
-      startLocation: json['startLocation'],
-      endLocation: json['endLocation'],
-      startLat: json['startLat'] != null ? (json['startLat'] as num).toDouble() : null,
-      startLng: json['startLng'] != null ? (json['startLng'] as num).toDouble() : null,
-      endLat: json['endLat'] != null ? (json['endLat'] as num).toDouble() : null,
-      endLng: json['endLng'] != null ? (json['endLng'] as num).toDouble() : null,
-      distance: json['distance'] != null ? (json['distance'] as num).toDouble() : null,
-      estimatedDuration: json['estimatedDuration'] != null ? (json['estimatedDuration'] as num).toDouble() : null,
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      source: json['source']?.toString(),
+      destination: json['destination']?.toString(),
+      startLocation: json['startLocation']?.toString(),
+      endLocation: json['endLocation']?.toString(),
+      startLat: _parseDouble(json['startLat']) ?? stopStartLat,
+      startLng: _parseDouble(json['startLng']) ?? stopStartLng,
+      endLat: _parseDouble(json['endLat']) ?? stopEndLat,
+      endLng: _parseDouble(json['endLng']) ?? stopEndLng,
+      distance: _parseDouble(json['distance']),
+      estimatedDuration: _parseDouble(json['estimatedDuration']),
     );
   }
 }
