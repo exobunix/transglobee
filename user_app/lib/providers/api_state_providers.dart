@@ -146,7 +146,6 @@ final bookingControllerProvider = StateNotifierProvider<BookingController, Booki
   return BookingController(ref.watch(restApiRepositoryProvider));
 });
 
-// --- WALLET PROVIDER ---
 
 class WalletNotifier extends StateNotifier<UserWalletState> {
   final RestApiRepository _repo;
@@ -231,7 +230,6 @@ final shuttleControllerProvider = StateNotifierProvider<ShuttleController, Shutt
   return ShuttleController(ref.watch(restApiRepositoryProvider));
 });
 
-// --- NOTIFICATION PROVIDER ---
 
 final notificationListProvider = FutureProvider<List<NotificationModel>>((ref) async {
   final authService = ref.watch(authServiceProvider);
