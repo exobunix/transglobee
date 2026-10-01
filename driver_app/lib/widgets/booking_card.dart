@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../models/booking_model.dart';
 import '../services/auth_service.dart';
+import '../features/driver/controllers/driver_providers.dart';
 
 class BookingCard extends ConsumerWidget {
   final BookingModel booking;
@@ -16,11 +17,14 @@ class BookingCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final driverId = ref.watch(authServiceProvider).currentUser?.uid;
-    final displayFare = booking.getFareForDriver(driverId);
-    final displayPickup = booking.getPickupAddressForDriver(driverId);
-    final displayDrop = booking.getDropAddressForDriver(driverId);
-    final displayDistance = booking.getDistanceForDriver(driverId);
+    final driverProfile = ref.watch(driverProfileProvider).value;
+    final driverDbId = driverProfile?.id;
+    final driverFbId = driverProfile?.firebaseId ?? ref.watch(authServiceProvider).currentUser?.uid;
+    final showFare = booking.shouldShowFareToDriver(driverDbId, driverFbId);
+    final displayFare = booking.getFareForDriver(driverDbId, driverFbId);
+    final displayPickup = booking.getPickupAddressForDriver(driverDbId, driverFbId);
+    final displayDrop = booking.getDropAddressForDriver(driverDbId, driverFbId);
+    final displayDistance = booking.getDistanceForDriver(driverDbId, driverFbId);
 
     return GestureDetector(
       onTap: onTap,
@@ -38,14 +42,32 @@ class BookingCard extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildVehicleBadge(),
-                Text(
-                  '₹${displayFare.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    color: AppTheme.neonGreen,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 20,
+                if (showFare)
+                  Text(
+                    '₹${displayFare.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      color: AppTheme.neonGreen,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.blueGrey.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blueGrey),
+                    ),
+                    child: const Text(
+                      'Logistics',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 16),

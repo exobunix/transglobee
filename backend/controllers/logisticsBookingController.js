@@ -732,6 +732,19 @@ exports.assignDriver = async (req, res) => {
 
         if (req.io) {
             const isShuttle = booking.bookingCategory === 'shuttle';
+            let driverFare = 0;
+            let showFare = false;
+            if (isShuttle) {
+                driverFare = booking.totalPrice || booking.vehiclePrice || 0;
+                showFare = true;
+            } else if (booking.segments && booking.segments.length > 0 && driverId && driverId !== 'all') {
+                const assignedSeg = booking.segments.find(s => s.driverId && s.driverId.toString() === driverId.toString());
+                if (assignedSeg && Number(assignedSeg.price) > 0) {
+                    driverFare = Number(assignedSeg.price);
+                    showFare = true;
+                }
+            }
+
             const socketData = {
                 id: booking._id.toString(),
                 userName: booking.userName || 'Customer',
@@ -743,7 +756,9 @@ exports.assignDriver = async (req, res) => {
                 dropLat: booking.dropoff?.lat ?? booking.dropoff?.latitude,
                 dropLng: booking.dropoff?.lng ?? booking.dropoff?.longitude,
                 distance: `${booking.distanceKm} km`,
-                fare: booking.totalPrice || booking.vehiclePrice || 0,
+                fare: driverFare,
+                showFare: showFare,
+                isLogistics: !isShuttle,
                 rideMode: booking.vehicleType || 'flatbed',
                 status: booking.status,
                 userId: booking.userId?.toString(),

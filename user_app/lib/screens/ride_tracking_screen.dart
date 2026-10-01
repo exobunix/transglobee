@@ -63,6 +63,11 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   String? _startOtp;
   String? _endOtp;
 
+  AnimationController? _driverMarkerAnimController;
+  Animation<double>? _driverMarkerAnim;
+  LatLng? _animStartPos;
+  LatLng? _animEndPos;
+
   late Map<String, dynamic> _driver;
 
   bool _hasNavigatedToRating = false;
@@ -213,27 +218,48 @@ bool _isSheetOpen = true;
     final newDriverPos = LatLng(lat, lng);
     final wasDriverPosNull = oldDriverPos == null;
 
+    final pLat = _coord(widget.pickup, true);
+    final pLng = _coord(widget.pickup, false);
+    final dLat = _coord(widget.dropoff, true);
+    final dLng = _coord(widget.dropoff, false);
+    final destination = ['accepted', 'on_the_way', 'arrived'].contains(_rawStatus)
+        ? LatLng(pLat, pLng)
+        : LatLng(dLat, dLng);
+
     setState(() {
-      _driverPos = newDriverPos;
       _driverHeading = _parseDouble(source['heading']);
-      final pLat = _coord(widget.pickup, true);
-      final pLng = _coord(widget.pickup, false);
-      final dLat = _coord(widget.dropoff, true);
-      final dLng = _coord(widget.dropoff, false);
-      final destination = ['accepted', 'on_the_way', 'arrived'].contains(_rawStatus)
-          ? LatLng(pLat, pLng)
-          : LatLng(dLat, dLng);
-      _driverETA = _calculateEstimatedTime(_driverPos!, destination);
+      _driverETA = _calculateEstimatedTime(newDriverPos, destination);
     });
 
     if (wasDriverPosNull) {
+      setState(() {
+        _driverPos = newDriverPos;
+      });
       _loadRoute();
     } else {
+      _animStartPos = _driverPos ?? oldDriverPos;
+      _animEndPos = newDriverPos;
+      _driverMarkerAnimController?.forward(from: 0.0);
+
       final distanceMoved = const Distance().as(LengthUnit.Meter, oldDriverPos, newDriverPos);
       if (distanceMoved > 150) {
         _loadRoute();
       }
     }
+  }
+
+  IconData get _vehicleMarkerIcon {
+    final vName = widget.vehicle['name']?.toString().toLowerCase() ?? '';
+    final vType = widget.vehicle['type']?.toString().toLowerCase() ?? '';
+    final rawType = widget.vehicle['category']?.toString().toLowerCase() ?? '';
+    if (vName.contains('truck') || vType.contains('truck') || vName.contains('cargo') || 
+        rawType.contains('logistics') || _segments.isNotEmpty) {
+      return Icons.local_shipping;
+    }
+    if (vName.contains('bus') || vType.contains('bus') || vName.contains('shuttle') || rawType.contains('shuttle')) {
+      return Icons.directions_bus;
+    }
+    return Icons.navigation;
   }
 
   double _coord(Map<String, dynamic> point, bool isLat) {
@@ -246,6 +272,24 @@ bool _isSheetOpen = true;
   @override
   void initState() {
     super.initState();
+
+    _driverMarkerAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _driverMarkerAnim = CurvedAnimation(
+      parent: _driverMarkerAnimController!,
+      curve: Curves.easeInOutQuad,
+    )..addListener(() {
+        if (_animStartPos != null && _animEndPos != null && mounted) {
+          final t = _driverMarkerAnim!.value;
+          final lat = _animStartPos!.latitude + (_animEndPos!.latitude - _animStartPos!.latitude) * t;
+          final lng = _animStartPos!.longitude + (_animEndPos!.longitude - _animStartPos!.longitude) * t;
+          setState(() {
+            _driverPos = LatLng(lat, lng);
+          });
+        }
+      });
 
     _driver = _buildDriverState();
     if (widget.driverData != null) {
@@ -351,8 +395,11 @@ bool _isSheetOpen = true;
 
       _locationSubscription =
           ref.read(socketServiceProvider).driverLocationStream.listen((data) {
-        final receivedId = data['rideId']?.toString().toLowerCase();
-        if (receivedId != widget.rideId.toString().toLowerCase()) return;
+        final receivedId = (data['rideId'] ?? data['bookingId'])?.toString().toLowerCase();
+        final currentId = widget.rideId.toString().toLowerCase();
+        if (receivedId != null && receivedId.isNotEmpty && receivedId != currentId) {
+          return;
+        }
         if (!mounted) return;
         _applyDriverLocation(Map<String, dynamic>.from(data));
       });
@@ -506,6 +553,7 @@ bool _isSheetOpen = true;
     _roadmapSubscription?.cancel();
     _acceptedSubscription?.cancel();
     _driverPollTimer?.cancel();
+    _driverMarkerAnimController?.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -1026,27 +1074,28 @@ bool _isSheetOpen = true;
                 if (_driverPos != null)
                   Marker(
                     point: _driverPos!,
-                    width: 50,
-                    height: 50,
+                    width: 52,
+                    height: 52,
                     child: Transform.rotate(
                       angle: (_driverHeading * (3.14159 / 180)),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            width: 35,
-                            height: 35,
-                            decoration: BoxDecoration(
-                              color: context.theme.primaryColor.withOpacity(0.2),
-                              shape: BoxShape.circle,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00E676),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00E676).withOpacity(0.5),
+                              blurRadius: 10,
+                              spreadRadius: 2,
                             ),
-                          ),
-                          Icon(
-                            Icons.navigation,
-                            color: context.theme.primaryColor,
-                            size: 30,
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Icon(
+                          _vehicleMarkerIcon,
+                          color: Colors.black,
+                          size: 28,
+                        ),
                       ),
                     ),
                   ),

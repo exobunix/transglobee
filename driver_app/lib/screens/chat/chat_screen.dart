@@ -38,7 +38,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(chatProvider.notifier).initChat(widget.receiverId, widget.driverId);
+      ref.read(chatProvider.notifier).initChat(
+        widget.receiverId,
+        widget.driverId,
+        bookingId: widget.bookingId,
+      );
       ref.read(notificationProvider.notifier).markCategoryRead('chat');
     });
   }

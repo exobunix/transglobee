@@ -88,22 +88,27 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
   StreamSubscription? _messageSubscription;
   StreamSubscription? _historySubscription;
   String? _currentReceiverId;
+  String? _bookingId;
 
   @override
   List<ChatMessage> build() => [];
 
-  void initChat(String receiverId, String driverId) {
+  void initChat(String receiverId, String driverId, {String? bookingId}) {
     _currentReceiverId = receiverId;
+    _bookingId = bookingId;
     final socketService = ref.read(socketServiceProvider);
     
     final driverName = ref.read(driverProfileProvider).value?.name;
     socketService.connect(driverId, name: driverName);
-    socketService.fetchHistory(driverId, receiverId);
+    if (bookingId != null && bookingId.isNotEmpty) {
+      socketService.joinRide(bookingId);
+    }
+    socketService.fetchHistory(driverId, receiverId, bookingId: bookingId);
 
     _messageSubscription?.cancel();
     _messageSubscription = socketService.messageStream.listen((data) {
       print("[CHAT-DEBUG] [DRIVER] Received message: $data");
-      print("[CHAT-DEBUG] [DRIVER] Checking match: receiverId=$receiverId, driverId=$driverId");
+      print("[CHAT-DEBUG] [DRIVER] Checking match: receiverId=$receiverId, driverId=$driverId, bookingId=$_bookingId");
       
       final currentDbId = ref.read(driverProfileProvider).value?.id;
       final currentFbId = ref.read(driverProfileProvider).value?.firebaseId;
@@ -114,13 +119,15 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
       final msgSender = data['senderId']?.toString();
       final msgReceiver = data['receiverId']?.toString();
       final msgRole = data['senderRole']?.toString();
+      final msgBookingId = data['bookingId']?.toString();
 
+      final bool matchesBooking = (_bookingId != null && msgBookingId != null && _bookingId == msgBookingId);
       final bool matchesRole = (msgRole == 'user' && (isMe(msgReceiver) || msgReceiver == null)) ||
                                (msgRole == 'driver' && isMe(msgSender));
       final bool matchesIds = (isOther(msgSender) && (isMe(msgReceiver) || msgReceiver == null)) ||
                               (isMe(msgSender) && isOther(msgReceiver));
 
-      if (matchesRole || matchesIds) {
+      if (matchesBooking || matchesRole || matchesIds) {
         print("[CHAT-DEBUG] [DRIVER] Message MATCHED context. Adding to state.");
         final newMsg = ChatMessage.fromMap(data, driverId);
         
@@ -179,6 +186,7 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
       text,
       senderName: driverProfile.name,
       senderRole: 'driver',
+      bookingId: _bookingId,
     );
 
     // Optimistic Update

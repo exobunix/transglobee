@@ -128,20 +128,22 @@ class SocketService {
     _socket?.onDisconnect((_) => print("Socket Disconnected"));
   }
 
-  void sendMessage(String senderId, String receiverId, String message, {String senderRole = 'driver', String? senderName}) {
+  void sendMessage(String senderId, String receiverId, String message, {String senderRole = 'driver', String? senderName, String? bookingId}) {
     _socket?.emit("send_message", {
       "senderId": senderId,
       "receiverId": receiverId,
       "message": message,
       "senderRole": senderRole,
-      "senderName": senderName
+      "senderName": senderName,
+      if (bookingId != null && bookingId.isNotEmpty) "bookingId": bookingId,
     });
   }
 
-  void fetchHistory(String userId1, String userId2) {
+  void fetchHistory(String userId1, String userId2, {String? bookingId}) {
     _socket?.emit("fetch_history", {
       "userId1": userId1,
-      "userId2": userId2
+      "userId2": userId2,
+      if (bookingId != null && bookingId.isNotEmpty) "bookingId": bookingId,
     });
   }
 
@@ -162,7 +164,9 @@ class SocketService {
   }
 
   void joinRide(String rideId) {
+    if (rideId.isEmpty) return;
     _socket?.emit("join_ride", rideId);
+    _socket?.emit("join_ride", "tracking_$rideId");
   }
 
   void updateFare(String rideId, int amount, double newFare) {

@@ -28,6 +28,12 @@ class _BusBookingScreenState extends ConsumerState<BusBookingScreen> {
   // Track selected timing per vehicle ID
   final Map<String, String> _selectedTimingMap = {};
 
+  // Corporate Shuttle Charter Mode
+  bool _isCharterMode = false;
+  String _selectedCharterType = 'particular_days'; // 'particular_days', 'permanent', 'flexible'
+  int _charterDays = 5; // Default 5 days (e.g. Mon-Fri corporate week)
+  String _selectedShiftTime = '08:30 AM - 05:30 PM';
+
   @override
   void initState() {
     super.initState();
@@ -229,6 +235,7 @@ class _BusBookingScreenState extends ConsumerState<BusBookingScreen> {
     }
 
     final fare = _calculateSeatFare(vehicle, route);
+    final wholeFare = _calculateWholeShuttleFare(vehicle, route);
 
     Navigator.push(
       context,
@@ -241,9 +248,33 @@ class _BusBookingScreenState extends ConsumerState<BusBookingScreen> {
           farePerSeat: fare,
           pickup: widget.pickup,
           dropoff: widget.dropoff,
+          isWholeShuttleBooking: _isCharterMode,
+          charterType: _selectedCharterType,
+          charterDays: _charterDays,
+          wholeShuttleFare: wholeFare,
         ),
       ),
     );
+  }
+
+  double _calculateWholeShuttleFare(Map<String, dynamic> vehicle, Map<String, dynamic> route) {
+    final distance = (route['distance'] as num?)?.toDouble() ?? 12.0;
+    final fixedPrice = (vehicle['pricing']?['fixedPrice'] as num?)?.toDouble() ??
+        (vehicle['pricing']?['charterPrice'] as num?)?.toDouble() ?? 0.0;
+    final pricePerKm = (vehicle['pricing']?['pricePerKm'] as num?)?.toDouble() ??
+        (vehicle['pricePerKm'] as num?)?.toDouble() ?? 30.0;
+
+    double perTripFare = fixedPrice > 0 ? fixedPrice : (distance * (pricePerKm >= 15 ? pricePerKm : 30.0)).clamp(800.0, 6000.0);
+    double dailyFare = perTripFare * 2; // Morning pickup + evening return
+
+    if (_selectedCharterType == 'permanent') {
+      // 22 work days with 15% corporate discount
+      return (dailyFare * 22 * 0.85).roundToDouble();
+    } else if (_selectedCharterType == 'flexible') {
+      return (perTripFare * 1.25).roundToDouble();
+    } else {
+      return (dailyFare * _charterDays).roundToDouble();
+    }
   }
 
   @override
@@ -350,6 +381,216 @@ class _BusBookingScreenState extends ConsumerState<BusBookingScreen> {
                   ],
                 ),
               ),
+
+              const SizedBox(height: 12),
+
+              // Booking Mode Switcher: Single Seat vs Book Complete Shuttle
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: context.theme.dividerColor.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _isCharterMode = false),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: !_isCharterMode ? primaryColor : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.event_seat,
+                                  size: 16,
+                                  color: !_isCharterMode ? Colors.white : textSecondary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Single Seat Booking',
+                                  style: TextStyle(
+                                    color: !_isCharterMode ? Colors.white : textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _isCharterMode = true),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _isCharterMode ? primaryColor : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.airport_shuttle,
+                                  size: 16,
+                                  color: _isCharterMode ? Colors.white : textSecondary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Book Complete Shuttle',
+                                  style: TextStyle(
+                                    color: _isCharterMode ? Colors.white : textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (_isCharterMode) ...[
+                const SizedBox(height: 14),
+                // Corporate Charter Duration Selector
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: primaryColor.withValues(alpha: 0.25)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.business_center, color: primaryColor, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Corporate Charter Duration',
+                            style: TextStyle(
+                              color: textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _buildCharterTypeChip('Particular Days', 'particular_days', primaryColor, textPrimary, textSecondary),
+                          const SizedBox(width: 8),
+                          _buildCharterTypeChip('Permanent / Monthly', 'permanent', primaryColor, textPrimary, textSecondary),
+                          const SizedBox(width: 8),
+                          _buildCharterTypeChip('Flexible Shift', 'flexible', primaryColor, textPrimary, textSecondary),
+                        ],
+                      ),
+                      if (_selectedCharterType == 'particular_days') ...[
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Text('Select Days:', style: TextStyle(color: textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 12),
+                            ...[1, 3, 5, 7, 14, 20].map((d) {
+                              final isSel = _charterDays == d;
+                              return GestureDetector(
+                                onTap: () => setState(() => _charterDays = d),
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: isSel ? primaryColor : Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: isSel ? primaryColor : Colors.grey.shade300),
+                                  ),
+                                  child: Text(
+                                    '${d}d',
+                                    style: TextStyle(
+                                      color: isSel ? Colors.white : Colors.black87,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ],
+                      if (_selectedCharterType == 'flexible') ...[
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Text('Shift Time:', style: TextStyle(color: textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    '06:00 AM - 02:00 PM',
+                                    '08:30 AM - 05:30 PM',
+                                    '02:00 PM - 10:00 PM',
+                                    '10:00 PM - 06:00 AM',
+                                  ].map((s) {
+                                    final isSel = _selectedShiftTime == s;
+                                    return GestureDetector(
+                                      onTap: () => setState(() => _selectedShiftTime = s),
+                                      child: Container(
+                                        margin: const EdgeInsets.only(right: 6),
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: isSel ? primaryColor : Colors.white,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: isSel ? primaryColor : Colors.grey.shade300),
+                                        ),
+                                        child: Text(
+                                          s,
+                                          style: TextStyle(
+                                            color: isSel ? Colors.white : Colors.black87,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 8),
 
@@ -675,7 +916,7 @@ class _BusBookingScreenState extends ConsumerState<BusBookingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '₹${fare.toStringAsFixed(0)}',
+                      _isCharterMode ? '₹${_calculateWholeShuttleFare(vehicle, route).toStringAsFixed(0)}' : '₹${fare.toStringAsFixed(0)}',
                       style: TextStyle(
                         color: primaryColor,
                         fontSize: 18,
@@ -683,10 +924,11 @@ class _BusBookingScreenState extends ConsumerState<BusBookingScreen> {
                       ),
                     ),
                     Text(
-                      'per seat',
+                      _isCharterMode ? 'entire shuttle' : 'per seat',
                       style: TextStyle(
                         color: textSecondary,
                         fontSize: 10,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -936,26 +1178,73 @@ class _BusBookingScreenState extends ConsumerState<BusBookingScreen> {
                   size: 18,
                 ),
                 label: Text(
-                  allTimingsPast
-                      ? 'Departed for Today (Select Next Day)'
-                      : (isSelectedPast
-                          ? 'Selected Time Departed'
-                          : 'Select Seats ($selectedTiming)'),
+                  _isCharterMode
+                      ? 'Review Shuttle & Book Charter'
+                      : (allTimingsPast
+                          ? 'Departed for Today (Select Next Day)'
+                          : (isSelectedPast
+                              ? 'Selected Time Departed'
+                              : 'Select Seats ($selectedTiming)')),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: (allTimingsPast || isSelectedPast)
+                  backgroundColor: (!_isCharterMode && (allTimingsPast || isSelectedPast))
                       ? Colors.grey.shade400
                       : primaryColor,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: (allTimingsPast || isSelectedPast) ? 0 : 1,
+                  elevation: (!_isCharterMode && (allTimingsPast || isSelectedPast)) ? 0 : 1,
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCharterTypeChip(
+    String label,
+    String value,
+    Color primaryColor,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    final isSelected = _selectedCharterType == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedCharterType = value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? primaryColor : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? primaryColor : Colors.grey.shade300,
+              width: isSelected ? 1.5 : 1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: primaryColor.withValues(alpha: 0.25),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? Colors.white : textPrimary,
+              fontSize: 10.5,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }

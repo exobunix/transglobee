@@ -268,7 +268,11 @@ class BookingModel {
       pickupLng: resolveLngFromObj(pickupRaw, 'pickupLng'),
       dropLat: resolveLatFromObj(dropRaw, 'dropLat'),
       dropLng: resolveLngFromObj(dropRaw, 'dropLng'),
-      userId: json['userId']?.toString(),
+      userId: (json['userId'] is Map
+          ? (json['userId']['_id'] ?? json['userId']['id'] ?? json['userId']['uid'])
+          : json['userId'])?.toString() ??
+          json['customerId']?.toString() ??
+          (json['user'] is Map ? (json['user']['_id'] ?? json['user']['id'])?.toString() : null),
       paymentStatus: json['paymentStatus']?.toString() ?? 'unpaid',
       railwayStation: json['railwayStation']?.toString() ?? json['transitPoint']?.toString(),
       pickupDetails: pickupRaw is Map ? Map<String, dynamic>.from(pickupRaw) : null,
@@ -288,16 +292,57 @@ class BookingModel {
     );
   }
 
+  /// Whether this booking is a logistics shipment
+  bool get isLogistics {
+    final cat = dispatchType.toUpperCase();
+    final sub = subType.toLowerCase();
+    final vType = vehicleType.toLowerCase();
+    return cat == 'LOGISTICS' ||
+        sub.contains('logistic') ||
+        sub.contains('truck') ||
+        sub.contains('cargo') ||
+        sub.contains('transport') ||
+        sub.contains('train') ||
+        sub.contains('ship') ||
+        sub.contains('sea') ||
+        vType.contains('truck') ||
+        vType.contains('cargo') ||
+        vType.contains('logistic') ||
+        segments.isNotEmpty;
+  }
+
+  /// Whether the fare should be visible to the driver:
+  /// For LOGISTICS, only show if admin entered a segment price > 0 for this driver.
+  /// If no segment price entered, DO NOT show price to driver.
+  bool shouldShowFareToDriver([String? driverId, String? altDriverId]) {
+    if (isLogistics) {
+      if (segments.isNotEmpty && (driverId != null || altDriverId != null)) {
+        for (final segment in segments) {
+          if (segment.driverId == driverId || (altDriverId != null && segment.driverId == altDriverId)) {
+            return segment.price > 0;
+          }
+        }
+      }
+      return false; // No segment price configured -> price is completely hidden
+    }
+    return true; // Non-logistics (cab) displays fare
+  }
+
   /// Map for live ride-request popup (socket + polling).
-  Map<String, dynamic> toRideRequestMap() {
+  Map<String, dynamic> toRideRequestMap([String? driverId, String? altDriverId]) {
+    final showFare = shouldShowFareToDriver(driverId, altDriverId);
+    final driverFare = getFareForDriver(driverId, altDriverId);
+
     return {
       'id': id,
       'userName': userName,
       'phone': userPhone,
-      'pick': pickupAddress,
-      'drop': dropAddress,
-      'fare': fare,
-      'distance': distanceKm > 0 ? '${distanceKm.toStringAsFixed(1)} km' : '—',
+      'pick': getPickupAddressForDriver(driverId, altDriverId),
+      'drop': getDropAddressForDriver(driverId, altDriverId),
+      'fare': showFare ? driverFare : null,
+      'showFare': showFare,
+      'isLogistics': isLogistics,
+      'distance': distanceKm > 0 ? '${getDistanceForDriver(driverId, altDriverId).toStringAsFixed(1)} km' : '—',
       'rideMode': subType,
       'vehicleType': vehicleType,
       'type': dispatchType,
@@ -316,14 +361,19 @@ class BookingModel {
     };
   }
 
-  /// Returns driver-specific fare for LOGISTICS if driver is assigned to a segment
+  /// Returns driver-specific fare for LOGISTICS:
+  /// ONLY returns segment price if admin entered price > 0 in the segment.
+  /// NEVER returns user's booking price for logistics!
   double getFareForDriver(String? driverId, [String? altDriverId]) {
-    if (dispatchType == 'LOGISTICS' && (driverId != null || altDriverId != null) && segments.isNotEmpty) {
-      for (final segment in segments) {
-        if (segment.driverId == driverId || (altDriverId != null && segment.driverId == altDriverId)) {
-          return segment.price;
+    if (isLogistics) {
+      if (segments.isNotEmpty && (driverId != null || altDriverId != null)) {
+        for (final segment in segments) {
+          if (segment.driverId == driverId || (altDriverId != null && segment.driverId == altDriverId)) {
+            return segment.price > 0 ? segment.price : 0.0;
+          }
         }
       }
+      return 0.0; // NEVER reveal the user booking price to driver
     }
     return fare;
   }

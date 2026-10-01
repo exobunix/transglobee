@@ -491,6 +491,8 @@ class _ActiveBookingCard extends ConsumerWidget {
                               receiverId: b.userId ?? '',
                               receiverName: b.userName,
                               driverId: driverProfile.id,
+                              bookingId: b.id,
+                              receiverPhone: b.userPhone,
                             ),
                           ),
                         );

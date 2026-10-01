@@ -529,9 +529,12 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
   }
 
   Widget _buildFareBreakdown(BookingModel booking) {
-    final driverId = ref.watch(authServiceProvider).currentUser?.uid;
-    final fare = booking.getFareForDriver(driverId);
-    final distance = booking.getDistanceForDriver(driverId);
+    final driverProfile = ref.watch(driverProfileProvider).value;
+    final driverDbId = driverProfile?.id;
+    final driverFbId = driverProfile?.firebaseId ?? ref.watch(authServiceProvider).currentUser?.uid;
+    final showFare = booking.shouldShowFareToDriver(driverDbId, driverFbId);
+    final fare = booking.getFareForDriver(driverDbId, driverFbId);
+    final distance = booking.getDistanceForDriver(driverDbId, driverFbId);
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -541,14 +544,25 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Est. Fare', style: TextStyle(color: AppTheme.darkTextSecondary)),
-              Text('₹${fare.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 12),
+          if (showFare) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Est. Fare', style: TextStyle(color: AppTheme.darkTextSecondary)),
+                Text('₹${fare.toStringAsFixed(2)}', style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Billing', style: TextStyle(color: AppTheme.darkTextSecondary)),
+                Text('Corporate / Admin Managed', style: TextStyle(color: AppTheme.neonGreen, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -556,14 +570,16 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               Text('${distance.toStringAsFixed(1)} km', style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700)),
             ],
           ),
-          const SizedBox(height: 12),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Payment Type', style: TextStyle(color: AppTheme.darkTextSecondary)),
-              Text('Cash', style: TextStyle(color: AppTheme.earningsAmber, fontWeight: FontWeight.w700)),
-            ],
-          ),
+          if (showFare) ...[
+            const SizedBox(height: 12),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Payment Type', style: TextStyle(color: AppTheme.darkTextSecondary)),
+                Text('Cash', style: TextStyle(color: AppTheme.earningsAmber, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ],
         ],
       ),
     );

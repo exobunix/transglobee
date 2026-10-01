@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:driver_app/services/socket_service.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +16,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'items_verification_screen.dart';
 import '../../services/auth_service.dart';
 import '../../features/driver/controllers/driver_providers.dart';
+import 'package:geolocator/geolocator.dart';
+
 class ActiveRideScreen extends ConsumerStatefulWidget {
   final BookingModel booking;
 
@@ -33,11 +36,17 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   List<LatLng> _routePoints = [];
   StreamSubscription? _paymentSubscription;
   StreamSubscription? _rideCancelledSubscription;
+  StreamSubscription<Position>? _positionSubscription;
+
+  LatLng? _driverPos;
+  double _driverHeading = 0.0;
+  String _liveEtaText = '';
 
   @override
   void initState() {
     super.initState();
     _loadRoute();
+    _startLiveGpsTracking();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final socketService = ref.read(socketServiceProvider);
       socketService.joinRide(widget.booking.id);
@@ -56,6 +65,84 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         }
       });
     });
+  }
+
+  void _startLiveGpsTracking() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      if (mounted) {
+        setState(() {
+          _driverPos = LatLng(pos.latitude, pos.longitude);
+          _driverHeading = pos.heading;
+        });
+        _broadcastDriverLocation(pos);
+        _updateLiveEta();
+      }
+    } catch (e) {
+      debugPrint('GPS init error: $e');
+    }
+
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 3,
+      ),
+    ).listen((Position pos) {
+      if (!mounted) return;
+      setState(() {
+        _driverPos = LatLng(pos.latitude, pos.longitude);
+        _driverHeading = pos.heading;
+      });
+      _broadcastDriverLocation(pos);
+      _updateLiveEta();
+    });
+  }
+
+  void _broadcastDriverLocation(Position pos) {
+    try {
+      ref.read(socketServiceProvider).updateLocation(
+        rideId: widget.booking.id,
+        userId: widget.booking.userId ?? '',
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        heading: pos.heading,
+      );
+    } catch (e) {
+      debugPrint('Error broadcasting driver location: $e');
+    }
+  }
+
+  void _updateLiveEta() {
+    if (_driverPos == null) return;
+    final destLat = widget.booking.dropLat ?? widget.booking.pickupLat;
+    final destLng = widget.booking.dropLng ?? widget.booking.pickupLng;
+    if (destLat == null || destLng == null || (destLat == 0 && destLng == 0)) return;
+
+    final dest = LatLng(destLat, destLng);
+    final distanceMeters = const Distance().as(LengthUnit.Meter, _driverPos!, dest);
+    final distanceKm = distanceMeters / 1000.0;
+    final minutes = (distanceMeters / 500).ceil(); // ~30 km/h city average
+
+    if (distanceMeters < 100) {
+      _liveEtaText = 'Arrived at location';
+    } else {
+      _liveEtaText = '${distanceKm.toStringAsFixed(1)} km • $minutes min${minutes > 1 ? 's' : ''} away';
+    }
+  }
+
+  @override
+  void dispose() {
+    _positionSubscription?.cancel();
+    _paymentSubscription?.cancel();
+    _rideCancelledSubscription?.cancel();
+    _mapController.dispose();
+    for (final c in _otpControllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
+    super.dispose();
   }
 
   void _showCancellationSummaryDialog(Map<String, dynamic>? rideData) {
@@ -160,19 +247,6 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
     } catch (e) {
       debugPrint("Error loading route for driver: $e");
     }
-  }
-
-  @override
-  void dispose() {
-    _paymentSubscription?.cancel();
-    _rideCancelledSubscription?.cancel();
-    for (var controller in _otpControllers) {
-      controller.dispose();
-    }
-    for (var node in _focusNodes) {
-      node.dispose();
-    }
-    super.dispose();
   }
 
   Future<void> _verifyOtp() async {
@@ -333,6 +407,34 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                               false
                             ),
                           ),
+                          if (_driverPos != null)
+                            Marker(
+                              point: _driverPos!,
+                              width: 48,
+                              height: 48,
+                              child: Transform.rotate(
+                                angle: (_driverHeading * (pi / 180)),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00E676),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2.5),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF00E676).withOpacity(0.5),
+                                        blurRadius: 10,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    widget.booking.isLogistics ? Icons.local_shipping : Icons.navigation,
+                                    color: Colors.black,
+                                    size: 26,
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ],
@@ -349,6 +451,31 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                     ),
                   ),
                 ),
+                if (_liveEtaText.isNotEmpty)
+                  Positioned(
+                    top: 40,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E212D).withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF00E676), width: 1.5),
+                        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2))],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.near_me, color: Color(0xFF00E676), size: 14),
+                          const SizedBox(width: 6),
+                          Text(
+                            _liveEtaText,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -438,6 +565,8 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                                         receiverId: widget.booking.userId ?? '',
                                         receiverName: widget.booking.userName,
                                         driverId: driverProfile.id,
+                                        bookingId: widget.booking.id,
+                                        receiverPhone: widget.booking.userPhone,
                                       ),
                                     ),
                                   );
@@ -448,25 +577,40 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text(
-                                  '₹${displayFare.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    color: Color(0xFFFBC02D),
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
+                                if (widget.booking.shouldShowFareToDriver(driverDbId, driverFbId)) ...[
+                                  Text(
+                                    '₹${displayFare.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFBC02D),
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _fareButton(10),
-                                    const SizedBox(width: 4),
-                                    _fareButton(20),
-                                    const SizedBox(width: 4),
-                                    _fareButton(30),
-                                  ],
-                                ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _fareButton(10),
+                                      const SizedBox(width: 4),
+                                      _fareButton(20),
+                                      const SizedBox(width: 4),
+                                      _fareButton(30),
+                                    ],
+                                  ),
+                                ] else ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueGrey.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.blueGrey),
+                                    ),
+                                    child: const Text(
+                                      'Logistics',
+                                      style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 8),
                                 Text(
                                   '${displayDistance.toStringAsFixed(1)} km',
@@ -653,18 +797,20 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                        Row(
                          mainAxisAlignment: MainAxisAlignment.center,
                          children: [
-                           ElevatedButton.icon(
-                             onPressed: () => _showPaymentQR(context),
-                             icon: const Icon(Icons.qr_code, color: Colors.black, size: 18),
-                             label: const Text('PAYMENT QR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                             style: ElevatedButton.styleFrom(
-                               backgroundColor: Colors.amber,
-                               foregroundColor: Colors.black,
-                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                           if (widget.booking.shouldShowFareToDriver(driverDbId, driverFbId)) ...[
+                             ElevatedButton.icon(
+                               onPressed: () => _showPaymentQR(context),
+                               icon: const Icon(Icons.qr_code, color: Colors.black, size: 18),
+                               label: const Text('PAYMENT QR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                               style: ElevatedButton.styleFrom(
+                                 backgroundColor: Colors.amber,
+                                 foregroundColor: Colors.black,
+                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                               ),
                              ),
-                           ),
-                           const SizedBox(width: 12),
+                             const SizedBox(width: 12),
+                           ],
                            ElevatedButton.icon(
                              onPressed: () => _showCompleteTripDialog(context, ref, widget.booking),
                              icon: const Icon(Icons.done_all, color: Colors.black, size: 18),
@@ -805,30 +951,46 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   }
 
   void _showCompleteTripDialog(BuildContext context, WidgetRef ref, BookingModel booking) {
-    final controller = TextEditingController(text: booking.fare.toStringAsFixed(0));
+    final driverProfile = ref.read(driverProfileProvider).value;
+    final driverDbId = driverProfile?.id;
+    final driverFbId = driverProfile?.firebaseId ?? ref.read(authServiceProvider).currentUser?.uid;
+    final showFare = booking.shouldShowFareToDriver(driverDbId, driverFbId);
+    final driverFare = booking.getFareForDriver(driverDbId, driverFbId);
+
+    final controller = TextEditingController(text: driverFare > 0 ? driverFare.toStringAsFixed(0) : '');
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E212D),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Complete Trip', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(
+          booking.isLogistics ? 'Complete Delivery' : 'Complete Trip', 
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Confirm final fare amount:', style: TextStyle(color: Colors.white70)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Color(0xFF00E676), fontSize: 24, fontWeight: FontWeight.bold),
-              decoration: const InputDecoration(
-                prefixText: '₹ ',
-                prefixStyle: TextStyle(color: Color(0xFF00E676), fontSize: 24),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E676))),
+            if (showFare) ...[
+              const Text('Confirm final fare amount:', style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Color(0xFF00E676), fontSize: 24, fontWeight: FontWeight.bold),
+                decoration: const InputDecoration(
+                  prefixText: '₹ ',
+                  prefixStyle: TextStyle(color: Color(0xFF00E676), fontSize: 24),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E676))),
+                ),
               ),
-            ),
+            ] else ...[
+              const Text(
+                'Are you sure you want to mark this shipment/trip as delivered?',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -838,7 +1000,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final fare = double.tryParse(controller.text) ?? booking.fare;
+              final fare = showFare ? (double.tryParse(controller.text) ?? driverFare) : 0.0;
               await ref.read(bookingControllerProvider.notifier).completeTrip(
                 booking.id, 
                 booking.distanceKm, 
@@ -858,6 +1020,17 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
   }
 
   void _showPaymentQR(BuildContext context) {
+    final driverProfile = ref.read(driverProfileProvider).value;
+    final driverDbId = driverProfile?.id;
+    final driverFbId = driverProfile?.firebaseId ?? ref.read(authServiceProvider).currentUser?.uid;
+    final showFare = widget.booking.shouldShowFareToDriver(driverDbId, driverFbId);
+    final fare = widget.booking.getFareForDriver(driverDbId, driverFbId);
+
+    if (!showFare) {
+      _showSnackBar('Payment is billed through corporate/admin.');
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -882,14 +1055,14 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: QrImageView(
-                data: "upi://pay?pa=transglobe@upi&pn=Transglobe&am=${widget.booking.fare}&cu=INR",
+                data: "upi://pay?pa=transglobe@upi&pn=Transglobe&am=$fare&cu=INR",
                 version: QrVersions.auto,
                 size: 200.0,
               ),
             ),
             const SizedBox(height: 24),
             Text(
-              'Amount to Collect: ₹${widget.booking.fare}',
+              'Amount to Collect: ₹$fare',
               style: const TextStyle(color: Colors.amber, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),

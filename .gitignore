@@ -1,0 +1,5 @@
+release_apks/
+*.apk
+*.aab
+.DS_Store
+Thumbs.db

@@ -13,6 +13,10 @@ class BusSeatSelectionScreen extends ConsumerStatefulWidget {
   final double farePerSeat;
   final Map<String, dynamic>? pickup;
   final Map<String, dynamic>? dropoff;
+  final bool isWholeShuttleBooking;
+  final String charterType; // 'particular_days', 'permanent', 'flexible'
+  final int charterDays;
+  final double wholeShuttleFare;
 
   const BusSeatSelectionScreen({
     super.key,
@@ -23,6 +27,10 @@ class BusSeatSelectionScreen extends ConsumerStatefulWidget {
     required this.farePerSeat,
     this.pickup,
     this.dropoff,
+    this.isWholeShuttleBooking = false,
+    this.charterType = 'particular_days',
+    this.charterDays = 1,
+    this.wholeShuttleFare = 0.0,
   });
 
   @override
@@ -54,6 +62,12 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
     super.initState();
     _totalCapacity = (widget.vehicle['passengerCapacity'] as num?)?.toInt() ?? 24;
     if (_totalCapacity <= 0) _totalCapacity = 24;
+    
+    if (widget.isWholeShuttleBooking) {
+      for (int i = 1; i <= _totalCapacity; i++) {
+        _selectedSeats.add('$i');
+      }
+    }
     _fetchBookedSeats();
   }
 
@@ -84,6 +98,17 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
   }
 
   void _toggleSeat(String seatNumber) {
+    if (widget.isWholeShuttleBooking) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Whole shuttle is booked under Corporate Charter. All seats are reserved for your organization.'),
+          backgroundColor: Colors.teal,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     if (_isPastDeparture) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -146,8 +171,12 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
 
     setState(() => _isBooking = true);
 
-    final sortedSeats = _selectedSeats.toList()..sort();
-    final totalFare = effectiveFarePerSeat * sortedSeats.length;
+    final sortedSeats = widget.isWholeShuttleBooking
+        ? List.generate(_totalCapacity, (i) => '${i + 1}')
+        : (_selectedSeats.toList()..sort());
+    final totalFare = widget.isWholeShuttleBooking
+        ? (widget.wholeShuttleFare > 0 ? widget.wholeShuttleFare : effectiveFarePerSeat * _totalCapacity)
+        : (effectiveFarePerSeat * sortedSeats.length);
     final distance = (widget.route['distance'] as num?)?.toDouble() ?? 10.0;
 
     final pickup = widget.pickup ?? {
@@ -173,13 +202,22 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
         'vehicleId': widget.vehicle['_id'],
         'routeId': widget.route['_id'],
         'fare': totalFare,
-        'vehiclePrice': effectiveFarePerSeat,
+        'vehiclePrice': widget.isWholeShuttleBooking ? totalFare : effectiveFarePerSeat,
         'totalPrice': totalFare,
         'distance': distance,
         'distanceKm': distance,
         'departureTime': widget.selectedTiming,
-        'travelDate': widget.selectedDate,
+        'selectedDate': widget.selectedDate,
         'selectedSeats': sortedSeats,
+        'seatCount': sortedSeats.length,
+        'passengerCount': sortedSeats.length,
+        'isCharter': widget.isWholeShuttleBooking,
+        'charterType': widget.charterType,
+        'charterDays': widget.charterDays,
+        'notes': widget.isWholeShuttleBooking
+            ? 'Corporate Charter: Entire Shuttle Bus Reserved for ${widget.charterType}'
+            : 'Individual seat booking',
+        'travelDate': widget.selectedDate,
         'paymentMethod': 'cash',
         'pickupLocation': {
           'title': pickup['name'] ?? pickup['title'] ?? 'Origin',
@@ -368,50 +406,80 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
             // Route & Timing Info Header
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(12),
+                color: widget.isWholeShuttleBooking ? primaryColor.withValues(alpha: 0.08) : cardColor,
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: context.theme.dividerColor.withValues(alpha: 0.12),
+                  color: widget.isWholeShuttleBooking ? primaryColor.withValues(alpha: 0.3) : context.theme.dividerColor.withValues(alpha: 0.12),
                 ),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.directions_bus, color: primaryColor, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          routeName,
-                          style: TextStyle(
-                            color: textPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '📅 ${widget.selectedDate}  •  ⏰ ${widget.selectedTiming}  •  ₹${effectiveFarePerSeat.toStringAsFixed(0)}/seat',
-                          style: TextStyle(
-                            color: textSecondary,
-                            fontSize: 11,
-                          ),
+                        child: Icon(Icons.directions_bus, color: primaryColor, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              routeName,
+                              style: TextStyle(
+                                color: textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.isWholeShuttleBooking
+                                  ? '🏢 Complete Shuttle Charter • ⏰ ${widget.selectedTiming} • ${widget.charterType == 'permanent' ? 'Permanent Monthly Contract' : widget.charterType == 'flexible' ? 'Flexible Shift' : '${widget.charterDays} Particular Days'}'
+                                  : '📅 ${widget.selectedDate} • ⏰ ${widget.selectedTiming} • ₹${effectiveFarePerSeat.toStringAsFixed(0)}/seat',
+                              style: TextStyle(
+                                color: widget.isWholeShuttleBooking ? primaryColor : textSecondary,
+                                fontSize: 11,
+                                fontWeight: widget.isWholeShuttleBooking ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                  if (widget.isWholeShuttleBooking) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.lock, size: 14, color: primaryColor),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Seat Map Preview (Read-Only) — Entire Shuttle Reserved for your Organization',
+                              style: TextStyle(color: primaryColor, fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -419,14 +487,21 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
             // Seat Status Legend Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildLegendItem('Available', Colors.grey.shade300, isOutline: true),
-                  _buildLegendItem('Selected', primaryColor),
-                  _buildLegendItem('Booked', Colors.grey.shade500),
-                ],
-              ),
+              child: widget.isWholeShuttleBooking
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildLegendItem('Reserved for Corporate Charter', primaryColor),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildLegendItem('Available', Colors.grey.shade300, isOutline: true),
+                        _buildLegendItem('Selected', primaryColor),
+                        _buildLegendItem('Booked', Colors.grey.shade500),
+                      ],
+                    ),
             ),
 
             const Divider(height: 16),
@@ -799,10 +874,12 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
     Color textSecondary,
   ) {
     final seatCount = _selectedSeats.length;
-    final totalFare = effectiveFarePerSeat * seatCount;
+    final totalFare = widget.isWholeShuttleBooking
+        ? (widget.wholeShuttleFare > 0 ? widget.wholeShuttleFare : effectiveFarePerSeat * _totalCapacity)
+        : (effectiveFarePerSeat * seatCount);
     final sortedSeats = _selectedSeats.toList()..sort();
 
-    final canBook = !_isPastDeparture && !_isBooking && seatCount > 0;
+    final canBook = !_isPastDeparture && !_isBooking && (widget.isWholeShuttleBooking || seatCount > 0);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -834,7 +911,19 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
                       fontWeight: FontWeight.bold,
                     ),
                   )
-                else if (seatCount > 0) ...[
+                else if (widget.isWholeShuttleBooking) ...[
+                  Text(
+                    'Complete Charter (${_totalCapacity} Seats)',
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                ] else if (seatCount > 0) ...[
                   Text(
                     'Seats: ${sortedSeats.join(", ")}',
                     style: TextStyle(
@@ -868,14 +957,16 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (seatCount > 0)
-                      Text(
-                        ' ($seatCount ${seatCount == 1 ? "seat" : "seats"})',
-                        style: TextStyle(
-                          color: textSecondary,
-                          fontSize: 12,
-                        ),
+                    Text(
+                      widget.isWholeShuttleBooking
+                          ? ' (${widget.charterType == 'permanent' ? 'Monthly Contract' : widget.charterType == 'flexible' ? 'Shift Booking' : '${widget.charterDays} Days'})'
+                          : (seatCount > 0 ? ' ($seatCount ${seatCount == 1 ? "seat" : "seats"})' : ''),
+                      style: TextStyle(
+                        color: textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                       ),
+                    ),
                   ],
                 ),
               ],
@@ -892,7 +983,7 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
               foregroundColor: Colors.white,
               disabledBackgroundColor: Colors.grey.shade400,
               disabledForegroundColor: Colors.white70,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -910,10 +1001,12 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
                 : Row(
                     children: [
                       Text(
-                        _isPastDeparture ? 'Departed' : 'Book Now',
+                        _isPastDeparture 
+                            ? 'Departed' 
+                            : (widget.isWholeShuttleBooking ? 'Book Charter' : 'Book Now'),
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                          fontSize: 14,
                         ),
                       ),
                       const SizedBox(width: 6),

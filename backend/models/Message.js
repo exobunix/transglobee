@@ -24,6 +24,11 @@ const messageSchema = new mongoose.Schema({
     isDeleted: {
         type: Boolean,
         default: false
+    },
+    bookingId: {
+        type: String,
+        default: null,
+        index: true
     }
 }, { timestamps: true });
 

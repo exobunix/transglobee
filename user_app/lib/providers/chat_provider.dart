@@ -93,7 +93,7 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
     if (bookingId != null && bookingId.isNotEmpty) {
       socketService.joinRide(bookingId);
     }
-    socketService.fetchHistory(userId, receiverId);
+    socketService.fetchHistory(userId, receiverId, bookingId: bookingId);
 
     _messageSubscription?.cancel();
     _messageSubscription = socketService.messageStream.listen((data) {

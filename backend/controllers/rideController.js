@@ -431,7 +431,9 @@ exports.getDriverBookings = async (req, res) => {
 
         // Map logistics to a format the Driver App expects (BookingModel)
         const mappedLogistics = logistics.map(lb => {
-            let matchedFare = lb.totalPrice || lb.vehiclePrice || 0;
+            // For logistics, never default to the customer's booking totalPrice!
+            // Only if an assigned segment has a price entered by admin, show that segment price; otherwise 0.
+            let matchedFare = 0;
             let pickupAddr = lb.pickup?.address || 'Pickup Location';
             let dropAddr = lb.dropoff?.address || 'Dropoff Location';
             let pLat = lb.pickup?.lat;
@@ -447,7 +449,7 @@ exports.getDriverBookings = async (req, res) => {
                                      (currentDriverId && s.driverId.toString() === currentDriverId.toString())))
                 );
                 if (assignedSeg) {
-                    matchedFare = assignedSeg.price || 0;
+                    matchedFare = Number(assignedSeg.price) > 0 ? Number(assignedSeg.price) : 0;
                     pickupAddr = assignedSeg.start?.address || assignedSeg.start?.name || pickupAddr;
                     dropAddr = assignedSeg.end?.address || assignedSeg.end?.name || dropAddr;
                     pLat = assignedSeg.start?.lat ?? pLat;

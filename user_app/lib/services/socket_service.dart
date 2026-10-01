@@ -158,7 +158,8 @@ class SocketService {
     final rideId = _pendingRideId;
     if (rideId == null || rideId.isEmpty || _socket?.connected != true) return;
     _socket?.emit("join_ride", rideId);
-    print("Joined ride room: $rideId");
+    _socket?.emit("join_ride", "tracking_$rideId");
+    print("Joined ride rooms: $rideId and tracking_$rideId");
     _pendingRideId = null;
   }
 
@@ -174,10 +175,11 @@ class SocketService {
     });
   }
 
-  void fetchHistory(String userId1, String userId2) {
+  void fetchHistory(String userId1, String userId2, {String? bookingId}) {
     _socket?.emit("fetch_history", {
       "userId1": userId1,
-      "userId2": userId2
+      "userId2": userId2,
+      if (bookingId != null && bookingId.isNotEmpty) "bookingId": bookingId,
     });
   }
 

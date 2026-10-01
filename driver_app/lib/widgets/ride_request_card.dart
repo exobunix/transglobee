@@ -101,6 +101,11 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
             : null) ??
         'Drop location';
 
+    final isLogistics = widget.rideData?['isLogistics'] == true ||
+        widget.rideData?['bookingCategory']?.toString().toUpperCase() == 'LOGISTICS' ||
+        widget.rideData?['type']?.toString().toUpperCase() == 'LOGISTICS';
+    final showFare = widget.rideData?['showFare'] ?? (!isLogistics);
+
     return SlideTransition(
       position: _slideAnimation,
       child: FadeTransition(
@@ -201,27 +206,48 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.earningsAmber.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        '₹${widget.rideData?['fare'] ?? '0'}',
-                        style: const TextStyle(
-                          color: AppTheme.earningsAmber,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
+                  if (showFare)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.earningsAmber.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '₹${widget.rideData?['fare'] ?? '0'}',
+                          style: const TextStyle(
+                            color: AppTheme.earningsAmber,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.blueGrey),
+                      ),
+                      child: const Text(
+                        'Logistics',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -331,25 +357,26 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
               const SizedBox(height: 16),
 
               // Negotiation Info
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      const Text('Negotiate Fare:', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(width: 12),
-                      _negotiationButton(10),
-                      const SizedBox(width: 8),
-                      _negotiationButton(20),
-                      const SizedBox(width: 8),
-                      _negotiationButton(50),
-                      const SizedBox(width: 8),
-                      _negotiationButton(100),
-                    ],
+              if (showFare)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        const Text('Negotiate Fare:', style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 12),
+                        _negotiationButton(10),
+                        const SizedBox(width: 8),
+                        _negotiationButton(20),
+                        const SizedBox(width: 8),
+                        _negotiationButton(50),
+                        const SizedBox(width: 8),
+                        _negotiationButton(100),
+                      ],
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(height: 12),
 
               // Action Buttons

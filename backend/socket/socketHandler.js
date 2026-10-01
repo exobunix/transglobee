@@ -125,14 +125,16 @@ const initSocket = (server) => {
         // Send and Persist Message
         socket.on("send_message", async (data) => {
             const { senderId, receiverId, message, senderRole, senderName } = data;
+            const bId = data.bookingId || data.rideId;
 
             try {
-                // Save to MongoDB
+                // Save to MongoDB with bookingId
                 const newMessage = await Message.create({
-                    senderId,
-                    receiverId,
+                    senderId: senderId ? String(senderId) : 'unknown',
+                    receiverId: receiverId ? String(receiverId) : 'unknown',
                     message,
-                    senderRole: senderRole || 'unknown'
+                    senderRole: senderRole || 'unknown',
+                    bookingId: bId ? String(bId) : null
                 });
 
                 // Resolve all alternate rooms for sender and receiver to ensure delivery
@@ -141,32 +143,39 @@ const initSocket = (server) => {
                 const mongoose = require('mongoose');
 
                 const getTargetRooms = async (id) => {
-                    const rooms = [id];
+                    const rooms = [];
                     if (!id) return rooms;
+                    const idStr = String(id).trim();
+                    if (!idStr || idStr === 'undefined' || idStr === 'null') return rooms;
+                    rooms.push(idStr);
                     
                     let entity = null;
-                    if (mongoose.Types.ObjectId.isValid(id)) {
-                        entity = await User.findById(id);
-                    }
-                    if (!entity) {
-                        entity = await User.findOne({ uid: id });
-                    }
-                    if (!entity) {
-                        if (mongoose.Types.ObjectId.isValid(id)) {
-                            entity = await Driver.findById(id);
+                    try {
+                        if (mongoose.Types.ObjectId.isValid(idStr)) {
+                            entity = await User.findById(idStr);
                         }
                         if (!entity) {
-                            entity = await Driver.findOne({
-                                $or: [{ uid: id }, { firebaseId: id }]
-                            });
+                            entity = await User.findOne({ uid: idStr });
                         }
-                    }
+                        if (!entity) {
+                            if (mongoose.Types.ObjectId.isValid(idStr)) {
+                                entity = await Driver.findById(idStr);
+                            }
+                            if (!entity) {
+                                entity = await Driver.findOne({
+                                    $or: [{ uid: idStr }, { firebaseId: idStr }]
+                                });
+                            }
+                        }
 
-                    if (entity) {
-                        const dbId = entity._id.toString();
-                        const fbId = entity.uid || entity.firebaseId;
-                        if (dbId && !rooms.includes(dbId)) rooms.push(dbId);
-                        if (fbId && !rooms.includes(fbId)) rooms.push(fbId);
+                        if (entity) {
+                            const dbId = entity._id ? entity._id.toString() : null;
+                            const fbId = entity.uid || entity.firebaseId;
+                            if (dbId && !rooms.includes(dbId)) rooms.push(dbId);
+                            if (fbId && !rooms.includes(fbId)) rooms.push(fbId);
+                        }
+                    } catch (e) {
+                        console.error('Error resolving entity rooms:', e);
                     }
                     return rooms;
                 };
@@ -174,32 +183,37 @@ const initSocket = (server) => {
                 const senderRooms = await getTargetRooms(senderId);
                 const receiverRooms = await getTargetRooms(receiverId);
 
-                // Build emission target
-                let emitter = io;
-                senderRooms.forEach(r => { emitter = emitter.to(r); });
-                receiverRooms.forEach(r => { emitter = emitter.to(r); });
-                const bId = data.bookingId || data.rideId;
+                // Build unique target rooms
+                const targetRooms = new Set();
+                senderRooms.forEach(r => { if (r) targetRooms.add(String(r)); });
+                receiverRooms.forEach(r => { if (r) targetRooms.add(String(r)); });
                 if (bId) {
-                    emitter = emitter.to(bId.toString()).to(`tracking_${bId.toString()}`);
+                    targetRooms.add(String(bId));
+                    targetRooms.add(`tracking_${String(bId)}`);
                 }
 
                 const msgPayload = {
                     _id: newMessage._id,
-                    senderId,
-                    receiverId,
+                    senderId: String(senderId),
+                    receiverId: String(receiverId),
                     message,
                     senderRole: senderRole || 'unknown',
                     senderName,
-                    bookingId: bId ? bId.toString() : null,
+                    bookingId: bId ? String(bId) : null,
                     timestamp: newMessage.createdAt
                 };
 
-                emitter.emit("receive_message", msgPayload);
+                // Emit to every resolved room
+                targetRooms.forEach(room => {
+                    io.to(room).emit("receive_message", msgPayload);
+                });
+                // Also ensure socket that emitted gets the event back
+                socket.emit("receive_message", msgPayload);
 
                 // Push notification fallback for background/closed app
                 try {
                     const { notifyDriver, notifyUser } = require('../utils/notificationService');
-                    if (senderRole === 'user') {
+                    if (senderRole === 'user' && receiverId) {
                         notifyDriver(receiverId, {
                             title: `New message from ${senderName || 'Passenger'}`,
                             body: message,
@@ -210,7 +224,7 @@ const initSocket = (server) => {
                                 bookingId: bId ? String(bId) : ''
                             }
                         });
-                    } else if (senderRole === 'driver') {
+                    } else if (senderRole === 'driver' && receiverId) {
                         notifyUser(receiverId, {
                             title: `New message from ${senderName || 'Driver'}`,
                             body: message,
@@ -226,7 +240,7 @@ const initSocket = (server) => {
                     console.error("Error sending push notification for chat message:", notifErr);
                 }
 
-                // Also emit back to sender (for confirmation/multi-device sync)
+                // Confirmation back to sender
                 socket.emit("message_sent", {
                     status: "success",
                     messageId: newMessage._id,
@@ -244,12 +258,14 @@ const initSocket = (server) => {
             try {
                 const msg = await Message.findByIdAndUpdate(messageId, { message: newMessage, isEdited: true }, { new: true });
                 if (msg) {
-                    // Emit to both to keep all sessions in sync
-                    io.to(receiverId).to(msg.senderId).emit("message_edited", {
-                        messageId,
-                        newMessage,
-                        receiverId,
-                        senderId: msg.senderId
+                    const targetRooms = [receiverId, msg.senderId, msg.bookingId].filter(Boolean);
+                    targetRooms.forEach(r => {
+                        io.to(String(r)).emit("message_edited", {
+                            messageId,
+                            newMessage,
+                            receiverId,
+                            senderId: msg.senderId
+                        });
                     });
                 }
             } catch (error) { console.error("Edit error:", error); }
@@ -260,64 +276,82 @@ const initSocket = (server) => {
             try {
                 const msg = await Message.findByIdAndUpdate(messageId, { isDeleted: true, message: "This message was deleted" }, { new: true });
                 if (msg) {
-                    // Emit to both to keep all sessions in sync
-                    io.to(receiverId).to(msg.senderId).emit("message_deleted", {
-                        messageId,
-                        receiverId,
-                        senderId: msg.senderId
+                    const targetRooms = [receiverId, msg.senderId, msg.bookingId].filter(Boolean);
+                    targetRooms.forEach(r => {
+                        io.to(String(r)).emit("message_deleted", {
+                            messageId,
+                            receiverId,
+                            senderId: msg.senderId
+                        });
                     });
                 }
             } catch (error) { console.error("Delete error:", error); }
         });
 
-        // Fetch Chat History (Optional but useful for UI)
-        socket.on("fetch_history", async ({ userId1, userId2 }) => {
+        // Fetch Chat History
+        socket.on("fetch_history", async (data) => {
+            const { userId1, userId2 } = data || {};
+            const bId = data?.bookingId || data?.rideId;
+
             try {
                 const User = require('../models/User');
                 const Driver = require('../models/Driver');
                 const mongoose = require('mongoose');
 
                 const getIds = async (id) => {
-                    const ids = [id];
+                    const ids = [];
                     if (!id) return ids;
+                    const idStr = String(id).trim();
+                    if (!idStr || idStr === 'undefined' || idStr === 'null') return ids;
+                    ids.push(idStr);
                     
                     let entity = null;
-                    if (mongoose.Types.ObjectId.isValid(id)) {
-                        entity = await User.findById(id);
-                    }
-                    if (!entity) {
-                        entity = await User.findOne({ uid: id });
-                    }
-                    if (!entity) {
-                        if (mongoose.Types.ObjectId.isValid(id)) {
-                            entity = await Driver.findById(id);
+                    try {
+                        if (mongoose.Types.ObjectId.isValid(idStr)) {
+                            entity = await User.findById(idStr);
                         }
                         if (!entity) {
-                            entity = await Driver.findOne({
-                                $or: [{ uid: id }, { firebaseId: id }]
-                            });
+                            entity = await User.findOne({ uid: idStr });
                         }
-                    }
+                        if (!entity) {
+                            if (mongoose.Types.ObjectId.isValid(idStr)) {
+                                entity = await Driver.findById(idStr);
+                            }
+                            if (!entity) {
+                                entity = await Driver.findOne({
+                                    $or: [{ uid: idStr }, { firebaseId: idStr }]
+                                });
+                            }
+                        }
 
-                    if (entity) {
-                        const dbId = entity._id.toString();
-                        const fbId = entity.uid || entity.firebaseId;
-                        if (dbId && !ids.includes(dbId)) ids.push(dbId);
-                        if (fbId && !ids.includes(fbId)) ids.push(fbId);
-                    }
+                        if (entity) {
+                            const dbId = entity._id ? entity._id.toString() : null;
+                            const fbId = entity.uid || entity.firebaseId;
+                            if (dbId && !ids.includes(dbId)) ids.push(dbId);
+                            if (fbId && !ids.includes(fbId)) ids.push(fbId);
+                        }
+                    } catch (e) {}
                     return ids;
                 };
 
                 const ids1 = await getIds(userId1);
                 const ids2 = await getIds(userId2);
 
-                const history = await Message.find({
-                    $or: [
-                        { senderId: { $in: ids1 }, receiverId: { $in: ids2 } },
-                        { senderId: { $in: ids2 }, receiverId: { $in: ids1 } }
-                    ]
-                }).sort({ createdAt: 1 });
+                const queryConditions = [];
+                if (ids1.length > 0 && ids2.length > 0) {
+                    queryConditions.push({ senderId: { $in: ids1 }, receiverId: { $in: ids2 } });
+                    queryConditions.push({ senderId: { $in: ids2 }, receiverId: { $in: ids1 } });
+                }
+                if (bId) {
+                    queryConditions.push({ bookingId: String(bId) });
+                }
 
+                if (queryConditions.length === 0) {
+                    socket.emit("chat_history", []);
+                    return;
+                }
+
+                const history = await Message.find({ $or: queryConditions }).sort({ createdAt: 1 });
                 socket.emit("chat_history", history);
             } catch (error) {
                 console.error("Error fetching history:", error);
@@ -326,15 +360,27 @@ const initSocket = (server) => {
 
         // Driver Location Updates
         socket.on("update_location", (data) => {
-            const { rideId, userId, latitude, longitude, heading } = data;
-            // Emit to the ride-specific room so all participants (user/driver) get it
-            io.to(rideId).emit("driver_location_update", {
-                rideId,
-                latitude,
-                longitude,
-                heading,
+            const { rideId, userId, latitude, longitude, heading } = data || {};
+            if (!rideId) return;
+
+            const lat = Number(latitude);
+            const lng = Number(longitude);
+            if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return;
+
+            const updatePayload = {
+                rideId: String(rideId),
+                latitude: lat,
+                longitude: lng,
+                heading: heading != null ? Number(heading) : 0,
                 timestamp: new Date()
-            });
+            };
+
+            // Broadcast to ride room, tracking room, and userId room
+            io.to(String(rideId)).emit("driver_location_update", updatePayload);
+            io.to(`tracking_${String(rideId)}`).emit("driver_location_update", updatePayload);
+            if (userId) {
+                io.to(String(userId)).emit("driver_location_update", updatePayload);
+            }
         });
 
         socket.on("disconnect", () => {
