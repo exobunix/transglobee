@@ -23,6 +23,7 @@ class AdminVehicleModel {
   String? permitDetails;
 
   double? pricePerKm;
+  double? pricePerSeat;
   List<AdminVehicleRoute>? routes;
 
   AdminVehicleModel({
@@ -47,6 +48,7 @@ class AdminVehicleModel {
     this.pucDetails,
     this.permitDetails,
     this.pricePerKm,
+    this.pricePerSeat,
     this.routes,
   });
 
@@ -97,6 +99,11 @@ class AdminVehicleModel {
           : (json['pricing'] is Map && json['pricing']['pricePerKm'] is num)
               ? (json['pricing']['pricePerKm'] as num).toDouble()
               : double.tryParse(json['pricePerKm']?.toString() ?? json['pricing']?['pricePerKm']?.toString() ?? ''),
+      pricePerSeat: json['pricePerSeat'] is num
+          ? (json['pricePerSeat'] as num).toDouble()
+          : (json['pricing'] is Map && (json['pricing']['pricePerSeat'] is num || json['pricing']['fixedPrice'] is num))
+              ? ((json['pricing']['pricePerSeat'] ?? json['pricing']['fixedPrice']) as num).toDouble()
+              : double.tryParse(json['pricePerSeat']?.toString() ?? json['pricing']?['pricePerSeat']?.toString() ?? json['pricing']?['fixedPrice']?.toString() ?? ''),
       routes: routesList,
     );
   }
@@ -124,8 +131,11 @@ class AdminVehicleModel {
       'pucDetails': pucDetails,
       'permitDetails': permitDetails,
       'pricePerKm': pricePerKm,
+      'pricePerSeat': pricePerSeat,
       'pricing': {
         'pricePerKm': pricePerKm ?? 0.0,
+        'pricePerSeat': pricePerSeat ?? 0.0,
+        'fixedPrice': pricePerSeat ?? 0.0,
       },
     };
   }

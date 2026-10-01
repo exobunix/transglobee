@@ -169,6 +169,11 @@ class RestApiRepository {
         'pickupAddress': bookingData['pickupAddressDetails'] ?? bookingData['pickupAddress'],
         'receivedAddress': bookingData['deliveryAddressDetails'] ?? bookingData['receivedAddress'],
         'paymentMode': bookingData['paymentMethod'] ?? 'cash',
+        if (bookingData['selectedSeats'] != null) 'selectedSeats': bookingData['selectedSeats'],
+        if (bookingData['departureTime'] != null) 'departureTime': bookingData['departureTime'],
+        if (bookingData['travelDate'] != null) 'travelDate': bookingData['travelDate'],
+        if (bookingData['routeId'] != null) 'routeId': bookingData['routeId'],
+        if (bookingData['vehicleId'] != null) 'vehicleId': bookingData['vehicleId'],
       };
     }
 
@@ -182,6 +187,36 @@ class RestApiRepository {
         return BookingModel.fromJson({'bookingId': ''});
       },
     );
+  }
+
+  // --- SHUTTLE / BUS SEAT AVAILABILITY ---
+  Future<Map<String, dynamic>> getBookedSeats({
+    String? vehicleId,
+    String? routeId,
+    required String date,
+    required String time,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'date': date,
+        'time': time,
+        if (vehicleId != null && vehicleId.isNotEmpty) 'vehicleId': vehicleId,
+        if (routeId != null && routeId.isNotEmpty) 'routeId': routeId,
+      };
+      final uri = Uri(path: '/transglobe/bus/booked-seats', queryParameters: queryParams);
+      final response = await _api.get(uri.toString());
+      if (response != null && response['success'] == true) {
+        return {
+          'bookedSeats': List<String>.from(response['bookedSeats'] ?? []),
+          'totalCapacity': response['totalCapacity'] ?? 24,
+          'isPast': response['isPast'] ?? false,
+          'seatLayout': response['seatLayout'],
+        };
+      }
+      return {'bookedSeats': <String>[], 'totalCapacity': 24, 'isPast': false};
+    } catch (e) {
+      return {'bookedSeats': <String>[], 'totalCapacity': 24, 'isPast': false};
+    }
   }
 
 

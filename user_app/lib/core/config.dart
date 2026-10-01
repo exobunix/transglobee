@@ -5,14 +5,14 @@ class AppConfig {
 
   // static const String _localBackendUrl = 'http://localhost:8082';
   static const String _defaultBackendUrl = 
-  // 'http://localhost:8082';
-  'https://api.transgloble.com';
+  'http://localhost:8082';
+  // 'https://api.transgloble.com';
   // 'https://api.buildora.cloud';
   static const String _overrideApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue:
-    //  'http://localhost:8082',
-    'https://api.transgloble.com',
+     'http://localhost:8082',
+    // 'https://api.transgloble.com',
     // 'https://api.buildora.cloud',
   );
 

@@ -12,6 +12,9 @@ router.get('/vehicles/:id',  ctrl.getVehicleDetail);
 // GET /api/transglobe/vehicles          → List all active vehicles (filtered by user routes)
 router.get('/vehicles',      verifyToken, ctrl.listVehicles);
 
+// GET /api/transglobe/bus/booked-seats   → List booked seats for date & time
+router.get('/bus/booked-seats', verifyToken, ctrl.getBookedSeats);
+
 // ─── USER Protected Routes (login required) ───────────────────────────────────
 // POST /api/transglobe/bookings/create  → Create booking
 router.post('/bookings/create',         verifyToken, ctrl.createBooking);

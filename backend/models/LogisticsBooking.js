@@ -72,8 +72,13 @@ const logisticsBookingSchema = new mongoose.Schema({
         default: 'logistics',
     },
 
-    // Vehicle
-    vehicleType: { type: String, required: true }, // Train, Flight, Sea Cargo, etc.
+    // Vehicle & Shuttle Bus details
+    vehicleType: { type: String, required: true }, // Train, Flight, Sea Cargo, Bus, Shuttle, etc.
+    selectedSeats: [{ type: String }],
+    departureTime: { type: String, default: '' },
+    travelDate: { type: String, default: '' },
+    routeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Route', default: null },
+    vehicleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle', default: null },
 
     // List of items being transported
     items: {

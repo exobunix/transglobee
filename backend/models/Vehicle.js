@@ -94,11 +94,13 @@ const vehicleSchema = new mongoose.Schema({
     },
 
     // ─── Price & Helper Defaults ──────────────────────────────
+    pricePerSeat: { type: Number, default: 0 },
     pricePerKm: { type: Number, default: 0 },
     helperCost: { type: Number, default: 800 },
 
     // ─── Pricing ──────────────────────────────────────────────
     pricing: {
+        pricePerSeat:         { type: Number, default: 0 },
         pricePerKm:           { type: Number, default: 0 },
         driverCharge:         { type: Number, default: 0 },
         tollTax:              { type: Number, default: 0 },
@@ -118,6 +120,11 @@ const vehicleSchema = new mongoose.Schema({
     routes: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Route'
+    }],
+
+    departureTimings: [{
+        type: String,
+        default: []
     }],
 
     // ─── Driver assigned ──────────────────────────────────────

@@ -1,5 +1,6 @@
 const LogisticsBooking = require('../models/LogisticsBooking');
 const ShuttleBooking = require('../models/ShuttleBooking');
+const Vehicle = require('../models/Vehicle');
 const { validateTransition, calculateCancellationCharge } = require('../utils/bookingLifecycle');
 const {
     broadcastNewRideToOnlineDrivers,
@@ -196,10 +197,43 @@ exports.createBooking = async (req, res) => {
         const normalizedPickup = normalizeLocation(pickupInput, pickupTitle, pickupTitle);
         const normalizedDropoff = normalizeLocation(dropoffInput, dropTitle, dropTitle);
         const normalizedVehicleType = vehicleType ?? modeOfTravel ?? (isShuttleBooking ? 'Shuttle' : 'General');
-        let normalizedItems = normalizeItems(items, weight);
-        const normalizedVehiclePrice = Number(vehiclePrice ?? price ?? fare ?? totalPrice ?? 0);
-        const normalizedTotalPrice = Number(totalPrice ?? price ?? fare ?? vehiclePrice ?? 0);
+        let normalizedVehiclePrice = Number(vehiclePrice ?? price ?? fare ?? totalPrice ?? 0);
+        let normalizedTotalPrice = Number(totalPrice ?? price ?? fare ?? vehiclePrice ?? 0);
         const normalizedDistanceKm = Number(distanceKm ?? distance ?? 0);
+
+        if (isShuttleBooking && normalizedTotalPrice <= 0) {
+            const seatCount = (Array.isArray(req.body.selectedSeats) && req.body.selectedSeats.length > 0)
+                ? req.body.selectedSeats.length
+                : 1;
+            let perSeatFare = 50;
+
+            if (req.body.vehicleId) {
+                try {
+                    const veh = await Vehicle.findById(req.body.vehicleId).select('pricePerSeat pricing pricePerKm passengerCapacity');
+                    if (veh) {
+                        const seatPrice = Number(veh.pricePerSeat || veh.pricing?.pricePerSeat || veh.pricing?.fixedPrice || 0);
+                        if (seatPrice > 0) {
+                            perSeatFare = seatPrice;
+                        } else {
+                            const ratePerKm = Number(veh.pricing?.pricePerKm || veh.pricePerKm || 0);
+                            const dist = normalizedDistanceKm || 10;
+                            const cap = Number(veh.passengerCapacity) || 20;
+                            if (ratePerKm >= 15) {
+                                perSeatFare = Math.round((ratePerKm * dist) / cap);
+                            } else if (ratePerKm > 0) {
+                                perSeatFare = Math.round(ratePerKm * dist);
+                            }
+                            perSeatFare = Math.max(perSeatFare, 40);
+                        }
+                    }
+                } catch (err) {
+                    console.error('[SHUTTLE] Error resolving vehicle fare:', err);
+                }
+            }
+
+            normalizedVehiclePrice = perSeatFare;
+            normalizedTotalPrice = perSeatFare * seatCount;
+        }
         const normalizedPickupAddress = normalizeAddressDetails(
             pickupAddress || pickupInput,
             normalizedPickup,
@@ -211,6 +245,7 @@ exports.createBooking = async (req, res) => {
             'received'
         );
 
+        let normalizedItems = normalizeItems(items, weight);
         if (isShuttleBooking && normalizedItems.length === 0) {
             normalizedItems = [{
                 itemName: 'Shuttle booking',
@@ -265,6 +300,62 @@ exports.createBooking = async (req, res) => {
             });
         }
 
+        if (isShuttleBooking) {
+            const vId = req.body.vehicleId || null;
+            const rId = req.body.routeId || null;
+            const depTime = req.body.departureTime || req.body.travelTime || '';
+            const trDate = req.body.travelDate || req.body.date || '';
+
+            if (trDate && depTime) {
+                // Validate if departure time has already passed
+                try {
+                    const nowUtc = new Date().getTime();
+                    const istNow = new Date(nowUtc + (5.5 * 60 * 60 * 1000));
+                    const [year, month, day] = trDate.split('-').map(Number);
+                    const match = depTime.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+                    if (match) {
+                        let hours = parseInt(match[1], 10);
+                        const minutes = parseInt(match[2], 10);
+                        const period = match[3].toUpperCase();
+                        if (period === 'PM' && hours < 12) hours += 12;
+                        if (period === 'AM' && hours === 12) hours = 0;
+
+                        const istTodayStr = `${istNow.getUTCFullYear()}-${String(istNow.getUTCMonth() + 1).padStart(2, '0')}-${String(istNow.getUTCDate()).padStart(2, '0')}`;
+                        const isPast = (trDate < istTodayStr) || (trDate === istTodayStr && (hours < istNow.getUTCHours() || (hours === istNow.getUTCHours() && minutes <= istNow.getUTCMinutes())));
+
+                        if (isPast) {
+                            return res.status(400).json({
+                                success: false,
+                                message: `Bus departure time ${depTime} on ${trDate} has already passed. Please select an upcoming departure.`
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error('[Time Validation Error]', e);
+                }
+
+                if (Array.isArray(req.body.selectedSeats) && req.body.selectedSeats.length > 0) {
+                    const queryMatch = {
+                        bookingCategory: 'shuttle',
+                        status: { $nin: ['cancelled'] },
+                        departureTime: depTime,
+                        travelDate: trDate,
+                        selectedSeats: { $in: req.body.selectedSeats }
+                    };
+                    if (vId) queryMatch.vehicleId = vId;
+                    else if (rId) queryMatch.routeId = rId;
+
+                    const alreadyBooked = await LogisticsBooking.findOne(queryMatch);
+                    if (alreadyBooked) {
+                        return res.status(400).json({
+                            success: false,
+                            message: 'One or more of the selected seats have just been booked. Please choose different seats.'
+                        });
+                    }
+                }
+            }
+        }
+
         const booking = new LogisticsBooking({
             userId,
             userName:       userName       ?? req.user?.name ?? "Guest User",
@@ -285,6 +376,11 @@ exports.createBooking = async (req, res) => {
             pickupAddress:  normalizedPickupAddress,
             receivedAddress: normalizedReceivedAddress,
             segments:       segments       ?? [],
+            selectedSeats:  req.body.selectedSeats || [],
+            departureTime:  req.body.departureTime || req.body.travelTime || '',
+            travelDate:     req.body.travelDate || req.body.date || '',
+            routeId:        req.body.routeId || null,
+            vehicleId:      req.body.vehicleId || null,
             status: 'pending',
             roadmapStatus: 'draft',
         });

@@ -480,7 +480,9 @@ class VehicleScreenView extends GetView<VehicleScreenController> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: TextCustom(
-                                  title: "₹${(vehicle.pricePerKm ?? 0).toStringAsFixed(0)}/km",
+                                  title: (vehicle.vehicleType?.toLowerCase() == 'bus' && (vehicle.pricePerSeat ?? 0) > 0)
+                                      ? "₹${vehicle.pricePerSeat!.toStringAsFixed(0)}/seat"
+                                      : "₹${(vehicle.pricePerKm ?? 0).toStringAsFixed(0)}/km",
                                   fontSize: 12,
                                   fontFamily: AppThemeData.bold,
                                   color: AppThemData.primary500,
@@ -792,12 +794,28 @@ class VehicleAddEditDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Pricing: Price Per KM
-                CustomTextFormField(
-                  title: "Price Per KM (₹/KM)".tr,
-                  hintText: "Enter per KM price (e.g. 25)".tr,
-                  controller: controller.pricePerKmController,
-                ),
+                // Pricing: Per Seat (for Bus/Shuttle) and Price Per KM
+                Obx(() {
+                  final isBus = controller.selectedVehicleType.value == 'bus';
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isBus) ...[
+                        CustomTextFormField(
+                          title: "Price Per Seat (₹/Seat) [Shuttle Ticket]".tr,
+                          hintText: "Enter per seat ticket price (e.g. 50 ya 80)".tr,
+                          controller: controller.pricePerSeatController,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      CustomTextFormField(
+                        title: isBus ? "Price Per KM (₹/KM) [Optional / Whole Bus]".tr : "Price Per KM (₹/KM)".tr,
+                        hintText: "Enter per KM price (e.g. 25)".tr,
+                        controller: controller.pricePerKmController,
+                      ),
+                    ],
+                  );
+                }),
                 const SizedBox(height: 16),
 
                 // Driver Assignment Dropdown
@@ -1126,6 +1144,8 @@ class VehicleDetailsDialog extends StatelessWidget {
               _buildDetailRow(context, "Passenger Capacity".tr, "${vehicle.passengerCapacity ?? 0}"),
               _buildDetailRow(context, "Luggage Capacity".tr, "${vehicle.luggageCapacity ?? 0}"),
               _buildDetailRow(context, "Truck Load Capacity".tr, "${vehicle.truckLoadCapacity ?? 0.0} tonnes"),
+              if (vehicle.vehicleType?.toLowerCase() == 'bus' && (vehicle.pricePerSeat ?? 0) > 0)
+                _buildDetailRow(context, "Price Per Seat (Shuttle)".tr, "₹${vehicle.pricePerSeat!.toStringAsFixed(0)}/seat"),
               _buildDetailRow(context, "Price Per KM".tr, "₹${(vehicle.pricePerKm ?? 0).toStringAsFixed(0)}/km"),
               _buildDetailRow(context, "Assigned Driver".tr, vehicle.driverName ?? 'Unassigned'),
               _buildDetailRow(context, "Status".tr, (vehicle.status ?? 'active').toUpperCase()),

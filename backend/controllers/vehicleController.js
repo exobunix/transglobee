@@ -51,12 +51,16 @@ exports.addVehicle = async (req, res) => {
             });
         }
 
+        const pricePerSeatNum = Number(req.body.pricePerSeat) || (req.body.pricing && Number(req.body.pricing.pricePerSeat)) || (req.body.pricing && Number(req.body.pricing.fixedPrice)) || 0;
         const pricePerKmNum = Number(req.body.pricePerKm) || (req.body.pricing && Number(req.body.pricing.pricePerKm)) || 0;
         const helperCostNum = Number(req.body.helperCost) || (req.body.pricing && Number(req.body.pricing.loadingUnloadingCharges)) || 800;
 
         const pricingData = {
             ...(pricing || {}),
+            pricePerSeat: pricePerSeatNum,
             pricePerKm: pricePerKmNum,
+            fixedPrice: pricePerSeatNum > 0 ? pricePerSeatNum : ((pricing && Number(pricing.fixedPrice)) || 0),
+            isFixedPrice: pricePerSeatNum > 0 || (pricing && Boolean(pricing.isFixedPrice)),
             loadingUnloadingCharges: helperCostNum,
             helperCost: helperCostNum
         };
@@ -68,6 +72,7 @@ exports.addVehicle = async (req, res) => {
             model:             model             || '',
             year:              year              || '',
             numberPlate,
+            pricePerSeat:      pricePerSeatNum,
             pricePerKm:        pricePerKmNum,
             helperCost:        helperCostNum,
             vehicleStatus:    vehicleStatus     || '',
@@ -179,6 +184,15 @@ exports.updateVehicle = async (req, res) => {
     try {
         if (req.body.vehicleImage !== undefined) {
             req.body.photos = req.body.vehicleImage ? [req.body.vehicleImage] : [];
+        }
+        if (req.body.pricePerSeat !== undefined) {
+            const pSeat = Number(req.body.pricePerSeat) || 0;
+            req.body.pricePerSeat = pSeat;
+            req.body['pricing.pricePerSeat'] = pSeat;
+            if (pSeat > 0) {
+                req.body['pricing.fixedPrice'] = pSeat;
+                req.body['pricing.isFixedPrice'] = true;
+            }
         }
         if (req.body.pricePerKm !== undefined) {
             const pKm = Number(req.body.pricePerKm) || 0;

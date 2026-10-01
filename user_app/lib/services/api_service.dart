@@ -19,6 +19,17 @@ class ApiService {
     return _authService.buildAuthHeaders();
   }
 
+  String _buildUrl(String endpoint) {
+    String cleanEndpoint = endpoint;
+    if (baseUrl.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+      cleanEndpoint = cleanEndpoint.substring(4);
+    }
+    if (!baseUrl.endsWith('/') && !cleanEndpoint.startsWith('/')) {
+      cleanEndpoint = '/$cleanEndpoint';
+    }
+    return '$baseUrl$cleanEndpoint';
+  }
+
   Future<dynamic> get(String endpoint, {bool isPublic = false}) async {
     final bool shouldSkipAuth = isPublic ||
         endpoint.startsWith('/user/cms') ||
@@ -26,7 +37,7 @@ class ApiService {
     final headers = shouldSkipAuth
         ? {'Content-Type': 'application/json'}
         : await _getHeaders();
-    final url = '$baseUrl$endpoint';
+    final url = _buildUrl(endpoint);
 
     _logRequest('GET', url, headers, null);
 
@@ -59,7 +70,7 @@ class ApiService {
       headers['x-request-intercepted'] = 'true';
     }
 
-    final url = '$baseUrl$endpoint';
+    final url = _buildUrl(endpoint);
 
     _logRequest('POST', url, headers, body);
 
@@ -90,7 +101,7 @@ class ApiService {
 
   Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
     final headers = await _getHeaders();
-    final url = '$baseUrl$endpoint';
+    final url = _buildUrl(endpoint);
 
     _logRequest('PUT', url, headers, body);
 
@@ -121,7 +132,7 @@ class ApiService {
 
   Future<dynamic> delete(String endpoint) async {
     final headers = await _getHeaders();
-    final url = '$baseUrl$endpoint';
+    final url = _buildUrl(endpoint);
 
     _logRequest('DELETE', url, headers, null);
 
