@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../models/booking_model.dart';
 import '../services/auth_service.dart';
-import '../features/driver/controllers/driver_providers.dart';
+import '../services/driver_service.dart';
 
 class BookingCard extends ConsumerWidget {
   final BookingModel booking;
