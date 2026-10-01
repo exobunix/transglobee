@@ -489,6 +489,7 @@ exports.getDriverEarnings = async (req, res) => {
         if (!driver) return res.status(404).json({ success: false, message: 'Driver not found.' });
 
         const History = require('../models/History');
+        const mongoose = require('mongoose');
         const now = new Date();
         const todayStart = new Date(now);
         todayStart.setHours(0, 0, 0, 0);
@@ -496,35 +497,63 @@ exports.getDriverEarnings = async (req, res) => {
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const completedStatuses = ['completed', 'delivered', 'Completed', 'Delivered'];
 
-        const getRideEarning = (ride) =>
-            Number(ride.actualFare ?? ride.fare ?? ride.totalPrice ?? ride.vehiclePrice ?? 0);
+        const rawDriverIds = [driver._id, driver._id ? driver._id.toString() : null, driver.uid, driver.firebaseId].filter(Boolean);
+        const validObjectIds = [];
+        const stringDriverIds = [];
+        for (const id of rawDriverIds) {
+            const strId = String(id).trim();
+            if (!stringDriverIds.includes(strId)) stringDriverIds.push(strId);
+            if (mongoose.Types.ObjectId.isValid(strId) && String(new mongoose.Types.ObjectId(strId)) === strId) {
+                validObjectIds.push(new mongoose.Types.ObjectId(strId));
+            }
+        }
 
-        const driverIds = [driver._id, driver._id.toString(), driver.uid, driver.firebaseId].filter(Boolean);
+        const getRideEarning = (ride) => {
+            if (ride.segments && Array.isArray(ride.segments)) {
+                const mySegments = ride.segments.filter(s => {
+                    const sid = s.driverId ? String(s.driverId) : '';
+                    return stringDriverIds.includes(sid);
+                });
+                if (mySegments.length > 0) {
+                    return mySegments.reduce((sum, s) => sum + Number(s.price || 0), 0);
+                }
+            }
+            return Number(ride.actualFare ?? ride.fare ?? ride.totalPrice ?? ride.vehiclePrice ?? 0);
+        };
 
         const buildCabFilter = (since) => {
+            const idConditions = [{ driverId: { $in: stringDriverIds } }];
+            if (validObjectIds.length > 0) {
+                idConditions.push({ driverId: { $in: validObjectIds } });
+            }
             const filter = {
-                driverId: { $in: driverIds },
+                $or: idConditions,
                 status: { $in: completedStatuses },
             };
             if (since) {
-                filter.$or = [
-                    { completedAt: { $gte: since } },
-                    { updatedAt: { $gte: since } },
-                    { createdAt: { $gte: since } }
-                ];
+                filter.$and = [{
+                    $or: [
+                        { completedAt: { $gte: since } },
+                        { updatedAt: { $gte: since } },
+                        { createdAt: { $gte: since } }
+                    ]
+                }];
             }
             return filter;
         };
 
         const buildLogisticsFilter = (since) => {
+            const idConditions = [
+                { driverId: { $in: stringDriverIds } },
+                { 'segments.driverId': { $in: stringDriverIds } }
+            ];
+            if (validObjectIds.length > 0) {
+                idConditions.push({ driverId: { $in: validObjectIds } });
+                idConditions.push({ 'segments.driverId': { $in: validObjectIds } });
+            }
             const filter = {
                 $and: [
-                    {
-                        $or: [
-                            { driverId: { $in: driverIds } },
-                            { 'segments.driverId': { $in: driverIds } }
-                        ]
-                    },
+                    { $or: idConditions },
                     { status: { $in: completedStatuses } }
                 ]
             };

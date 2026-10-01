@@ -52,6 +52,15 @@ class SupervisorOverviewCard extends StatelessWidget {
               _buildOverviewRow("Status:", controller.bookingModel.value.bookingStatus?.toUpperCase() ?? 'PENDING'),
               Obx(() => _buildOverviewRow("Roadmap:", controller.roadmapStatusText.value)),
               Obx(() => _buildOverviewRow("Items:", "${controller.itemsCount.value} item(s)")),
+              if (controller.bookingModel.value.startOtp != null && controller.bookingModel.value.startOtp!.isNotEmpty)
+                _buildOverviewRow("Start OTP:", controller.bookingModel.value.startOtp!),
+              if (controller.bookingModel.value.endOtp != null && controller.bookingModel.value.endOtp!.isNotEmpty)
+                _buildOverviewRow("Delivery OTP:", controller.bookingModel.value.endOtp!),
+              if (controller.bookingModel.value.review != null)
+                _buildOverviewRow(
+                  "Review:",
+                  "${controller.bookingModel.value.review?['rating'] ?? 5}★ ${controller.bookingModel.value.review?['comment'] ?? ''}",
+                ),
             ],
           ),
         ),

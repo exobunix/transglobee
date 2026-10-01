@@ -109,13 +109,18 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
       final currentFbId = ref.read(driverProfileProvider).value?.firebaseId;
       
       bool isMe(String? id) => id != null && (id == currentDbId || id == currentFbId || id == driverId);
-      bool isOther(String? id) => id != null && id == receiverId;
+      bool isOther(String? id) => id != null && (id == receiverId || (data['senderRole'] == 'user' && !isMe(id)));
 
       final msgSender = data['senderId']?.toString();
       final msgReceiver = data['receiverId']?.toString();
+      final msgRole = data['senderRole']?.toString();
 
-      if ((isOther(msgSender) && isMe(msgReceiver)) ||
-          (isMe(msgSender) && isOther(msgReceiver))) {
+      final bool matchesRole = (msgRole == 'user' && (isMe(msgReceiver) || msgReceiver == null)) ||
+                               (msgRole == 'driver' && isMe(msgSender));
+      final bool matchesIds = (isOther(msgSender) && (isMe(msgReceiver) || msgReceiver == null)) ||
+                              (isMe(msgSender) && isOther(msgReceiver));
+
+      if (matchesRole || matchesIds) {
         print("[CHAT-DEBUG] [DRIVER] Message MATCHED context. Adding to state.");
         final newMsg = ChatMessage.fromMap(data, driverId);
         
@@ -173,6 +178,7 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
       _currentReceiverId!,
       text,
       senderName: driverProfile.name,
+      senderRole: 'driver',
     );
 
     // Optimistic Update

@@ -45,6 +45,9 @@ class BookingModel {
   String? type;
   String? roadmapStatus;
   List<dynamic>? segments;
+  String? startOtp;
+  String? endOtp;
+  Map<String, dynamic>? review;
 
   BookingModel({this.createAt,
     this.updateAt,
@@ -78,6 +81,9 @@ class BookingModel {
     this.cancelledReason,
     this.type,
     this.roadmapStatus,
+    this.startOtp,
+    this.endOtp,
+    this.review,
     this.segments});
 
   @override
@@ -152,6 +158,9 @@ class BookingModel {
         distance: json["distance"] == null ? null : (json["distance"] is Map ? DistanceModel.fromJson(json["distance"]) : DistanceModel(distance: json["distance"]?.toString())),
         type: json["type"]?.toString(),
         roadmapStatus: json["roadmapStatus"]?.toString(),
+        startOtp: json["startOtp"]?.toString(),
+        endOtp: json["endOtp"]?.toString(),
+        review: json["review"] is Map ? Map<String, dynamic>.from(json["review"]) : null,
         segments: json["segments"] is List ? json["segments"] : null,
       );
 

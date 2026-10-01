@@ -25,10 +25,10 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
 
     setState(() => _isSubmitting = true);
     try {
-      final driverId = widget.driver['uid'] ?? widget.driver['_id'] ?? widget.driver['driver_id'];
+      final driverId = widget.driver['id'] ?? widget.driver['uid'] ?? widget.driver['_id'] ?? widget.driver['driver_id'];
       await ref.read(rideServiceProvider).submitReview(
         bookingId: widget.bookingId!,
-        driverId: driverId.toString(),
+        driverId: driverId != null ? driverId.toString() : '',
         rating: _selectedRating,
         comment: _commentController.text,
       );

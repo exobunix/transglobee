@@ -31,10 +31,15 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
   // Use Mumbai as default center
   final LatLng _defaultLocation = const LatLng(19.0760, 72.8777);
 
+  bool _hasFittedInitialBounds = false;
+
   @override
   void initState() {
     super.initState();
     _mapController = widget.mapController ?? MapController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _fitBounds();
+    });
   }
 
   @override
@@ -42,6 +47,24 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
     _moveAnimationController?.stop();
     _moveAnimationController?.dispose();
     super.dispose();
+  }
+
+  bool _havePolylinesChanged(List<Polyline>? oldP, List<Polyline>? newP) {
+    if (oldP == null && newP == null) return false;
+    if (oldP == null || newP == null) return true;
+    if (oldP.length != newP.length) return true;
+    for (int i = 0; i < oldP.length; i++) {
+      if (oldP[i].points.length != newP[i].points.length) return true;
+      if (oldP[i].points.isNotEmpty && newP[i].points.isNotEmpty) {
+        final p1 = oldP[i].points.first;
+        final p2 = newP[i].points.first;
+        if ((p1.latitude - p2.latitude).abs() > 0.001 || (p1.longitude - p2.longitude).abs() > 0.001) return true;
+        final p1Last = oldP[i].points.last;
+        final p2Last = newP[i].points.last;
+        if ((p1Last.latitude - p2Last.latitude).abs() > 0.001 || (p1Last.longitude - p2Last.longitude).abs() > 0.001) return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -63,9 +86,8 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
       }
     }
 
-    if (widget.polylines != oldWidget.polylines ||
-        widget.polygons != oldWidget.polygons ||
-        widget.markers != oldWidget.markers) {
+    final polyChanged = _havePolylinesChanged(oldWidget.polylines, widget.polylines);
+    if (!_hasFittedInitialBounds || polyChanged) {
       _fitBounds();
     }
   }
@@ -97,6 +119,7 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
     }).toList();
 
     if (validPoints.length > 1) {
+      _hasFittedInitialBounds = true;
       final first = validPoints.first;
       final bool hasDistinct = validPoints.any((p) =>
           (p.latitude - first.latitude).abs() > 0.0001 ||

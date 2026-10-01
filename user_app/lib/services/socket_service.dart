@@ -163,13 +163,14 @@ class SocketService {
   }
 
   void sendMessage(String senderId, String receiverId, String message,
-      {String senderRole = 'user', String? senderName}) {
+      {String senderRole = 'user', String? senderName, String? bookingId}) {
     _socket?.emit("send_message", {
       "senderId": senderId,
       "receiverId": receiverId,
       "message": message,
       "senderRole": senderRole,
-      "senderName": senderName
+      "senderName": senderName,
+      if (bookingId != null && bookingId.isNotEmpty) "bookingId": bookingId,
     });
   }
 

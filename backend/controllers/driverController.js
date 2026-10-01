@@ -681,12 +681,18 @@ const login = async (req, res) => {
             email: { $regex: new RegExp(`^${emailToSearch}$`, 'i') }
         });
         if (!driver) {
-            return res.status(401).json({ message: 'Invalid credentials.' });
+            return res.status(401).json({
+                success: false,
+                message: 'Wrong credentials entered, kindly enter the correct credentials.'
+            });
         }
 
         const isMatch = await driver.comparePassword(password);
         if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials.' });
+            return res.status(401).json({
+                success: false,
+                message: 'Wrong credentials entered, kindly enter the correct credentials.'
+            });
         }
 
         // Generate Token

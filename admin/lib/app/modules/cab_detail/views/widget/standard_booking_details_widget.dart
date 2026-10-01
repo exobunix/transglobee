@@ -191,6 +191,86 @@ class StandardBookingDetailsWidget extends StatelessWidget {
                 ),
               ],
             ),
+            if ((booking.startOtp != null && booking.startOtp!.isNotEmpty) ||
+                (booking.endOtp != null && booking.endOtp!.isNotEmpty) ||
+                (booking.otp != null && booking.otp.toString().isNotEmpty)) ...[
+              const SizedBox(height: 24),
+              TextCustom(
+                title: "Ride / Delivery Verification OTPs".tr,
+                fontSize: 16,
+                fontFamily: AppThemeData.bold,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppThemData.primary500.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppThemData.primary500.withOpacity(0.2)),
+                ),
+                child: Column(
+                  children: [
+                    if (booking.startOtp != null && booking.startOtp!.isNotEmpty)
+                      _rowDataWidget(name: "Start OTP", value: booking.startOtp!),
+                    if (booking.endOtp != null && booking.endOtp!.isNotEmpty)
+                      _rowDataWidget(name: "Delivery / End OTP", value: booking.endOtp!),
+                    if (booking.startOtp == null && booking.otp != null && booking.otp.toString().isNotEmpty)
+                      _rowDataWidget(name: "Start OTP", value: booking.otp.toString()),
+                  ],
+                ),
+              ),
+            ],
+            if (booking.review != null) ...[
+              const SizedBox(height: 24),
+              TextCustom(
+                title: "Customer Review & Rating".tr,
+                fontSize: 16,
+                fontFamily: AppThemeData.bold,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        ...List.generate(5, (index) {
+                          final rating = (booking.review?['rating'] ?? 5) is num 
+                              ? (booking.review!['rating'] as num).toInt() 
+                              : int.tryParse(booking.review?['rating']?.toString() ?? '5') ?? 5;
+                          return Icon(
+                            index < rating ? Icons.star : Icons.star_border,
+                            color: Colors.amber,
+                            size: 18,
+                          );
+                        }),
+                        const SizedBox(width: 8),
+                        Text(
+                          "${booking.review?['rating'] ?? 5} / 5",
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber),
+                        ),
+                      ],
+                    ),
+                    if (booking.review?['comment'] != null && booking.review!['comment'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '"${booking.review!['comment']}"',
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: themeChange.isDarkTheme() ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

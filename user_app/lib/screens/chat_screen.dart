@@ -54,7 +54,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           : ((userId != null && userId.isNotEmpty) ? userId : firebaseId);
       
       if (effectiveUserId != null) {
-        ref.read(chatProvider.notifier).initChat(widget.receiverId, effectiveUserId);
+        ref.read(chatProvider.notifier).initChat(widget.receiverId, effectiveUserId, bookingId: widget.bookingId);
       }
     });
   }

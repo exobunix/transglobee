@@ -174,8 +174,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       }
     } catch (e) {
       if (mounted) {
+        String msg = e.toString().replaceAll('Exception: ', '').replaceAll('ApiException: ', '');
+        if (msg.contains('401') || msg.toLowerCase().contains('credential') || msg.toLowerCase().contains('unauthorized')) {
+          msg = 'Wrong credentials entered, kindly enter the correct credentials.';
+        }
         setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _errorMessage = msg;
         });
       }
     } finally {

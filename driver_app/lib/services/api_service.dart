@@ -131,9 +131,24 @@ class ApiService {
       if (response.body.isEmpty) return null;
       return jsonDecode(response.body);
     } else {
+      String errMsg = response.body;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && (decoded['message'] != null || decoded['error'] != null)) {
+          errMsg = (decoded['message'] ?? decoded['error']).toString();
+        }
+      } catch (_) {}
+
+      if (response.statusCode == 401 &&
+          (errMsg.toLowerCase().contains('credential') ||
+           errMsg.toLowerCase().contains('unauthorized') ||
+           errMsg.toLowerCase().contains('invalid'))) {
+        errMsg = 'Wrong credentials entered, kindly enter the correct credentials.';
+      }
+
       throw ApiException(
         statusCode: response.statusCode,
-        message: response.body,
+        message: errMsg,
       );
     }
   }
@@ -146,5 +161,10 @@ class ApiException implements Exception {
   ApiException({required this.statusCode, required this.message});
 
   @override
-  String toString() => 'ApiException: $statusCode - $message';
+  String toString() {
+    if (statusCode == 401) {
+      return message.isNotEmpty ? message : 'Wrong credentials entered, kindly enter the correct credentials.';
+    }
+    return message;
+  }
 }

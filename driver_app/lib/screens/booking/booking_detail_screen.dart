@@ -175,6 +175,11 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
             _buildFareBreakdown(displayBooking),
             const SizedBox(height: 24),
 
+            if (displayBooking.review != null) ...[
+              _buildCustomerReviewCard(displayBooking),
+              const SizedBox(height: 24),
+            ],
+
             if (displayBooking.railwayStation != null)
               _buildDispatchInfo(displayBooking),
 
@@ -219,6 +224,86 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomerReviewCard(BookingModel booking) {
+    final rev = booking.review!;
+    final rating = rev['rating'] ?? 5;
+    final comment = rev['comment']?.toString() ?? '';
+    final tags = (rev['tags'] as List?)?.map((t) => t.toString()).toList() ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.darkSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.amber.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.star, color: Colors.amber, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'CUSTOMER REVIEW',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                    size: 18,
+                  );
+                }),
+              ),
+            ],
+          ),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              '"$comment"',
+              style: const TextStyle(
+                color: AppTheme.darkTextPrimary,
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+          if (tags.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: tags.map((tag) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withOpacity(0.2)),
+                ),
+                child: Text(
+                  tag,
+                  style: const TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+              )).toList(),
+            ),
+          ],
         ],
       ),
     );

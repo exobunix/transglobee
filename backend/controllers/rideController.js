@@ -432,6 +432,15 @@ exports.getDriverBookings = async (req, res) => {
         // Map logistics to a format the Driver App expects (BookingModel)
         const mappedLogistics = logistics.map(lb => {
             let matchedFare = lb.totalPrice || lb.vehiclePrice || 0;
+            let pickupAddr = lb.pickup?.address || 'Pickup Location';
+            let dropAddr = lb.dropoff?.address || 'Dropoff Location';
+            let pLat = lb.pickup?.lat;
+            let pLng = lb.pickup?.lng;
+            let dLat = lb.dropoff?.lat;
+            let dLng = lb.dropoff?.lng;
+            let dist = lb.distanceKm || 0;
+            let activeOtp = lb.otp;
+
             if (lb.segments && lb.segments.length > 0 && currentDriver) {
                 const assignedSeg = lb.segments.find(s => 
                     (s.driverId && (s.driverId.toString() === currentDriver._id.toString() || 
@@ -439,20 +448,28 @@ exports.getDriverBookings = async (req, res) => {
                 );
                 if (assignedSeg) {
                     matchedFare = assignedSeg.price || 0;
+                    pickupAddr = assignedSeg.start?.address || assignedSeg.start?.name || pickupAddr;
+                    dropAddr = assignedSeg.end?.address || assignedSeg.end?.name || dropAddr;
+                    pLat = assignedSeg.start?.lat ?? pLat;
+                    pLng = assignedSeg.start?.lng ?? pLng;
+                    dLat = assignedSeg.end?.lat ?? dLat;
+                    dLng = assignedSeg.end?.lng ?? dLng;
+                    dist = assignedSeg.distanceKm || dist;
+                    activeOtp = assignedSeg.otp || lb.otp;
                 }
             }
             return {
                 _id: lb._id,
                 userName: lb.userName || 'Customer',
                 userPhone: lb.userPhone || '',
-                pickupAddress: lb.pickup?.address || 'Pickup Location',
-                dropAddress: lb.dropoff?.address || 'Dropoff Location',
-                pickupLat: lb.pickup?.lat,
-                pickupLng: lb.pickup?.lng,
-                dropLat: lb.dropoff?.lat,
-                dropLng: lb.dropoff?.lng,
+                pickupAddress: pickupAddr,
+                dropAddress: dropAddr,
+                pickupLat: pLat,
+                pickupLng: pLng,
+                dropLat: dLat,
+                dropLng: dLng,
                 fare: matchedFare,
-                distanceKm: lb.distanceKm || 0,
+                distanceKm: dist,
                 status: lb.status,
                 createdAt: lb.createdAt,
                 rideMode: lb.vehicleType || 'truck', 
@@ -480,7 +497,10 @@ exports.getDriverBookings = async (req, res) => {
                 transportName: lb.transportName,
                 transportNumber: lb.transportNumber,
                 segments: lb.segments || [],
-                otp: lb.otp
+                otp: activeOtp,
+                startOtp: lb.startOtp,
+                endOtp: lb.endOtp,
+                review: lb.review,
             };
         });
 
@@ -506,6 +526,15 @@ exports.getDriverBookings = async (req, res) => {
 
         const mappedShuttles = shuttles.map(sb => {
             let matchedFare = sb.totalPrice || 0;
+            let pickupAddr = sb.pickup?.address || 'Pickup Location';
+            let dropAddr = sb.dropoff?.address || 'Dropoff Location';
+            let pLat = sb.pickup?.lat;
+            let pLng = sb.pickup?.lng;
+            let dLat = sb.dropoff?.lat;
+            let dLng = sb.dropoff?.lng;
+            let dist = sb.distanceKm || 0;
+            let activeOtp = sb.otp;
+
             if (sb.segments && sb.segments.length > 0 && currentDriver) {
                 const assignedSeg = sb.segments.find(s => 
                     (s.driverId && (s.driverId.toString() === currentDriver._id.toString() || 
@@ -513,20 +542,28 @@ exports.getDriverBookings = async (req, res) => {
                 );
                 if (assignedSeg) {
                     matchedFare = assignedSeg.price || 0;
+                    pickupAddr = assignedSeg.start?.address || assignedSeg.start?.name || pickupAddr;
+                    dropAddr = assignedSeg.end?.address || assignedSeg.end?.name || dropAddr;
+                    pLat = assignedSeg.start?.lat ?? pLat;
+                    pLng = assignedSeg.start?.lng ?? pLng;
+                    dLat = assignedSeg.end?.lat ?? dLat;
+                    dLng = assignedSeg.end?.lng ?? dLng;
+                    dist = assignedSeg.distanceKm || dist;
+                    activeOtp = assignedSeg.otp || sb.otp;
                 }
             }
             return {
                 _id: sb._id,
                 userName: sb.userName || 'Customer',
                 userPhone: sb.userPhone || '',
-                pickupAddress: sb.pickup?.address || 'Pickup Location',
-                dropAddress: sb.dropoff?.address || 'Dropoff Location',
-                pickupLat: sb.pickup?.lat,
-                pickupLng: sb.pickup?.lng,
-                dropLat: sb.dropoff?.lat,
-                dropLng: sb.dropoff?.lng,
+                pickupAddress: pickupAddr,
+                dropAddress: dropAddr,
+                pickupLat: pLat,
+                pickupLng: pLng,
+                dropLat: dLat,
+                dropLng: dLng,
                 fare: matchedFare,
-                distanceKm: sb.distanceKm || 0,
+                distanceKm: dist,
                 status: sb.status,
                 createdAt: sb.createdAt,
                 rideMode: sb.vehicleType || 'shuttle', 
@@ -536,7 +573,10 @@ exports.getDriverBookings = async (req, res) => {
                 rejectedBy: sb.rejectedBy || [],
                 totalPrice: matchedFare,
                 segments: sb.segments || [],
-                otp: sb.otp
+                otp: activeOtp,
+                startOtp: sb.startOtp,
+                endOtp: sb.endOtp,
+                review: sb.review,
             };
         });
 
@@ -1362,65 +1402,135 @@ exports.verifyRideOtp = async (req, res) => {
 
             const activeSegment = ride.segments[activeSegIndex];
 
-            // If the booking status is in_transit, then the driver is verifying the final delivery OTP
-            if (ride.status === 'in_transit') {
+            // If activeSegment is processing, driver is completing this segment
+            if (activeSegment.status === 'processing') {
                 const isLastSegment = (activeSegIndex === ride.segments.length - 1);
-                if (!isLastSegment) {
-                    return res.status(400).json({ success: false, message: "Intermediate segments do not require OTP verification to complete." });
-                }
+                if (isLastSegment) {
+                    // Last segment: verify delivery/end OTP
+                    const deliveryOtpValid = (ride.otp === otp || ride.endOtp === otp || activeSegment.otp === otp);
+                    if (!deliveryOtpValid) {
+                        return res.status(400).json({ success: false, message: "Invalid Delivery / End OTP" });
+                    }
 
-                // Verify final delivery OTP
-                if (ride.otp !== otp) {
-                    return res.status(400).json({ success: false, message: "Invalid Delivery OTP" });
-                }
+                    ride.status = 'delivered';
+                    ride.segments[activeSegIndex].status = 'completed';
+                    ride.completedAt = new Date();
+                    await ride.save();
 
-                ride.status = 'delivered';
-                ride.segments[activeSegIndex].status = 'completed';
-                await ride.save();
+                    const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
+                    await creditDriverForCompletedBooking({
+                        booking: ride,
+                        bookingType: isShuttle ? 'shuttle' : 'logistics',
+                        driverId: driverId || ride.driverId,
+                        actualFare: activeSegment.price || ride.totalPrice,
+                        io: req.io
+                    });
 
-                const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
-                await creditDriverForCompletedBooking({
-                    booking: ride,
-                    bookingType: isShuttle ? 'shuttle' : 'logistics',
-                    driverId: driverId || ride.driverId,
-                    actualFare: ride.totalPrice,
-                    io: req.io
-                });
+                    res.json({ success: true, message: "OTP verified correctly. Shipment delivered successfully." });
 
-                res.json({ success: true, message: "OTP verified correctly. Shipment delivered successfully." });
-
-                // Socket notification to user
-                if (req.io) {
-                    const targetUserRoom = resolveDocId(ride.userId);
-                    if (targetUserRoom) {
-                        req.io.to(targetUserRoom).to(ride._id.toString()).emit("ride_status_update", {
+                    // Socket notification to user & admin
+                    if (req.io) {
+                        const targetUserRoom = resolveDocId(ride.userId);
+                        if (targetUserRoom) {
+                            req.io.to(targetUserRoom).to(ride._id.toString()).emit("ride_status_update", {
+                                rideId: ride._id.toString(),
+                                status: 'delivered',
+                                type: isShuttle ? 'SHUTTLE' : 'LOGISTICS'
+                            });
+                            req.io.to(targetUserRoom).to(ride._id.toString()).emit("roadmap_updated", {
+                                rideId: ride._id.toString(),
+                                segments: ride.segments
+                            });
+                        }
+                        req.io.to('admin').emit("ride_status_update", {
                             rideId: ride._id.toString(),
-                            status: ride.status,
+                            status: 'delivered',
+                            segments: ride.segments,
                             type: isShuttle ? 'SHUTTLE' : 'LOGISTICS'
                         });
-                        req.io.to(targetUserRoom).to(ride._id.toString()).emit("roadmap_updated", {
+                    }
+
+                    // Push notification to user
+                    const { notifyUser } = require('../utils/notificationService');
+                    notifyUser(resolveDocId(ride.userId), {
+                        title: "Shipment Delivered",
+                        body: "Your entire shipment has been successfully delivered! Thank you for choosing Transglobe.",
+                        data: {
                             rideId: ride._id.toString(),
+                            status: 'delivered',
+                            type: 'STATUS_UPDATE'
+                        }
+                    });
+                    return;
+                } else {
+                    // Intermediate segment completion
+                    ride.segments[activeSegIndex].status = 'completed';
+                    const nextSegIndex = activeSegIndex + 1;
+                    if (nextSegIndex < ride.segments.length) {
+                        ride.segments[nextSegIndex].status = 'pending';
+                    }
+                    await ride.save();
+
+                    const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
+                    await creditDriverForCompletedBooking({
+                        booking: ride,
+                        bookingType: isShuttle ? 'shuttle' : 'logistics',
+                        driverId: driverId || ride.driverId,
+                        actualFare: activeSegment.price,
+                        io: req.io
+                    });
+
+                    res.json({ success: true, message: `Segment ${activeSegIndex + 1} completed successfully.` });
+
+                    const nextSeg = ride.segments[nextSegIndex];
+                    if (req.io) {
+                        const targetUserRoom = resolveDocId(ride.userId);
+                        if (targetUserRoom) {
+                            req.io.to(targetUserRoom).to(ride._id.toString()).emit("roadmap_updated", {
+                                rideId: ride._id.toString(),
+                                segments: ride.segments
+                            });
+                        }
+                        req.io.to('admin').emit("ride_status_update", {
+                            rideId: ride._id.toString(),
+                            status: ride.status,
                             segments: ride.segments
                         });
                     }
-                }
 
-                // Push notification to user
-                const { notifyUser } = require('../utils/notificationService');
-                notifyUser(resolveDocId(ride.userId), {
-                    title: "Shipment Delivered",
-                    body: "Your shipment has been successfully delivered!",
-                    data: {
-                        rideId: ride._id.toString(),
-                        status: ride.status,
-                        type: 'STATUS_UPDATE'
+                    const { notifyUser, notifyDriver } = require('../utils/notificationService');
+                    // Notify user
+                    notifyUser(resolveDocId(ride.userId), {
+                        title: `Segment ${activeSegIndex + 1} Completed`,
+                        body: `Segment ${activeSegIndex + 1} arrived at ${activeSegment.end?.address || 'Destination'}. Segment ${nextSegIndex + 1} is now ready for pickup.`,
+                        data: { rideId: ride._id.toString(), type: 'STATUS_UPDATE' }
+                    });
+
+                    // Notify next driver
+                    if (nextSeg && nextSeg.driverId) {
+                        notifyDriver(nextSeg.driverId, {
+                            title: `Shipment Ready for Segment ${nextSegIndex + 1}`,
+                            body: `Pickup from ${nextSeg.start?.address || 'Pickup'} to ${nextSeg.end?.address || 'Destination'}. Segment Fare: ₹${nextSeg.price}`,
+                            data: { rideId: ride._id.toString(), type: 'ASSIGNED_SEGMENT_READY' }
+                        });
+                        if (req.io) {
+                            req.io.to(nextSeg.driverId.toString()).emit("new_ride_available", {
+                                rideId: ride._id.toString(),
+                                pickupAddress: nextSeg.start?.address,
+                                dropAddress: nextSeg.end?.address,
+                                fare: nextSeg.price,
+                                segmentIndex: nextSegIndex
+                            });
+                        }
                     }
-                });
-                return;
+                    return;
+                }
             } else {
-                // Starting the segment (status is confirmed / pending_for_driver)
-                if (activeSegment.otp !== otp) {
-                    return res.status(400).json({ success: false, message: "Invalid Segment OTP" });
+                // Starting the segment (status is pending)
+                const startOtpValid = (activeSegment.otp === otp) || 
+                                     (activeSegIndex === 0 && (ride.startOtp === otp || ride.otp === otp));
+                if (!startOtpValid) {
+                    return res.status(400).json({ success: false, message: "Invalid Segment Start OTP" });
                 }
 
                 ride.status = 'in_transit';
@@ -1429,7 +1539,7 @@ exports.verifyRideOtp = async (req, res) => {
 
                 res.json({ success: true, message: "OTP verified correctly. Segment journey started." });
 
-                // Socket notification to user
+                // Socket notification to user & admin
                 if (req.io) {
                     const targetUserRoom = resolveDocId(ride.userId);
                     if (targetUserRoom) {
@@ -1443,13 +1553,25 @@ exports.verifyRideOtp = async (req, res) => {
                             segments: ride.segments
                         });
                     }
+                    req.io.to('admin').emit("ride_status_update", {
+                        rideId: ride._id.toString(),
+                        status: ride.status,
+                        segments: ride.segments,
+                        type: isShuttle ? 'SHUTTLE' : 'LOGISTICS'
+                    });
                 }
 
-                // Push notification to user
+                const segStartAddr = activeSegment.start?.address || 'Pickup';
+                const segEndAddr = activeSegment.end?.address || 'Destination';
                 const { notifyUser } = require('../utils/notificationService');
+                const notifTitle = activeSegIndex === 0 ? "Segment 1 Ride Started" : `Segment ${activeSegIndex + 1} Goods Picked Up`;
+                const notifBody = activeSegIndex === 0 
+                    ? `Your shipment journey from ${segStartAddr} to ${segEndAddr} has started! You can track the status in the app.`
+                    : `Your goods have been picked up for Segment ${activeSegIndex + 1} from ${segStartAddr} to ${segEndAddr}. You can track the booking.`;
+
                 notifyUser(resolveDocId(ride.userId), {
-                    title: "Segment Started",
-                    body: `Segment ${activeSegIndex + 1} has started.`,
+                    title: notifTitle,
+                    body: notifBody,
                     data: {
                         rideId: ride._id.toString(),
                         status: ride.status,
@@ -1549,16 +1671,45 @@ exports.updateFare = async (req, res) => {
 
 exports.submitReview = async (req, res) => {
     try {
-        const { bookingId, driverId, rating, comment } = req.body;
+        const { bookingId, driverId, rating, comment, tags } = req.body;
         const review = await Review.create({
             bookingId,
             fromId: req.user.id || req.user._id, // User ID from token
             toId: driverId,
             onModel: 'Driver',
-            rating,
-            comment
+            rating: Number(rating) || 5,
+            comment: comment || '',
+            tags: tags || []
         });
-        res.status(201).json({ success: true, data: review });
+
+        // Also attach to History or LogisticsBooking or ShuttleBooking
+        const reviewData = {
+            rating: Number(rating) || 5,
+            comment: comment || '',
+            tags: tags || [],
+            createdAt: new Date()
+        };
+
+        const History = require('../models/History');
+        const LogisticsBooking = require('../models/LogisticsBooking');
+        const ShuttleBooking = require('../models/ShuttleBooking');
+
+        await History.findByIdAndUpdate(bookingId, { review: reviewData });
+        await LogisticsBooking.findByIdAndUpdate(bookingId, { review: reviewData });
+        await ShuttleBooking.findByIdAndUpdate(bookingId, { review: reviewData });
+
+        // Update driver stats
+        const Driver = require('../models/Driver');
+        if (driverId) {
+            const allReviews = await Review.find({ toId: driverId });
+            const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / (allReviews.length || 1);
+            await Driver.findOneAndUpdate(
+                { $or: [{ _id: driverId }, { uid: driverId }, { firebaseId: driverId }] },
+                { rating: avgRating.toFixed(1), reviewsCount: allReviews.length }
+            );
+        }
+
+        res.status(201).json({ success: true, data: review, message: "Review submitted successfully" });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -1575,6 +1726,14 @@ exports.payRide = async (req, res) => {
             isLogistics = !!ride;
         }
         if (!ride) return res.status(404).json({ success: false, message: "Ride not found" });
+
+        // User cannot make payment until driver completes booking
+        if (!['completed', 'delivered'].includes(ride.status)) {
+            return res.status(400).json({
+                success: false,
+                message: "Payment can only be made after the ride has been completed by the driver."
+            });
+        }
 
         ride.paymentStatus = 'paid';
         await ride.save();

@@ -52,7 +52,7 @@ const historySchema = new mongoose.Schema({
         type: String
     },
     driverId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.Mixed,
         ref: "Driver"
     },
     driverSnapshot: {
@@ -120,6 +120,20 @@ const historySchema = new mongoose.Schema({
     cancellationFare: {
         type: Number,
         default: 0
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['unpaid', 'paid'],
+        default: 'unpaid'
+    },
+    completedAt: {
+        type: Date
+    },
+    review: {
+        rating: { type: Number, default: null },
+        comment: { type: String, default: '' },
+        tags: [{ type: String }],
+        createdAt: { type: Date, default: null }
     }
 }, { timestamps: true });
 

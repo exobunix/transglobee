@@ -178,15 +178,53 @@ const initSocket = (server) => {
                 let emitter = io;
                 senderRooms.forEach(r => { emitter = emitter.to(r); });
                 receiverRooms.forEach(r => { emitter = emitter.to(r); });
+                const bId = data.bookingId || data.rideId;
+                if (bId) {
+                    emitter = emitter.to(bId.toString()).to(`tracking_${bId.toString()}`);
+                }
 
-                emitter.emit("receive_message", {
+                const msgPayload = {
                     _id: newMessage._id,
                     senderId,
                     receiverId,
                     message,
+                    senderRole: senderRole || 'unknown',
                     senderName,
+                    bookingId: bId ? bId.toString() : null,
                     timestamp: newMessage.createdAt
-                });
+                };
+
+                emitter.emit("receive_message", msgPayload);
+
+                // Push notification fallback for background/closed app
+                try {
+                    const { notifyDriver, notifyUser } = require('../utils/notificationService');
+                    if (senderRole === 'user') {
+                        notifyDriver(receiverId, {
+                            title: `New message from ${senderName || 'Passenger'}`,
+                            body: message,
+                            data: {
+                                type: 'CHAT_MESSAGE',
+                                senderId: String(senderId),
+                                receiverId: String(receiverId),
+                                bookingId: bId ? String(bId) : ''
+                            }
+                        });
+                    } else if (senderRole === 'driver') {
+                        notifyUser(receiverId, {
+                            title: `New message from ${senderName || 'Driver'}`,
+                            body: message,
+                            data: {
+                                type: 'CHAT_MESSAGE',
+                                senderId: String(senderId),
+                                receiverId: String(receiverId),
+                                bookingId: bId ? String(bId) : ''
+                            }
+                        });
+                    }
+                } catch (notifErr) {
+                    console.error("Error sending push notification for chat message:", notifErr);
+                }
 
                 // Also emit back to sender (for confirmation/multi-device sync)
                 socket.emit("message_sent", {

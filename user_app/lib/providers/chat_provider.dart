@@ -81,12 +81,18 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
   @override
   List<ChatMessage> build() => [];
 
-  void initChat(String receiverId, String userId) {
+  String? _bookingId;
+
+  void initChat(String receiverId, String userId, {String? bookingId}) {
     _currentReceiverId = receiverId;
+    _bookingId = bookingId;
     final socketService = ref.read(socketServiceProvider);
     
     final userName = ref.read(userProfileProvider).value;
     socketService.connect(userId, name: userName);
+    if (bookingId != null && bookingId.isNotEmpty) {
+      socketService.joinRide(bookingId);
+    }
     socketService.fetchHistory(userId, receiverId);
 
     _messageSubscription?.cancel();
@@ -102,9 +108,15 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
 
       final msgSender = data['senderId']?.toString();
       final msgReceiver = data['receiverId']?.toString();
+      final senderRole = data['senderRole']?.toString();
+      final msgBookingId = data['bookingId']?.toString();
       
-      if ((isOther(msgSender) && isMe(msgReceiver)) ||
-          (isMe(msgSender) && isOther(msgReceiver))) {
+      final matchesDirection = (isOther(msgSender) && isMe(msgReceiver)) ||
+          (isMe(msgSender) && isOther(msgReceiver)) ||
+          (senderRole == 'driver' && (isMe(msgReceiver) || msgReceiver == null)) ||
+          (_bookingId != null && msgBookingId != null && _bookingId == msgBookingId);
+
+      if (matchesDirection) {
         print("[CHAT-DEBUG] [USER] Message MATCHED context. Adding to state.");
         final newMsg = ChatMessage.fromMap(data, userId);
         
@@ -165,6 +177,7 @@ class ChatNotifier extends Notifier<List<ChatMessage>> {
       text,
       senderName: userName,
       senderRole: 'user',
+      bookingId: _bookingId,
     );
 
     final msg = ChatMessage(

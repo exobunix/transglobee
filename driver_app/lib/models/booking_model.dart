@@ -34,6 +34,9 @@ class BookingModel {
   final String? transportNumber;
   final String? estimatedTime;
   final String? estimatedDate;
+  final String? startOtp;
+  final String? endOtp;
+  final Map<String, dynamic>? review;
   final List<BookingSegment> segments;
 
   const BookingModel({
@@ -70,6 +73,9 @@ class BookingModel {
     this.transportNumber,
     this.estimatedTime,
     this.estimatedDate,
+    this.startOtp,
+    this.endOtp,
+    this.review,
     this.segments = const [],
   });
 
@@ -275,6 +281,9 @@ class BookingModel {
       transportNumber: json['transportNumber']?.toString(),
       estimatedTime: json['estimatedTime']?.toString(),
       estimatedDate: json['estimatedDate']?.toString(),
+      startOtp: json['startOtp']?.toString(),
+      endOtp: json['endOtp']?.toString(),
+      review: json['review'] is Map ? Map<String, dynamic>.from(json['review']) : null,
       segments: (json['segments'] as List?)?.map((s) => BookingSegment.fromJson(s)).toList() ?? [],
     );
   }

@@ -60,6 +60,8 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   StreamSubscription? _acceptedSubscription;
   Timer? _driverPollTimer;
   List<LogisticsSegment> _segments = [];
+  String? _startOtp;
+  String? _endOtp;
 
   late Map<String, dynamic> _driver;
 
@@ -142,7 +144,9 @@ bool _isSheetOpen = true;
     String resolvedOtp = '----';
 
     if (['accepted', 'on_the_way', 'arrived'].contains(_rawStatus)) {
-      if (_segments.isNotEmpty) {
+      if (_startOtp != null && _startOtp!.isNotEmpty && _startOtp != '----') {
+        resolvedOtp = _startOtp!;
+      } else if (_segments.isNotEmpty) {
         final activeSegIndex = _segments.indexWhere((s) => s.status != 'completed');
         if (activeSegIndex != -1) {
           resolvedOtp = _segments[activeSegIndex].otp ?? widget.otp ?? '----';
@@ -153,13 +157,17 @@ bool _isSheetOpen = true;
         resolvedOtp = widget.otp ?? '----';
       }
     } else if (['ongoing', 'in_transit'].contains(_rawStatus)) {
-      final isLogisticsOrShuttle = _segments.isNotEmpty ||
-          widget.vehicle['name']?.toString().toLowerCase().contains('shuttle') == true ||
-          widget.vehicle['name']?.toString().toLowerCase().contains('truck') == true ||
-          widget.vehicle['name']?.toString().toLowerCase().contains('cargo') == true;
+      if (_endOtp != null && _endOtp!.isNotEmpty && _endOtp != '----') {
+        resolvedOtp = _endOtp!;
+      } else {
+        final isLogisticsOrShuttle = _segments.isNotEmpty ||
+            widget.vehicle['name']?.toString().toLowerCase().contains('shuttle') == true ||
+            widget.vehicle['name']?.toString().toLowerCase().contains('truck') == true ||
+            widget.vehicle['name']?.toString().toLowerCase().contains('cargo') == true;
 
-      if (isLogisticsOrShuttle) {
-        resolvedOtp = widget.otp ?? '----';
+        if (isLogisticsOrShuttle) {
+          resolvedOtp = widget.otp ?? '----';
+        }
       }
     }
 
@@ -173,6 +181,9 @@ bool _isSheetOpen = true;
   }
 
   bool get _shouldShowOtp {
+    if ((_startOtp != null && _startOtp!.isNotEmpty) || (_endOtp != null && _endOtp!.isNotEmpty)) {
+      return true;
+    }
     if (_driver['otp'] == '----' || _driver['otp'].toString().isEmpty) {
       return false;
     }
@@ -223,8 +234,6 @@ bool _isSheetOpen = true;
         _loadRoute();
       }
     }
-
-    _fitBounds(centerOnDriver: true);
   }
 
   double _coord(Map<String, dynamic> point, bool isLat) {
@@ -409,6 +418,9 @@ bool _isSheetOpen = true;
           );
         }
         if (booking is Map) {
+          if (booking['startOtp'] != null) _startOtp = booking['startOtp'].toString();
+          if (booking['endOtp'] != null) _endOtp = booking['endOtp'].toString();
+          if (booking['otp'] != null && _startOtp == null) _startOtp = booking['otp'].toString();
           if (booking['userId'] != null) {
             final uidStr = booking['userId'].toString();
             if (uidStr.isNotEmpty && uidStr != _bookingUserId) {
@@ -447,6 +459,9 @@ bool _isSheetOpen = true;
       if (rideRes.success && rideRes.data != null && mounted) {
         final ride = rideRes.data!;
         final rawDriver = ride.rawJson['driver'];
+        if (ride.rawJson['startOtp'] != null) _startOtp = ride.rawJson['startOtp'].toString();
+        if (ride.rawJson['endOtp'] != null) _endOtp = ride.rawJson['endOtp'].toString();
+        if (ride.rawJson['otp'] != null && _startOtp == null) _startOtp = ride.rawJson['otp'].toString();
         
         if (ride.userId.isNotEmpty && ride.userId != _bookingUserId) {
           setState(() {
@@ -1461,6 +1476,28 @@ DraggableScrollableSheet(
                              : "Ask the driver to enter this code",
                          style: const TextStyle(color: Colors.grey, fontSize: 12),
                        ),
+                       if (_endOtp != null && _endOtp!.isNotEmpty && !['ongoing', 'in_transit'].contains(_rawStatus)) ...[
+                         const Divider(height: 24),
+                         Text(
+                           "DELIVERY OTP (KEEP SAFE FOR FINAL DROP)",
+                           style: TextStyle(
+                             color: Colors.amber.withOpacity(0.9),
+                             fontSize: 11,
+                             fontWeight: FontWeight.w900,
+                             letterSpacing: 1.2,
+                           ),
+                         ),
+                         const SizedBox(height: 8),
+                         Text(
+                           _endOtp!,
+                           style: TextStyle(
+                             color: context.colors.textPrimary,
+                             fontSize: 24,
+                             fontWeight: FontWeight.bold,
+                             letterSpacing: 4,
+                           ),
+                         ),
+                       ],
                      ],
                    ),
                  ),
@@ -1506,7 +1543,7 @@ DraggableScrollableSheet(
                           // In a real app, widget.driverData?['uid'] or similar would be needed.
                           // Based on previous fixes, some drivers have 'id' (ObjectId) or 'uid' (Firebase).
                           // Here _driver is local and we'll use whatever ID we can find.
-                          final driverId = widget.driverData?['uid'] ?? widget.driverData?['_id'] ?? widget.driverData?['driver_id'];
+                          final driverId = _driver['id'] ?? widget.driverData?['_id'] ?? widget.driverData?['uid'] ?? widget.driverData?['driver_id'];
                           if (driverId != null) {
                             Navigator.push(
                               context,
@@ -1545,8 +1582,15 @@ DraggableScrollableSheet(
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () async {
-                    if (_rawStatus == 'cancelled' || _segments.isNotEmpty) {
+                    if (_rawStatus == 'cancelled') {
                       Navigator.pop(context);
+                      return;
+                    }
+                    final isTripComplete = _rawStatus == 'completed' || _rawStatus == 'delivered';
+                    if (!isTripComplete) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Payment will be available once the driver completes the ride.')),
+                      );
                       return;
                     }
                     if (_paymentStatus == 'unpaid') {
@@ -1564,8 +1608,16 @@ DraggableScrollableSheet(
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _rawStatus == 'cancelled' ? Colors.red.withOpacity(0.2) : ((_paymentStatus == 'unpaid' && _segments.isEmpty) ? context.theme.primaryColor : Colors.green.withOpacity(0.1)),
-                    foregroundColor: _rawStatus == 'cancelled' ? Colors.red : ((_paymentStatus == 'unpaid' && _segments.isEmpty) ? Colors.white : Colors.green),
+                    backgroundColor: _rawStatus == 'cancelled'
+                        ? Colors.red.withOpacity(0.2)
+                        : ((_rawStatus == 'completed' || _rawStatus == 'delivered')
+                            ? (_paymentStatus == 'unpaid' ? context.theme.primaryColor : Colors.green)
+                            : context.theme.cardColor),
+                    foregroundColor: _rawStatus == 'cancelled'
+                        ? Colors.red
+                        : ((_rawStatus == 'completed' || _rawStatus == 'delivered')
+                            ? Colors.white
+                            : (context.colors.textSecondary ?? Colors.grey)),
                     minimumSize: const Size(double.infinity, 56),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -1576,9 +1628,11 @@ DraggableScrollableSheet(
                   child: Text(
                     _rawStatus == 'cancelled'
                         ? "Ride Cancelled (Go Back)"
-                        : (_segments.isNotEmpty
-                            ? "Go Back"
-                            : (_paymentStatus == 'unpaid' ? "Pay ₹${_currentFare.toStringAsFixed(0)}" : "Ride Completed")),
+                        : ((_rawStatus != 'completed' && _rawStatus != 'delivered')
+                            ? (_segments.isNotEmpty ? "Delivery in Progress" : "Ride in Progress - Driver Driving")
+                            : (_paymentStatus == 'unpaid'
+                                ? "Pay ₹${_currentFare.toStringAsFixed(0)}"
+                                : "Trip Completed (Rate Driver)")),
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),

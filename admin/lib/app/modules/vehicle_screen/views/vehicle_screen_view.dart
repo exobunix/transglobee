@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'dart:typed_data';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
@@ -930,30 +931,29 @@ class VehicleAddEditDialog extends StatelessWidget {
                               ),
                             )
                           : ListView.builder(
-                              shrinkWrap: true,
                               itemCount: routes.length,
                               itemBuilder: (context, index) {
                                 final route = routes[index];
-                                final isChecked = controller.selectedRouteIds.contains(route.id);
-                                return CheckboxListTile(
-                                  dense: true,
-                                  title: TextCustom(
-                                    title: "${route.name ?? ''} (${route.source ?? ''} -> ${route.destination ?? ''})",
-                                    fontSize: 13,
-                                  ),
-                                  value: isChecked,
-                                  activeColor: AppThemData.primary500,
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  onChanged: (val) {
-                                    if (val == true) {
-                                      if (!controller.selectedRouteIds.contains(route.id)) {
+                                return Obx(() {
+                                  final isChecked = controller.selectedRouteIds.contains(route.id);
+                                  return CheckboxListTile(
+                                    dense: true,
+                                    title: TextCustom(
+                                      title: "${route.name ?? ''} (${route.source ?? ''} -> ${route.destination ?? ''})",
+                                      fontSize: 13,
+                                    ),
+                                    value: isChecked,
+                                    activeColor: AppThemData.primary500,
+                                    controlAffinity: ListTileControlAffinity.leading,
+                                    onChanged: (val) {
+                                      if (val == true) {
                                         controller.selectedRouteIds.add(route.id!);
+                                      } else {
+                                        controller.selectedRouteIds.remove(route.id!);
                                       }
-                                    } else {
-                                      controller.selectedRouteIds.remove(route.id!);
-                                    }
-                                  },
-                                );
+                                    },
+                                  );
+                                });
                               },
                             ),
                     );
@@ -998,16 +998,18 @@ class VehicleAddEditDialog extends StatelessWidget {
                           color: themeChange.isDarkTheme() ? AppThemData.greyShade700 : AppThemData.greyShade300,
                         ),
                       ),
-                      child: controller.selectedImageFile.value != null
+                      child: controller.imageBytes.isNotEmpty
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(11),
-                              child: Image.file(
-                                controller.selectedImageFile.value!,
+                              child: Image.memory(
+                                Uint8List.fromList(controller.imageBytes),
                                 fit: BoxFit.cover,
                                 width: double.infinity,
                               ),
                             )
-                          : controller.imageController.text.isNotEmpty
+                          : (controller.imageController.text.isNotEmpty &&
+                                  (controller.imageController.text.startsWith('http://') ||
+                                      controller.imageController.text.startsWith('https://')))
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(11),
                                   child: Image.network(

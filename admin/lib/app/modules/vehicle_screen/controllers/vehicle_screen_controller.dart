@@ -16,7 +16,7 @@ class VehicleScreenController extends GetxController {
   RxList<AdminVehicleModel> filteredVehicleList = <AdminVehicleModel>[].obs;
   RxList<DriverUserModel> driverList = <DriverUserModel>[].obs;
   RxList<AdminVehicleRoute> dbRoutesList = <AdminVehicleRoute>[].obs;
-  RxList<String> selectedRouteIds = <String>[].obs;
+  RxSet<String> selectedRouteIds = <String>{}.obs;
   final routeSearchController = TextEditingController();
   RxString routeSearchQuery = ''.obs;
 
@@ -127,7 +127,8 @@ class VehicleScreenController extends GetxController {
     selectedImageFile.value = null;
     imageBytes.clear();
     selectedImageName.value = '';
-    selectedRouteIds.value = vehicle.routes?.map((r) => r.id ?? '').where((id) => id.isNotEmpty).toList() ?? [];
+    selectedRouteIds.clear();
+    selectedRouteIds.addAll(vehicle.routes?.map((r) => r.id ?? '').where((id) => id.isNotEmpty) ?? []);
     routeSearchController.clear();
     routeSearchQuery.value = '';
   }
@@ -216,7 +217,6 @@ class VehicleScreenController extends GetxController {
         selectedImageFile.value = File(img.path);
         imageBytes.value = await img.readAsBytes();
         selectedImageName.value = img.name;
-        imageController.text = img.name;
       }
     } catch (e) {
       log("Error picking image: $e");
@@ -231,15 +231,18 @@ class VehicleScreenController extends GetxController {
         'POST',
         Uri.parse("${ApiConstant.baseUrl}/admin/upload"),
       );
-      request.headers.addAll(ApiConstant.headers(token: token));
+      if (token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      request.headers['Accept'] = 'application/json';
       
-      if (GetPlatform.isWeb) {
+      if (GetPlatform.isWeb || imageBytes.isNotEmpty) {
         request.files.add(http.MultipartFile.fromBytes(
           'file',
           imageBytes,
-          filename: selectedImageName.value,
+          filename: selectedImageName.value.isNotEmpty ? selectedImageName.value : 'vehicle_image.jpg',
         ));
-      } else {
+      } else if (selectedImageFile.value != null) {
         request.files.add(await http.MultipartFile.fromPath(
           'file',
           selectedImageFile.value!.path,
@@ -250,7 +253,8 @@ class VehicleScreenController extends GetxController {
       var response = await http.Response.fromStream(streamedResponse);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['success'] == true) {
+        if (data['success'] == true && data['url'] != null) {
+          imageController.text = data['url'];
           return data['url'];
         }
       }
@@ -270,7 +274,7 @@ class VehicleScreenController extends GetxController {
     isLoading.value = true;
     try {
       String? imageUrl;
-      if (selectedImageFile.value != null) {
+      if (imageBytes.isNotEmpty || selectedImageFile.value != null) {
         imageUrl = await uploadImageToBackend();
         if (imageUrl == null) {
           isLoading.value = false;
@@ -334,7 +338,7 @@ class VehicleScreenController extends GetxController {
     isLoading.value = true;
     try {
       String? imageUrl;
-      if (selectedImageFile.value != null) {
+      if (imageBytes.isNotEmpty || selectedImageFile.value != null) {
         imageUrl = await uploadImageToBackend();
         if (imageUrl == null) {
           isLoading.value = false;

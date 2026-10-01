@@ -48,7 +48,7 @@ const shuttleBookingSchema = new mongoose.Schema({
 
     // Assigned Driver
     driverId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.Mixed,
         ref: 'Driver',
         default: null,
     },
@@ -63,7 +63,7 @@ const shuttleBookingSchema = new mongoose.Schema({
         end:             { type: locationSchema },
         mode:            { type: String, enum: ['Road', 'Train', 'Flight', 'Sea Cargo'], default: 'Road' },
         distanceKm:      { type: Number, default: 0 },
-        driverId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Driver', default: null },
+        driverId:        { type: mongoose.Schema.Types.Mixed, ref: 'Driver', default: null },
         transportName:   { type: String },
         transportNumber: { type: String },
         estimatedTime:   { type: String },
@@ -92,6 +92,29 @@ const shuttleBookingSchema = new mongoose.Schema({
     otp: {
         type: String,
         default: null,
+    },
+    startOtp: {
+        type: String,
+        default: null,
+    },
+    endOtp: {
+        type: String,
+        default: null,
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['unpaid', 'paid'],
+        default: 'unpaid',
+    },
+    completedAt: {
+        type: Date,
+        default: null,
+    },
+    review: {
+        rating: { type: Number, default: null },
+        comment: { type: String, default: '' },
+        tags: [{ type: String }],
+        createdAt: { type: Date, default: null }
     },
 }, { timestamps: true });
 

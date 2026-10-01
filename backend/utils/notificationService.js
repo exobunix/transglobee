@@ -15,7 +15,26 @@ const sendPushNotification = async (tokens, payload) => {
             title: payload.title,
             body: payload.body,
         },
-        data: payload.data || {},
+        android: {
+            priority: 'high',
+            notification: {
+                sound: 'default',
+                channelId: 'transglobe_notifications',
+                defaultSound: true,
+                defaultVibrateTimings: true,
+            },
+        },
+        apns: {
+            payload: {
+                aps: {
+                    sound: 'default',
+                    contentAvailable: true,
+                },
+            },
+        },
+        data: Object.fromEntries(
+            Object.entries(payload.data || {}).map(([k, v]) => [k, String(v ?? '')])
+        ),
         tokens: validTokens,
     };
 
@@ -48,6 +67,29 @@ const notifyAllDrivers = async (payload) => {
     }
 };
 
+const notifyDriver = async (driverId, payload) => {
+    try {
+        const normalizedId = driverId?.toString?.() || '';
+        if (!normalizedId) return;
+
+        let driver = null;
+        if (mongoose.Types.ObjectId.isValid(normalizedId)) {
+            driver = await Driver.findById(normalizedId).select('fcmToken uid firebaseId');
+        }
+        if (!driver) {
+            driver = await Driver.findOne({
+                $or: [{ uid: normalizedId }, { firebaseId: normalizedId }],
+            }).select('fcmToken uid firebaseId');
+        }
+
+        if (driver && driver.fcmToken) {
+            await sendPushNotification([driver.fcmToken], payload);
+        }
+    } catch (error) {
+        console.error('Error in notifyDriver:', error);
+    }
+};
+
 const notifyUser = async (userId, payload) => {
     try {
         const normalizedUserId = userId?.toString?.() || '';
@@ -73,8 +115,24 @@ const notifyUser = async (userId, payload) => {
     }
 };
 
+const notifyAdmin = (io, payload) => {
+    if (!io) return;
+    try {
+        io.to('admin').emit('admin_notification', {
+            title: payload.title,
+            body: payload.body,
+            data: payload.data || {},
+            timestamp: new Date()
+        });
+    } catch (e) {
+        console.error('Error in notifyAdmin:', e);
+    }
+};
+
 module.exports = {
     sendPushNotification,
     notifyAllDrivers,
-    notifyUser
+    notifyDriver,
+    notifyUser,
+    notifyAdmin
 };

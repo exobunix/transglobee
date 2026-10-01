@@ -791,63 +791,138 @@ exports.assignDriver = async (req, res) => {
 exports.approveRoadmap = async (req, res) => {
     try {
         const bookingId = req.params.id;
-        let booking = await LogisticsBooking.findByIdAndUpdate(
-            bookingId,
-            { roadmapStatus: 'approved', status: 'pending_for_driver' },
-            { new: true }
-        );
+        let booking = await LogisticsBooking.findById(bookingId);
         let isShuttle = false;
         if (!booking) {
-            booking = await ShuttleBooking.findByIdAndUpdate(
-                bookingId,
-                { roadmapStatus: 'approved', status: 'pending_for_driver' },
-                { new: true }
-            );
+            booking = await ShuttleBooking.findById(bookingId);
             isShuttle = true;
         }
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found.' });
         }
 
+        // Generate startOtp and endOtp if not present
+        if (!booking.startOtp) {
+            booking.startOtp = booking.segments?.[0]?.otp || Math.floor(1000 + Math.random() * 9000).toString();
+        }
+        if (!booking.endOtp) {
+            const lastSeg = booking.segments?.[booking.segments.length - 1];
+            booking.endOtp = lastSeg?.otp || booking.otp || Math.floor(1000 + Math.random() * 9000).toString();
+        }
+        if (!booking.otp) {
+            booking.otp = booking.endOtp;
+        }
+        booking.roadmapStatus = 'approved';
+        booking.status = 'pending_for_driver';
+        await booking.save();
+
+        const { notifyUser, notifyDriver } = require('../utils/notificationService');
+
+        // Notify User with Start and End OTP
+        notifyUser(booking.userId, {
+            title: "Roadmap Approved - Shipment Ready",
+            body: `Your shipment roadmap has been approved! Start OTP: ${booking.startOtp}, Delivery OTP: ${booking.endOtp}. Track your shipment in the app.`,
+            data: {
+                bookingId: booking._id.toString(),
+                status: 'pending_for_driver',
+                startOtp: booking.startOtp,
+                endOtp: booking.endOtp,
+                type: 'ROADMAP_UPDATED'
+            }
+        });
+
         if (req.io) {
-            const socketData = {
-                id: booking._id.toString(),
-                userName: booking.userName || 'Customer',
-                phone: booking.userPhone || '',
-                pick: booking.pickup?.address || booking.pickup?.name || 'Pickup Location',
-                drop: booking.dropoff?.address || booking.dropoff?.name || 'Dropoff Location',
-                pickupLat: booking.pickup?.lat ?? booking.pickup?.latitude,
-                pickupLng: booking.pickup?.lng ?? booking.pickup?.longitude,
-                dropLat: booking.dropoff?.lat ?? booking.dropoff?.latitude,
-                dropLng: booking.dropoff?.lng ?? booking.dropoff?.longitude,
-                distance: `${booking.distanceKm || 0} km`,
-                fare: booking.totalPrice || booking.vehiclePrice || 0,
-                rideMode: booking.vehicleType || (isShuttle ? 'Shuttle' : 'flatbed'),
+            req.io.to(booking.userId.toString()).emit("roadmap_updated", {
+                rideId: booking._id.toString(),
                 status: 'pending_for_driver',
                 roadmapStatus: 'approved',
-                userId: booking.userId?.toString(),
-                type: isShuttle ? 'SHUTTLE' : 'LOGISTICS',
-                bookingCategory: isShuttle ? 'shuttle' : (booking.bookingCategory || 'logistics'),
-                railwayStation: booking.railwayStation,
-                transportName: booking.transportName,
-                transportNumber: booking.transportNumber,
-                estimatedTime: booking.estimatedTime,
-                estimatedDate: booking.estimatedDate,
-                message: isShuttle
-                    ? 'Shuttle roadmap approved — available for drivers'
-                    : 'Logistics roadmap approved — available for drivers',
-            };
-
-            await broadcastNewRideToOnlineDrivers(req.io, socketData, {
-                pushTitle: isShuttle ? 'New shuttle job' : 'New logistics job',
-                pushBody: `${socketData.pick} → ${socketData.drop}`,
+                startOtp: booking.startOtp,
+                endOtp: booking.endOtp,
+                segments: booking.segments,
+                message: "Roadmap approved by supervisor."
             });
-            notifyAdminAndSupervisor(req.io, socketData);
+            req.io.to(booking.userId.toString()).emit("ride_status_update", {
+                rideId: booking._id.toString(),
+                status: 'pending_for_driver',
+                startOtp: booking.startOtp,
+                endOtp: booking.endOtp,
+                type: isShuttle ? 'SHUTTLE' : 'LOGISTICS'
+            });
+
+            // If Segment 1 has an assigned driver, send only segment 1 details to that driver
+            const seg1 = booking.segments?.[0];
+            if (seg1 && seg1.driverId) {
+                const segDriverRoom = seg1.driverId.toString();
+                req.io.to(segDriverRoom).emit("new_ride_available", {
+                    rideId: booking._id.toString(),
+                    id: booking._id.toString(),
+                    pick: seg1.start?.address || booking.pickup?.address,
+                    drop: seg1.end?.address || booking.dropoff?.address,
+                    fare: seg1.price || 0,
+                    distance: `${seg1.distanceKm || 0} km`,
+                    type: isShuttle ? 'SHUTTLE' : 'LOGISTICS',
+                    segmentIndex: 0,
+                    message: "New assigned segment ready for pickup"
+                });
+                notifyDriver(seg1.driverId, {
+                    title: "New Assigned Segment Ready",
+                    body: `Pickup from ${seg1.start?.address || 'Pickup'} to ${seg1.end?.address || 'Destination'}. Fare: ₹${seg1.price}`,
+                    data: {
+                        rideId: booking._id.toString(),
+                        segmentIndex: 0,
+                        fare: seg1.price,
+                        type: 'ASSIGNED_SEGMENT_READY'
+                    }
+                });
+            } else {
+                // If not assigned to a specific driver, broadcast with first segment or overall details
+                const socketData = {
+                    id: booking._id.toString(),
+                    userName: booking.userName || 'Customer',
+                    phone: booking.userPhone || '',
+                    pick: seg1?.start?.address || booking.pickup?.address || 'Pickup Location',
+                    drop: seg1?.end?.address || booking.dropoff?.address || 'Dropoff Location',
+                    pickupLat: seg1?.start?.lat ?? booking.pickup?.lat,
+                    pickupLng: seg1?.start?.lng ?? booking.pickup?.lng,
+                    dropLat: seg1?.end?.lat ?? booking.dropoff?.lat,
+                    dropLng: seg1?.end?.lng ?? booking.dropoff?.lng,
+                    distance: `${seg1?.distanceKm || booking.distanceKm || 0} km`,
+                    fare: seg1 ? (seg1.price || 0) : (booking.totalPrice || booking.vehiclePrice || 0),
+                    rideMode: booking.vehicleType || (isShuttle ? 'Shuttle' : 'flatbed'),
+                    status: 'pending_for_driver',
+                    roadmapStatus: 'approved',
+                    userId: booking.userId?.toString(),
+                    type: isShuttle ? 'SHUTTLE' : 'LOGISTICS',
+                    bookingCategory: isShuttle ? 'shuttle' : (booking.bookingCategory || 'logistics'),
+                    railwayStation: booking.railwayStation,
+                    transportName: booking.transportName,
+                    transportNumber: booking.transportNumber,
+                    estimatedTime: booking.estimatedTime,
+                    estimatedDate: booking.estimatedDate,
+                    message: isShuttle
+                        ? 'Shuttle roadmap approved — available for drivers'
+                        : 'Logistics roadmap approved — available for drivers',
+                };
+
+                await broadcastNewRideToOnlineDrivers(req.io, socketData, {
+                    pushTitle: isShuttle ? 'New shuttle job' : 'New logistics job',
+                    pushBody: `${socketData.pick} → ${socketData.drop}`,
+                });
+            }
+
+            notifyAdminAndSupervisor(req.io, {
+                id: booking._id.toString(),
+                status: 'pending_for_driver',
+                startOtp: booking.startOtp,
+                endOtp: booking.endOtp,
+                segments: booking.segments,
+                type: isShuttle ? 'SHUTTLE' : 'LOGISTICS'
+            });
         }
 
         return res.status(200).json({
             success: true,
-            message: 'Roadmap approved and booking sent to drivers.',
+            message: 'Roadmap approved, start/end OTPs generated, and booking sent to drivers.',
             data: booking,
         });
     } catch (error) {
