@@ -10,6 +10,7 @@ class LeafletMap extends StatefulWidget {
   final List<Polyline>? polylines;
   final List<Polygon>? polygons;
   final MapController? mapController;
+  final EdgeInsets? fitBoundsPadding;
 
   const LeafletMap({
     super.key,
@@ -19,6 +20,7 @@ class LeafletMap extends StatefulWidget {
     this.polylines,
     this.polygons,
     this.mapController,
+    this.fitBoundsPadding,
   });
 
   @override
@@ -134,7 +136,7 @@ class _LeafletMapState extends State<LeafletMap> with TickerProviderStateMixin {
               _mapController.fitCamera(
                 CameraFit.bounds(
                   bounds: bounds,
-                  padding: const EdgeInsets.all(50.0),
+                  padding: widget.fitBoundsPadding ?? const EdgeInsets.all(50.0),
                 ),
               );
               return;

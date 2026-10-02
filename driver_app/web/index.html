@@ -74,6 +74,58 @@
     }
   </script>
 
+  <script>
+    // Audio Notification Chime & Beep System for Web
+    let _audioCtx = null;
+    let _beepingInterval = null;
+
+    function getAudioContext() {
+      if (!_audioCtx) {
+        _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (_audioCtx.state === 'suspended') {
+        _audioCtx.resume();
+      }
+      return _audioCtx;
+    }
+
+    window.playNotificationBeep = function(durationMs, freq1, freq2) {
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq1 || 880, ctx.currentTime);
+        if (freq2) {
+          osc.frequency.exponentialRampToValueAtTime(freq2, ctx.currentTime + (durationMs || 300) / 1000);
+        }
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (durationMs || 300) / 1000);
+        osc.start();
+        osc.stop(ctx.currentTime + (durationMs || 300) / 1000);
+      } catch (e) {
+        console.warn('Audio notification error:', e);
+      }
+    };
+
+    window.startContinuousChime = function() {
+      if (_beepingInterval) return;
+      window.playNotificationBeep(450, 650, 950);
+      _beepingInterval = setInterval(() => {
+        window.playNotificationBeep(450, 650, 950);
+      }, 1100);
+    };
+
+    window.stopContinuousChime = function() {
+      if (_beepingInterval) {
+        clearInterval(_beepingInterval);
+        _beepingInterval = null;
+      }
+    };
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 

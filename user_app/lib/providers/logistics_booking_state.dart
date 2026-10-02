@@ -69,6 +69,7 @@ class LogisticsBookingState {
   final double discountAmount;
   final AddressEntry? selectedPickupAddress;
   final AddressEntry? selectedDropoffAddress;
+  final String logisticsMode;
   
   // API Fetch states
   final List<dynamic> suggestions;
@@ -95,6 +96,7 @@ class LogisticsBookingState {
     this.discountAmount = 0.0,
     this.selectedPickupAddress,
     this.selectedDropoffAddress,
+    this.logisticsMode = 'logistics_truck',
     this.suggestions = const [],
     this.isFetchingRoute = false,
     this.isBooking = false,
@@ -120,6 +122,7 @@ class LogisticsBookingState {
     double? discountAmount,
     AddressEntry? Function()? selectedPickupAddress,
     AddressEntry? Function()? selectedDropoffAddress,
+    String? logisticsMode,
     List<dynamic>? suggestions,
     bool? isFetchingRoute,
     bool? isBooking,
@@ -144,6 +147,7 @@ class LogisticsBookingState {
       discountAmount: discountAmount ?? this.discountAmount,
       selectedPickupAddress: selectedPickupAddress != null ? selectedPickupAddress() : this.selectedPickupAddress,
       selectedDropoffAddress: selectedDropoffAddress != null ? selectedDropoffAddress() : this.selectedDropoffAddress,
+      logisticsMode: logisticsMode ?? this.logisticsMode,
       suggestions: suggestions ?? this.suggestions,
       isFetchingRoute: isFetchingRoute ?? this.isFetchingRoute,
       isBooking: isBooking ?? this.isBooking,

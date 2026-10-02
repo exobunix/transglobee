@@ -30,10 +30,16 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
         bookingId: widget.bookingId!,
         driverId: driverId != null ? driverId.toString() : '',
         rating: _selectedRating,
-        comment: _commentController.text,
+        comment: _commentController.text.trim(),
+        tags: _selectedTags.toList(),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Thank you for your feedback!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Thank you! Your rating and review have been submitted successfully.'),
+            backgroundColor: Color(0xFF0F4A2C),
+          ),
+        );
         Navigator.pop(context);
       }
     } catch (e) {
@@ -42,6 +48,17 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  String _ratingLabel(int stars) {
+    switch (stars) {
+      case 5: return "⭐⭐⭐⭐⭐ Outstanding!";
+      case 4: return "⭐⭐⭐⭐ Very Good";
+      case 3: return "⭐⭐⭐ Good";
+      case 2: return "⭐⭐ Below Average";
+      case 1: return "⭐ Disappointing";
+      default: return "";
     }
   }
 
@@ -164,20 +181,28 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(5, (index) {
+                final isSelected = index < _selectedRating;
                 return GestureDetector(
                   onTap: () => setState(() => _selectedRating = index + 1),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Icon(
-                      index < _selectedRating ? Icons.star : Icons.star_border,
-                      color: index < _selectedRating
-                          ? Colors.yellow
-                          : context.theme.dividerColor.withOpacity(0.1),
-                      size: 40,
+                      isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: isSelected ? Colors.amber : Colors.grey.withOpacity(0.3),
+                      size: 46,
                     ),
                   ),
                 );
               }),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _ratingLabel(_selectedRating),
+              style: const TextStyle(
+                color: Colors.amber,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
 
             const SizedBox(height: 40),
@@ -365,10 +390,14 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
             shadowColor: context.theme.primaryColor.withOpacity(0.3),
           ),
           child: _isSubmitting 
-              ? const CircularProgressIndicator(color: Colors.white)
-              : const Text(
-                  "Submit Feedback",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                )
+              : Text(
+                  "Submit Feedback (★ $_selectedRating)",
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
         ),
       ),

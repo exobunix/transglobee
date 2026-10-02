@@ -53,7 +53,7 @@ router.put("/:rideId/modify", optionalVerifyToken, (req, res, next) => {
   return rideController.updateFare(req, res, next);
 });
 router.get("/:rideId/track", optionalVerifyToken, trackOrGetRide);
-router.post("/:rideId/rate", verifyToken, (req, res, next) => {
+router.post("/:rideId/rate", optionalVerifyToken, (req, res, next) => {
   req.body = { ...(req.body || {}), bookingId: req.params.rideId };
   return rideController.submitReview(req, res, next);
 });
@@ -71,7 +71,8 @@ router.put('/rides/:rideId/reject', verifyToken, rideController.rejectRide);
 router.put('/rides/:rideId/status', verifyToken, rideController.updateRideStatus);
 router.put('/rides/:rideId/complete', verifyToken, rideController.updateRideStatus);
 router.put('/rides/:rideId/verify-otp', verifyToken, rideController.verifyRideOtp);
-router.post('/review', verifyToken, rideController.submitReview);
-router.put('/rides/:rideId/pay', verifyToken, rideController.payRide);
+router.post('/review', optionalVerifyToken, rideController.submitReview);
+router.put('/rides/:rideId/pay', optionalVerifyToken, rideController.payRide);
+router.put('/:rideId/pay', optionalVerifyToken, rideController.payRide);
 
 module.exports = router;

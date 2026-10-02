@@ -13,6 +13,7 @@ import '../services/ride_service.dart';
 import '../services/auth_service.dart';
 import '../providers/user_provider.dart';
 import '../services/rest_api_repository.dart';
+import '../services/sound_service.dart';
 
 class SearchingRideScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> pickup;
@@ -173,6 +174,7 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen>
     if (!mounted || _hasNavigated) return;
     _hasNavigated = true;
     _statusPollTimer?.cancel();
+    SoundService.playAcceptBeep();
     final negotiatedFare = data['fare'];
     Map<String, dynamic> finalVehicle = widget.vehicle;
 

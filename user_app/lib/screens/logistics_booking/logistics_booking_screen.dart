@@ -20,6 +20,7 @@ import 'widgets/logistics_item_form.dart';
 import 'widgets/logistics_map_section.dart';
 import 'widgets/location_input_section.dart';
 import 'widgets/vehicle_selector.dart';
+import 'widgets/mode_selector.dart';
 import 'booking_logic_mixin.dart';
 
 typedef _ItemEntry = LogisticsItemEntry;
@@ -355,6 +356,15 @@ class _LogisticsBookingScreenState
                       );
                     },
                     onSuggestionTapped: selectSuggestion,
+                  ),
+
+                  // ── Select Logistics Mode (4 Modes: Truck, Train, Sea, Flight) ──
+                  LogisticsModeSelector(
+                    selectedMode: _state.logisticsMode,
+                    distanceKm: _distance,
+                    onModeSelected: (modeItem) {
+                      _notifier.setLogisticsMode(modeItem.key);
+                    },
                   ),
 
                   // ── Select Vehicle Type ──────────────────────────────

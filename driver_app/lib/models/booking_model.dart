@@ -256,7 +256,9 @@ class BookingModel {
           : parseDouble(json['distance']?.toString().replaceAll(' km', '')),
       etaMinutes: parseInt(json['etaMinutes'], 10),
       vehicleType: deriveVehicleType(mode, dispatchType),
-      subType: mode?.toUpperCase() ?? dispatchType,
+      subType: (dispatchType == 'CAB' && (mode == null || mode.toUpperCase().contains('LOGISTIC') || mode.toUpperCase().contains('ECONOMY')))
+          ? 'CAB SERVICE'
+          : (mode?.toUpperCase() ?? dispatchType),
       dispatchType: dispatchType,
       status: mapStatus(json['status']?.toString()),
       createdAt: json['createdAt'] != null
@@ -295,19 +297,18 @@ class BookingModel {
   /// Whether this booking is a logistics shipment
   bool get isLogistics {
     final cat = dispatchType.toUpperCase();
+    if (cat == 'CAB' || cat == 'RETAIL' || cat == 'RIDE') return false;
+    if (cat == 'SHUTTLE') return false;
     final sub = subType.toLowerCase();
     final vType = vehicleType.toLowerCase();
     return cat == 'LOGISTICS' ||
-        sub.contains('logistic') ||
         sub.contains('truck') ||
         sub.contains('cargo') ||
-        sub.contains('transport') ||
         sub.contains('train') ||
-        sub.contains('ship') ||
+        sub.contains('flight') ||
         sub.contains('sea') ||
         vType.contains('truck') ||
         vType.contains('cargo') ||
-        vType.contains('logistic') ||
         segments.isNotEmpty;
   }
 
@@ -315,6 +316,7 @@ class BookingModel {
   /// For LOGISTICS, only show if admin entered a segment price > 0 for this driver.
   /// If no segment price entered, DO NOT show price to driver.
   bool shouldShowFareToDriver([String? driverId, String? altDriverId]) {
+    if (dispatchType == 'CAB') return true;
     if (isLogistics) {
       if (segments.isNotEmpty && (driverId != null || altDriverId != null)) {
         for (final segment in segments) {

@@ -101,10 +101,17 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
             : null) ??
         'Drop location';
 
-    final isLogistics = widget.rideData?['isLogistics'] == true ||
+    final typeUpper = (widget.rideData?['type'] ?? widget.rideData?['bookingCategory'] ?? '').toString().toUpperCase();
+    final isCab = typeUpper == 'CAB' || typeUpper == 'RETAIL' || typeUpper == 'RIDE';
+    final isLogistics = !isCab && (widget.rideData?['isLogistics'] == true ||
         widget.rideData?['bookingCategory']?.toString().toUpperCase() == 'LOGISTICS' ||
-        widget.rideData?['type']?.toString().toUpperCase() == 'LOGISTICS';
+        widget.rideData?['type']?.toString().toUpperCase() == 'LOGISTICS');
     final showFare = widget.rideData?['showFare'] ?? (!isLogistics);
+
+    String rawMode = widget.rideData?['rideMode']?.toString() ?? 'Standard';
+    if (isCab && (rawMode.toUpperCase().contains('LOGISTIC') || rawMode.toUpperCase().contains('ECONOMY'))) {
+      rawMode = 'Cab Service';
+    }
 
     return SlideTransition(
       position: _slideAnimation,
@@ -194,7 +201,7 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          '${widget.rideData?['rideMode'] ?? 'Standard'} • ${widget.rideData?['distance'] ?? '0 km'} away',
+                          '$rawMode • ${widget.rideData?['distance'] ?? '0 km'} away',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -239,9 +246,9 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: Colors.blueGrey),
                       ),
-                      child: const Text(
-                        'Logistics',
-                        style: TextStyle(
+                      child: Text(
+                        typeUpper == 'SHUTTLE' ? 'Shuttle' : 'Logistics',
+                        style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,

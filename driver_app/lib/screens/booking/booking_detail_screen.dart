@@ -646,56 +646,202 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
           const SizedBox(height: 16),
         ],
 
-        SizedBox(
-          width: double.infinity,
-          height: 60,
-          child: ElevatedButton(
-            onPressed: () {
-              // Logic to advance status
-              if (booking.status == 'pending') {
+        // Action Buttons according to flow
+        if (booking.status == 'pending')
+          SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: ElevatedButton(
+              onPressed: () {
                 ref.read(bookingControllerProvider.notifier).acceptBooking(booking.id);
-                ref.read(bookingProvider.notifier).acceptBooking(booking.id); // Sync legacy provider for now
-                // Detail screen will update automatically via provider
-                return;
-              }
-              
-              if (['accepted', 'on_the_way', 'arrived'].contains(booking.status)) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ActiveRideScreen(booking: booking),
-                  ),
-                );
-              } else {
-                String nextStatus = '';
-                if (booking.status == 'ongoing') nextStatus = 'completed';
-                
-                if (nextStatus == 'completed') {
-                  if (booking.paymentStatus == 'unpaid') {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Waiting for customer payment...'),
-                        backgroundColor: Colors.orange,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  } else {
-                    _showCompleteTripDialog(context, ref, booking);
-                  }
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.neonGreen,
-              foregroundColor: AppTheme.darkBg,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ref.read(bookingProvider.notifier).acceptBooking(booking.id);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.neonGreen,
+                foregroundColor: AppTheme.darkBg,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text(
+                'ACCEPT & PROCEED',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1),
+              ),
             ),
-            child: Text(
-              booking.status == 'pending' ? 'ACCEPT & PROCEED' : _buttonLabel(booking.status, booking.paymentStatus),
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1),
+          )
+        else if (['accepted', 'on_the_way', 'arrived'].contains(booking.status)) ...[
+          if (booking.status == 'accepted') ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      gmaps.LatLng dest = gmaps.LatLng(
+                        booking.getPickupLatForDriver(driverDbId, driverFbId) ?? 26.8467, 
+                        booking.getPickupLngForDriver(driverDbId, driverFbId) ?? 80.9462,
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => NavigationScreen(
+                            destination: dest,
+                            destinationName: 'Pickup: $pickup',
+                            rideId: booking.id,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.navigation, size: 18),
+                    label: const Text('NAV TO PICKUP'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.cabBlue,
+                      side: const BorderSide(color: AppTheme.cabBlue),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      await ref.read(bookingProvider.notifier).updateStatus(booking.id, 'arrived');
+                    },
+                    icon: const Icon(Icons.location_on, size: 18),
+                    label: const Text('I HAVE ARRIVED'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white12,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: () => _showEnterOtpDialog(context, ref, booking),
+              icon: const Icon(Icons.pin, size: 20),
+              label: const Text(
+                'ENTER OTP & START RIDE',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 0.8),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.neonGreen,
+                foregroundColor: AppTheme.darkBg,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
             ),
           ),
-        ),
+        ] else if (booking.status == 'ongoing') ...[
+          if (booking.paymentStatus == 'paid') ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: AppTheme.neonGreen.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.neonGreen, width: 1.5),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.check_circle, color: AppTheme.neonGreen, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    'PAYMENT RECEIVED • ₹${booking.fare.toStringAsFixed(0)}',
+                    style: const TextStyle(color: AppTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: () => _showCompleteTripDialog(context, ref, booking),
+                icon: const Icon(Icons.task_alt, size: 20),
+                label: const Text(
+                  'COMPLETE BOOKING',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.neonGreen,
+                  foregroundColor: AppTheme.darkBg,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+            ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange.withOpacity(0.5)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.hourglass_top, color: Colors.orange, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'WAITING FOR CUSTOMER PAYMENT',
+                    style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      // Mark cash paid
+                      ref.read(bookingProvider.notifier).updatePaymentStatus(booking.id, 'paid');
+                      ref.read(socketServiceProvider).socket?.emit('ride_payment', {
+                        'rideId': booking.id,
+                        'bookingId': booking.id,
+                        'paymentStatus': 'paid',
+                        'paymentMethod': 'cash',
+                        'amount': booking.fare,
+                      });
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.payments, size: 18),
+                    label: const Text('MARK CASH PAID'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showCompleteTripDialog(context, ref, booking),
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('COMPLETE TRIP'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.neonGreen,
+                      foregroundColor: AppTheme.darkBg,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
         const SizedBox(height: 16),
         Row(
           children: [
@@ -780,6 +926,79 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  void _showEnterOtpDialog(BuildContext context, WidgetRef ref, BookingModel booking) {
+    final otpController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.darkSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Enter Customer OTP', style: TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter the 4-digit start OTP provided by the user to begin ride:', 
+              style: TextStyle(color: AppTheme.darkTextSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              textAlign: TextAlign.center,
+              autofocus: true,
+              style: const TextStyle(color: AppTheme.neonGreen, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 8),
+              decoration: const InputDecoration(
+                hintText: '••••',
+                hintStyle: TextStyle(color: Colors.white24, letterSpacing: 8),
+                counterText: '',
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.darkDivider)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.neonGreen)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL', style: TextStyle(color: AppTheme.darkTextSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final otp = otpController.text.trim();
+              if (otp.length < 4) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter 4-digit OTP'), backgroundColor: Colors.red),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              try {
+                await ref.read(bookingControllerProvider.notifier).startTrip(booking.id, otp);
+                await ref.read(bookingProvider.notifier).verifyOtp(booking.id, otp);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Ride started successfully!'), backgroundColor: AppTheme.neonGreen),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to start ride: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.neonGreen, foregroundColor: AppTheme.darkBg),
+            child: const Text('START RIDE'),
+          ),
+        ],
+      ),
     );
   }
 

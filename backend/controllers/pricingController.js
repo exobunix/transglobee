@@ -18,7 +18,7 @@ function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
   return parseFloat((distanceKm * 1.25).toFixed(2));
 }
 
-// Default Seed Categories for Cab, Shuttle, and Logistics Services
+// Default Seed Categories for Cab, Shuttle, and 4 Logistics Modes
 const DEFAULT_PRICING_CONFIGS = [
   {
     vehicleCategoryId: "cab_01",
@@ -53,8 +53,8 @@ const DEFAULT_PRICING_CONFIGS = [
     isActive: true,
   },
   {
-    vehicleCategoryId: "logistics_03",
-    categoryName: "Logistics Service",
+    vehicleCategoryId: "logistics_truck",
+    categoryName: "Truck Logistics",
     capacity: 2,
     baseFare: 120,
     baseDistanceKm: 3.0,
@@ -62,11 +62,62 @@ const DEFAULT_PRICING_CONFIGS = [
     perMinuteRate: 2.0,
     minBookingFare: 150,
     cancellationFee: 50,
-    surgeMultiplier: 1.1,
+    surgeMultiplier: 1.0,
     nightChargePercentage: 15,
     helperCost: 800,
-    tagline: "Goods delivery & freight transport",
+    tagline: "Goods delivery & freight mini trucks",
     icon: "truck",
+    isActive: true,
+  },
+  {
+    vehicleCategoryId: "logistics_train",
+    categoryName: "Train Cargo",
+    capacity: 500,
+    baseFare: 250,
+    baseDistanceKm: 10.0,
+    perKmRate: 12,
+    perMinuteRate: 0.0,
+    minBookingFare: 300,
+    cancellationFee: 80,
+    surgeMultiplier: 1.0,
+    nightChargePercentage: 0,
+    helperCost: 600,
+    tagline: "Railway express parcel & freight transit",
+    icon: "train",
+    isActive: true,
+  },
+  {
+    vehicleCategoryId: "logistics_sea",
+    categoryName: "Sea Cargo",
+    capacity: 2000,
+    baseFare: 800,
+    baseDistanceKm: 50.0,
+    perKmRate: 8,
+    perMinuteRate: 0.0,
+    minBookingFare: 1000,
+    cancellationFee: 200,
+    surgeMultiplier: 1.0,
+    nightChargePercentage: 0,
+    helperCost: 1200,
+    tagline: "Port-to-port ocean container shipping",
+    icon: "directions_boat",
+    isActive: true,
+  },
+  {
+    vehicleCategoryId: "logistics_flight",
+    categoryName: "Flight Cargo",
+    capacity: 200,
+    baseFare: 1500,
+    baseDistanceKm: 100.0,
+    perKmRate: 60,
+    perMinuteRate: 0.0,
+    minBookingFare: 2000,
+    cancellationFee: 500,
+    surgeMultiplier: 1.0,
+    nightChargePercentage: 0,
+    helperCost: 500,
+    tagline: "High-speed air freight cargo delivery",
+    icon: "flight",
     isActive: true,
   },
 ];
@@ -77,7 +128,7 @@ const DEFAULT_PRICING_CONFIGS = [
  */
 exports.estimateFare = async (req, res) => {
   try {
-    const { pickup, dropoff, distanceKm: reqDistance, durationMins: reqDuration } = req.body;
+    const { pickup, dropoff, distanceKm: reqDistance, durationMins: reqDuration, serviceType, mode } = req.body;
 
     if (!pickup || !dropoff || pickup.lat == null || dropoff.lat == null) {
       return res.status(400).json({
@@ -117,14 +168,43 @@ exports.estimateFare = async (req, res) => {
     let configs = [];
     if (mongoose.connection.readyState === 1) {
       try {
-        configs = await PricingConfig.find({ isActive: true }).maxTimeMS(2000);
+        const query = { isActive: true };
+        if (mode) {
+          query.$or = [
+            { categoryName: new RegExp(mode, 'i') },
+            { vehicleCategoryId: new RegExp(mode, 'i') }
+          ];
+        } else if (serviceType === 'cab') {
+          query.$or = [
+            { categoryName: /cab|sedan|suv|taxi/i },
+            { vehicleCategoryId: /cab/i }
+          ];
+        } else if (serviceType === 'logistics') {
+          query.$or = [
+            { categoryName: /logistics|truck|train|cargo|flight|sea/i },
+            { vehicleCategoryId: /logistics/i }
+          ];
+        }
+        configs = await PricingConfig.find(query).maxTimeMS(2000);
       } catch (dbErr) {
         console.log("DB lookup error, fallback to default pricing configs:", dbErr.message);
       }
     }
 
     if (!configs || configs.length === 0) {
-      configs = DEFAULT_PRICING_CONFIGS;
+      if (mode) {
+        configs = DEFAULT_PRICING_CONFIGS.filter(c => 
+          c.categoryName.toLowerCase().includes(mode.toLowerCase()) || 
+          c.vehicleCategoryId.toLowerCase().includes(mode.toLowerCase())
+        );
+      } else if (serviceType === 'cab') {
+        configs = DEFAULT_PRICING_CONFIGS.filter(c => c.vehicleCategoryId.includes('cab'));
+      } else if (serviceType === 'logistics') {
+        configs = DEFAULT_PRICING_CONFIGS.filter(c => c.vehicleCategoryId.includes('logistics'));
+      }
+      if (!configs || configs.length === 0) {
+        configs = DEFAULT_PRICING_CONFIGS;
+      }
     }
 
     const now = new Date();

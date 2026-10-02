@@ -90,8 +90,27 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
     final dateStr = dateObj != null
         ? '${dateObj.day}/${dateObj.month}/${dateObj.year}'
         : (ride['date'] ?? 'N/A');
-    final price =
-        ride['totalPrice'] ?? ride['fare'] ?? ride['estimatedFare'] ?? 0.0;
+
+    final rawPrice = ride['fare'] ??
+        ride['totalPrice'] ??
+        ride['estimatedFare'] ??
+        ride['price'] ??
+        rideModel.fare;
+    double parsedPrice = double.tryParse(rawPrice?.toString() ?? '0') ?? 0.0;
+    if (parsedPrice == 0.0 && (label == 'CAB' || label == 'RIDE')) {
+      final dist = (ride['distance'] is num)
+          ? (ride['distance'] as num).toDouble()
+          : (double.tryParse(ride['distance']?.toString() ?? '0') ?? 0.0);
+      if (dist > 0) {
+        parsedPrice = (50.0 + (dist * 15.0)).roundToDouble();
+      } else {
+        parsedPrice = 147.0;
+      }
+    }
+
+    final String displayPrice = label == 'LOGISTICS'
+        ? 'Corporate Managed'
+        : '₹${parsedPrice.toStringAsFixed(0)}';
 
     IconData icon = Icons.directions_car;
     Color color = Colors.blue;
@@ -107,8 +126,8 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
       'date': dateStr,
       'from': pickup,
       'to': drop,
-      'price':
-          '₹${(double.tryParse(price.toString()) ?? 0.0).toStringAsFixed(2)}',
+      'price': displayPrice,
+      'rawPrice': parsedPrice,
       'type': label,
       'icon': icon,
       'color': color,
@@ -324,9 +343,9 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      "Total Fare (Paid via Cash)",
-                      style: TextStyle(
+                    Text(
+                      ride['type'] == 'LOGISTICS' ? "Billing Type" : "Total Fare",
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: Colors.black54,
@@ -335,7 +354,7 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
                     Text(
                       ride['price'],
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF0F4A2C),
                       ),

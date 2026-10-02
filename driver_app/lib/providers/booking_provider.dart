@@ -286,6 +286,13 @@ class BookingNotifier extends Notifier<List<BookingModel>> {
     print('>>> Updated fare for booking $id to ₹$newFare');
   }
 
+  void updatePaymentStatus(String id, String paymentStatus) {
+    state = state
+        .map((b) => b.id == id ? b.copyWith(paymentStatus: paymentStatus) : b)
+        .toList();
+    print('>>> Updated paymentStatus for booking $id to $paymentStatus');
+  }
+
   // ─── Status updates ───────────────────────────────────────────────────────
   Future<void> updateStatus(String id, String newStatus,
       {double? actualFare}) async {

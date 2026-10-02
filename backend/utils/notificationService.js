@@ -57,17 +57,28 @@ const sendPushNotification = async (tokens, payload) => {
     }
 };
 
-const notifyAllDrivers = async (payload) => {
+const Notification = require('../models/Notification');
+
+const notifyAllDrivers = async (payload, io) => {
     try {
-        const onlineDrivers = await Driver.find({ isOnline: true }).select('fcmToken');
+        const onlineDrivers = await Driver.find({ isOnline: true }).select('fcmToken uid firebaseId _id');
         const tokens = onlineDrivers.map(d => d.fcmToken).filter(t => t);
         await sendPushNotification(tokens, payload);
+
+        if (io) {
+            io.to('drivers').emit('new_notification', {
+                title: payload.title,
+                body: payload.body,
+                data: payload.data || {},
+                createdAt: new Date()
+            });
+        }
     } catch (error) {
         console.error('Error in notifyAllDrivers:', error);
     }
 };
 
-const notifyDriver = async (driverId, payload) => {
+const notifyDriver = async (driverId, payload, io) => {
     try {
         const normalizedId = driverId?.toString?.() || '';
         if (!normalizedId) return;
@@ -82,6 +93,39 @@ const notifyDriver = async (driverId, payload) => {
             }).select('fcmToken uid firebaseId');
         }
 
+        // Save in-app notification in DB
+        try {
+            await Notification.create({
+                userId: normalizedId,
+                role: 'driver',
+                title: payload.title,
+                body: payload.body,
+                data: payload.data || {},
+                type: payload.data?.type || 'ride',
+                isRead: false
+            });
+        } catch (dbErr) {
+            console.warn('Error creating driver notification document:', dbErr.message);
+        }
+
+        // Emit real-time drawer notification via socket
+        if (io) {
+            io.to(normalizedId).emit('new_notification', {
+                title: payload.title,
+                body: payload.body,
+                data: payload.data || {},
+                createdAt: new Date()
+            });
+            if (driver?.uid) {
+                io.to(driver.uid).emit('new_notification', {
+                    title: payload.title,
+                    body: payload.body,
+                    data: payload.data || {},
+                    createdAt: new Date()
+                });
+            }
+        }
+
         if (driver && driver.fcmToken) {
             await sendPushNotification([driver.fcmToken], payload);
         }
@@ -90,21 +134,53 @@ const notifyDriver = async (driverId, payload) => {
     }
 };
 
-const notifyUser = async (userId, payload) => {
+const notifyUser = async (userId, payload, io) => {
     try {
         const normalizedUserId = userId?.toString?.() || '';
         if (!normalizedUserId) return;
 
         let user = null;
         if (mongoose.Types.ObjectId.isValid(normalizedUserId)) {
-            user = await User.findById(normalizedUserId).select('fcmToken uid');
+            user = await User.findById(normalizedUserId).select('fcmToken uid firebaseId');
         }
 
-        // Support Firebase UID/string identifiers used by multiple booking flows.
         if (!user) {
             user = await User.findOne({
                 $or: [{ uid: normalizedUserId }, { firebaseId: normalizedUserId }],
-            }).select('fcmToken uid');
+            }).select('fcmToken uid firebaseId');
+        }
+
+        // Save in-app notification in DB
+        try {
+            await Notification.create({
+                userId: normalizedUserId,
+                role: 'user',
+                title: payload.title,
+                body: payload.body,
+                data: payload.data || {},
+                type: payload.data?.type || 'ride',
+                isRead: false
+            });
+        } catch (dbErr) {
+            console.warn('Error creating user notification document:', dbErr.message);
+        }
+
+        // Emit real-time drawer notification via socket
+        if (io) {
+            io.to(normalizedUserId).emit('new_notification', {
+                title: payload.title,
+                body: payload.body,
+                data: payload.data || {},
+                createdAt: new Date()
+            });
+            if (user?.uid) {
+                io.to(user.uid).emit('new_notification', {
+                    title: payload.title,
+                    body: payload.body,
+                    data: payload.data || {},
+                    createdAt: new Date()
+                });
+            }
         }
 
         if (user && user.fcmToken) {
@@ -115,7 +191,21 @@ const notifyUser = async (userId, payload) => {
     }
 };
 
-const notifyAdmin = (io, payload) => {
+const notifyAdmin = async (io, payload) => {
+    try {
+        await Notification.create({
+            userId: 'admin',
+            role: 'admin',
+            title: payload.title,
+            body: payload.body,
+            data: payload.data || {},
+            type: payload.data?.type || 'booking',
+            isRead: false
+        });
+    } catch (dbErr) {
+        console.warn('Error creating admin notification document:', dbErr.message);
+    }
+
     if (!io) return;
     try {
         io.to('admin').emit('admin_notification', {
@@ -123,6 +213,12 @@ const notifyAdmin = (io, payload) => {
             body: payload.body,
             data: payload.data || {},
             timestamp: new Date()
+        });
+        io.to('admin').emit('new_notification', {
+            title: payload.title,
+            body: payload.body,
+            data: payload.data || {},
+            createdAt: new Date()
         });
     } catch (e) {
         console.error('Error in notifyAdmin:', e);

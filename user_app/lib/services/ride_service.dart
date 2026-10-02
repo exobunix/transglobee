@@ -197,15 +197,17 @@ class RideService {
     required String driverId,
     required int rating,
     required String comment,
+    List<String>? tags,
   }) async {
     await _apiService.postWithFallback(
       _ridePath('/$bookingId/rate'),
       _legacyRidePath('/review'),
       {
-      'bookingId': bookingId,
-      'driverId': driverId,
-      'rating': rating,
-      'comment': comment,
+        'bookingId': bookingId,
+        'driverId': driverId,
+        'rating': rating,
+        'comment': comment,
+        if (tags != null) 'tags': tags,
       },
     );
   }

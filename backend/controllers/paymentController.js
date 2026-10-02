@@ -600,15 +600,16 @@ exports.getDriverEarnings = async (req, res) => {
                 .lean(),
         ]);
 
-        const sumRides = (cabs, logistics) =>
-            [...cabs, ...logistics].reduce((acc, ride) => acc + getRideEarning(ride), 0);
+        // As requested: Only Cab bookings are added to driver earnings; logistics bookings are excluded
+        const sumRides = (cabs) =>
+            cabs.reduce((acc, ride) => acc + getRideEarning(ride), 0);
 
-        const todayEarnings = sumRides(todayCabs, todayLogistics);
-        const weeklyEarnings = sumRides(weekCabs, weekLogistics);
-        const monthlyEarnings = sumRides(monthCabs, monthLogistics);
-        const totalEarnings = sumRides(allCabs, allLogistics);
+        const todayEarnings = sumRides(todayCabs);
+        const weeklyEarnings = sumRides(weekCabs);
+        const monthlyEarnings = sumRides(monthCabs);
+        const totalEarnings = sumRides(allCabs);
 
-        const weekRides = [...weekCabs, ...weekLogistics];
+        const weekRides = [...weekCabs];
         const weeklyCompletedRides = weekRides.length;
 
         const dayLabels = ['Su', 'M', 'T', 'W', 'Th', 'F', 'Sa'];

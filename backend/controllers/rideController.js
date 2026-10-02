@@ -1673,11 +1673,15 @@ exports.updateFare = async (req, res) => {
 
 exports.submitReview = async (req, res) => {
     try {
-        const { bookingId, driverId, rating, comment, tags } = req.body;
+        const bookingId = req.body.bookingId || req.body.rideId || req.params?.rideId;
+        const { driverId, rating, comment, tags } = req.body;
+        const fromId = req.user?.id || req.user?._id || req.user?.uid || req.body.userId || 'guest_user';
+        const targetDriverId = driverId || req.body.driverId || 'unassigned_driver';
+
         const review = await Review.create({
-            bookingId,
-            fromId: req.user.id || req.user._id, // User ID from token
-            toId: driverId,
+            bookingId: bookingId || 'unknown_booking',
+            fromId,
+            toId: targetDriverId,
             onModel: 'Driver',
             rating: Number(rating) || 5,
             comment: comment || '',
@@ -1696,30 +1700,40 @@ exports.submitReview = async (req, res) => {
         const LogisticsBooking = require('../models/LogisticsBooking');
         const ShuttleBooking = require('../models/ShuttleBooking');
 
-        await History.findByIdAndUpdate(bookingId, { review: reviewData });
-        await LogisticsBooking.findByIdAndUpdate(bookingId, { review: reviewData });
-        await ShuttleBooking.findByIdAndUpdate(bookingId, { review: reviewData });
+        if (bookingId) {
+            await History.findByIdAndUpdate(bookingId, { review: reviewData });
+            await LogisticsBooking.findByIdAndUpdate(bookingId, { review: reviewData });
+            await ShuttleBooking.findByIdAndUpdate(bookingId, { review: reviewData });
+        }
 
         // Update driver stats
         const Driver = require('../models/Driver');
-        if (driverId) {
-            const allReviews = await Review.find({ toId: driverId });
+        if (targetDriverId && targetDriverId !== 'unassigned_driver') {
+            const allReviews = await Review.find({ toId: targetDriverId });
             const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / (allReviews.length || 1);
             await Driver.findOneAndUpdate(
-                { $or: [{ _id: driverId }, { uid: driverId }, { firebaseId: driverId }] },
+                { $or: [{ _id: targetDriverId }, { uid: targetDriverId }, { firebaseId: targetDriverId }] },
                 { rating: avgRating.toFixed(1), reviewsCount: allReviews.length }
             );
         }
 
+        if (req.io && bookingId) {
+            req.io.to(bookingId.toString()).emit("review_submitted", {
+                bookingId: bookingId.toString(),
+                review: reviewData
+            });
+        }
+
         res.status(201).json({ success: true, data: review, message: "Review submitted successfully" });
     } catch (error) {
+        console.error("[submitReview] Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
 exports.payRide = async (req, res) => {
     try {
-        const { rideId } = req.params;
+        const rideId = req.params.rideId || req.body.rideId;
         let ride = await History.findById(rideId);
         let isLogistics = false;
         if (!ride) {
@@ -1729,14 +1743,7 @@ exports.payRide = async (req, res) => {
         }
         if (!ride) return res.status(404).json({ success: false, message: "Ride not found" });
 
-        // User cannot make payment until driver completes booking
-        if (!['completed', 'delivered'].includes(ride.status)) {
-            return res.status(400).json({
-                success: false,
-                message: "Payment can only be made after the ride has been completed by the driver."
-            });
-        }
-
+        // Allow payment anytime during or after ride
         ride.paymentStatus = 'paid';
         await ride.save();
 
@@ -1744,16 +1751,23 @@ exports.payRide = async (req, res) => {
             // Signal to everyone in the ride room (User AND Driver)
             req.io.to(ride._id.toString()).emit("ride_status_update", {
                 rideId: ride._id.toString(),
+                status: ride.status,
                 paymentStatus: 'paid'
             });
-            // Specific signal to driver to show feedback or QR
-            req.io.to(ride._id.toString()).emit("payment_requested", {
+            // Specific signal to driver that payment is received
+            req.io.to(ride._id.toString()).emit("payment_received", {
                 rideId: ride._id.toString(),
-                amount: ride.fare || ride.totalPrice
+                amount: ride.fare || ride.totalPrice,
+                paymentStatus: 'paid'
+            });
+            req.io.emit("payment_requested", {
+                rideId: ride._id.toString(),
+                amount: ride.fare || ride.totalPrice,
+                paymentStatus: 'paid'
             });
         }
 
-        res.json({ success: true, message: "Payment successful", ride });
+        res.json({ success: true, message: "Payment successful", ride, paymentStatus: 'paid' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

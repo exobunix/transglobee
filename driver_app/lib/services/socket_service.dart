@@ -101,7 +101,12 @@ class SocketService {
 
     _socket?.on("payment_requested", (data) {
        print("Payment Requested via Socket: $data");
-       _paymentRequestedController.add(Map<String, dynamic>.from(data));
+       if (data is Map) _paymentRequestedController.add(Map<String, dynamic>.from(data));
+    });
+
+    _socket?.on("payment_received", (data) {
+       print("Payment Received via Socket: $data");
+       if (data is Map) _paymentRequestedController.add(Map<String, dynamic>.from(data));
     });
 
     _socket?.on("ride_status_update", (data) {

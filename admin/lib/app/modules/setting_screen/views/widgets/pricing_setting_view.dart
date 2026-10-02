@@ -55,6 +55,10 @@ class PricingSettingController extends GetxController {
   final List<String> categories = [
     "Cab Service",
     "Shuttle Service",
+    "Truck Logistics",
+    "Train Cargo",
+    "Sea Cargo",
+    "Flight Cargo",
     "Logistics Service"
   ];
 
@@ -83,6 +87,54 @@ class PricingSettingController extends GetxController {
       cancellationFee: 15.0,
       helperCost: 0.0,
     ),
+    "Truck Logistics": ServicePricingModel(
+      serviceName: "Truck Logistics",
+      baseFare: 120.0,
+      baseDistanceKm: 3.0,
+      perKmRate: 25.0,
+      perMinuteRate: 2.0,
+      minBookingFare: 150.0,
+      surgeMultiplier: 1.0,
+      nightChargePercentage: 15.0,
+      cancellationFee: 50.0,
+      helperCost: 800.0,
+    ),
+    "Train Cargo": ServicePricingModel(
+      serviceName: "Train Cargo",
+      baseFare: 250.0,
+      baseDistanceKm: 10.0,
+      perKmRate: 12.0,
+      perMinuteRate: 0.0,
+      minBookingFare: 300.0,
+      surgeMultiplier: 1.0,
+      nightChargePercentage: 0.0,
+      cancellationFee: 80.0,
+      helperCost: 600.0,
+    ),
+    "Sea Cargo": ServicePricingModel(
+      serviceName: "Sea Cargo",
+      baseFare: 800.0,
+      baseDistanceKm: 50.0,
+      perKmRate: 8.0,
+      perMinuteRate: 0.0,
+      minBookingFare: 1000.0,
+      surgeMultiplier: 1.0,
+      nightChargePercentage: 0.0,
+      cancellationFee: 200.0,
+      helperCost: 1200.0,
+    ),
+    "Flight Cargo": ServicePricingModel(
+      serviceName: "Flight Cargo",
+      baseFare: 1500.0,
+      baseDistanceKm: 100.0,
+      perKmRate: 60.0,
+      perMinuteRate: 0.0,
+      minBookingFare: 2000.0,
+      surgeMultiplier: 1.0,
+      nightChargePercentage: 0.0,
+      cancellationFee: 500.0,
+      helperCost: 500.0,
+    ),
     "Logistics Service": ServicePricingModel(
       serviceName: "Logistics Service",
       baseFare: 120.0,
@@ -90,7 +142,7 @@ class PricingSettingController extends GetxController {
       perKmRate: 25.0,
       perMinuteRate: 2.0,
       minBookingFare: 150.0,
-      surgeMultiplier: 1.1,
+      surgeMultiplier: 1.0,
       nightChargePercentage: 15.0,
       cancellationFee: 50.0,
       helperCost: 800.0,
@@ -139,7 +191,7 @@ class PricingSettingController extends GetxController {
                 surgeMultiplier: (item['surgeMultiplier'] ?? 1.0).toDouble(),
                 nightChargePercentage: (item['nightChargePercentage'] ?? 10.0).toDouble(),
                 cancellationFee: (item['cancellationFee'] ?? 30.0).toDouble(),
-                helperCost: item['helperCost'] is num ? (item['helperCost'] as num).toDouble() : (name == "Logistics Service" ? 800.0 : 0.0),
+                helperCost: item['helperCost'] is num ? (item['helperCost'] as num).toDouble() : (name.contains("Logistics") || name.contains("Cargo") ? 800.0 : 0.0),
               );
             }
           }

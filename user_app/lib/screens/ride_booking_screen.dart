@@ -50,6 +50,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   String? _currentRideId;
   String? _currentOtp;
   String? _appliedCoupon;
+  String? _appliedCouponDesc;
   double _discountAmount = 0.0;
 
   double _parseDouble(dynamic val) {
@@ -188,10 +189,10 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
         CameraFit.bounds(
           bounds: bounds,
           padding: const EdgeInsets.only(
-            top: 60,
-            bottom: 300, 
-            left: 30,
-            right: 30,
+            top: 80,
+            bottom: 440, 
+            left: 45,
+            right: 45,
           ),
         ),
       );
@@ -303,19 +304,19 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
       ];
     }
 
-    final authService = ref.read(authServiceProvider);
-    final user = authService.currentUser;
-    final userProfile = ref.read(fullUserProfileProvider).value;
-    final isLoggedIn = (user != null && userProfile != null);
-
-    if (!isLoggedIn) {
+    // Filter cab booking list: strictly only cab options should appear (never shuttle, bus, or logistics)
+    if (widget.serviceType != 'truck') {
       list = list.where((v) {
         final name = (v['name'] ?? '').toString().toLowerCase();
         final id = (v['id'] ?? '').toString().toLowerCase();
         return !name.contains('shuttle') && 
                !name.contains('logistics') && 
+               !name.contains('truck') && 
+               !name.contains('bus') && 
                !id.contains('shuttle') && 
-               !id.contains('logistics');
+               !id.contains('logistics') &&
+               !id.contains('truck') &&
+               !id.contains('bus');
       }).toList();
     }
 
@@ -466,10 +467,14 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
           'latitude': widget.dropoff['lat'],
           'longitude': widget.dropoff['lng'],
         },
-        'vehicleType': _selectedVehicle,
+        'vehicleType': _selectedVehicleData['name'] ?? _selectedVehicle,
+        'subType': _selectedVehicleData['name'] ?? 'Cab Service',
+        'rideMode': _selectedVehicleData['name'] ?? 'Cab Service',
+        'dispatchType': 'CAB',
         'paymentMethod': _paymentMode,
         'distance': _routeDistance,
         'fare': ((num.tryParse(_selectedVehicleData['price'].toString()) ?? 0) - _discountAmount).clamp(0.0, double.infinity),
+        'originalFare': num.tryParse(_selectedVehicleData['price'].toString()) ?? 0,
         if (_appliedCoupon != null) 'couponCode': _appliedCoupon,
         if (_discountAmount > 0) 'discountAmount': _discountAmount,
       });
@@ -651,6 +656,12 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                 Positioned.fill(
                   child: LeafletMap(
                     mapController: _mapController,
+                    fitBoundsPadding: const EdgeInsets.only(
+                      top: 80,
+                      bottom: 440,
+                      left: 45,
+                      right: 45,
+                    ),
                     location: {
                       'lat': _parseDouble(widget.pickup['lat']),
                       'lng': _parseDouble(widget.pickup['lng']),
@@ -666,8 +677,8 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                     markers: [
                       Marker(
                         point: pickupPos,
-                        width: 220,
-                        height: 60,
+                        width: 200,
+                        height: 64,
                         child: _buildMapLabel(
                           widget.pickup['name'] ?? 'Pickup',
                           true,
@@ -675,8 +686,8 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                       ),
                       Marker(
                         point: dropoffPos,
-                        width: 220,
-                        height: 60,
+                        width: 200,
+                        height: 64,
                         child: _buildMapLabel(
                           widget.dropoff['name'] == 'Current Location' &&
                                   widget.pickup['name'] == 'Current Location'
@@ -784,7 +795,15 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                                 final v = _vehicles[index];
                                 final isSelected = _selectedVehicle == v['id'];
                                 return GestureDetector(
-                                  onTap: () => setState(() => _selectedVehicle = v['id']),
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedVehicle = v['id'];
+                                      if (_appliedCoupon != null) {
+                                        final rawPrice = (num.tryParse(v['price']?.toString() ?? '0') ?? 0).toDouble();
+                                        _discountAmount = _calculateCouponDiscount(_appliedCoupon!, _appliedCouponDesc ?? '', rawPrice);
+                                      }
+                                    });
+                                  },
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -856,46 +875,62 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                                             ],
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            if (_isRouteLoading && v['id'] == 'economy')
-                                              const ShimmerLoading(width: 50, height: 18)
-                                            else
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
+                                        Builder(
+                                          builder: (context) {
+                                            final rawPrice = (num.tryParse(v['price']?.toString() ?? '0') ?? 0).toDouble();
+                                            final hasDiscount = _appliedCoupon != null && _discountAmount > 0;
+                                            final effectivePrice = hasDiscount ? (rawPrice - _discountAmount).clamp(0.0, double.infinity) : rawPrice;
+
+                                            return Column(
+                                              crossAxisAlignment: CrossAxisAlignment.end,
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                if (_isRouteLoading && v['id'] == 'economy')
+                                                  const ShimmerLoading(width: 50, height: 18)
+                                                else
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        hasDiscount ? "₹${effectivePrice.toInt()}" : "₹${v['price']}", 
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.w900, 
+                                                          fontSize: 18,
+                                                          color: hasDiscount ? const Color(0xFF0F4A2C) : Colors.black87,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      GestureDetector(
+                                                        onTap: () => _showFareBreakdownSheet(context, v),
+                                                        child: const Icon(
+                                                          Icons.info_outline,
+                                                          size: 15,
+                                                          color: Color(0xFF0F4A2C),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                if (hasDiscount)
                                                   Text(
-                                                    "₹${v['price']}", 
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.w900, 
-                                                      fontSize: 18,
-                                                      color: Colors.black87,
+                                                    "₹${rawPrice.toInt()}", 
+                                                    style: TextStyle(
+                                                      color: Colors.grey[500], 
+                                                      fontSize: 11, 
+                                                      decoration: TextDecoration.lineThrough,
+                                                    ),
+                                                  )
+                                                else if (v['oldPrice'] != null)
+                                                  Text(
+                                                    "₹${v['oldPrice']}", 
+                                                    style: TextStyle(
+                                                      color: Colors.grey[400], 
+                                                      fontSize: 11, 
+                                                      decoration: TextDecoration.lineThrough,
                                                     ),
                                                   ),
-                                                  const SizedBox(width: 4),
-                                                  GestureDetector(
-                                                    onTap: () => _showFareBreakdownSheet(context, v),
-                                                    child: const Icon(
-                                                      Icons.info_outline,
-                                                      size: 15,
-                                                      color: Color(0xFF0F4A2C),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            if (v['oldPrice'] != null)
-                                              Text(
-                                                "₹${v['oldPrice']}", 
-                                                style: TextStyle(
-                                                  color: Colors.grey[400], 
-                                                  fontSize: 11, 
-                                                  decoration: TextDecoration.lineThrough,
-                                                ),
-                                              ),
-                                          ],
+                                              ],
+                                            );
+                                          },
                                         ),
                                       ],
                                     ),
@@ -984,14 +1019,23 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: Text(
-                                _isSearching
-                                    ? "Searching..."
-                                    : "Choose ${_selectedVehicleData['name']}",
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                              child: Builder(
+                                builder: (context) {
+                                  final selRaw = (num.tryParse(_selectedVehicleData['price']?.toString() ?? '0') ?? 0).toDouble();
+                                  final selFinal = (_appliedCoupon != null && _discountAmount > 0)
+                                      ? (selRaw - _discountAmount).clamp(0.0, double.infinity)
+                                      : selRaw;
+
+                                  return Text(
+                                    _isSearching
+                                        ? "Searching..."
+                                        : "Choose ${_selectedVehicleData['name']} • ₹${selFinal.toInt()}",
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ),
@@ -1011,121 +1055,72 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   }
 
   Widget _buildMapLabel(String name, bool isPickup) {
-    if (isPickup) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
+    final cleanName = name.split(',')[0].trim();
+    final badgeColor = isPickup ? const Color(0xFF0F4A2C) : const Color(0xFFD32F2F);
+    final letter = isPickup ? "A" : "B";
+    final labelPrefix = isPickup ? "Pickup" : "Drop";
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: badgeColor, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  shape: BoxShape.circle,
                 ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    border: Border(right: BorderSide(color: Colors.white.withOpacity(0.2), width: 1)),
-                  ),
-                  child: const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text("2", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900)),
-                      Text("min", style: TextStyle(color: Colors.white, fontSize: 8)),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            "From ${name.split(',')[0]}",
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right, color: Colors.white, size: 14),
-                      ],
+                child: Center(
+                  child: Text(
+                    letter,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          Container(width: 2, height: 6, color: Colors.black),
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-            ),
-          ),
-        ],
-      );
-    } else {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    "To ${name.split(',')[0]}",
-                    style: const TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  "$labelPrefix: $cleanName",
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
-                const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, color: Colors.black, size: 14),
-              ],
-            ),
+              ),
+            ],
           ),
-          Container(width: 2, height: 6, color: Colors.black),
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              shape: BoxShape.rectangle,
-              border: Border.all(color: Colors.white, width: 2),
-            ),
-          ),
-        ],
-      );
-    }
+        ),
+        Icon(
+          Icons.arrow_drop_down,
+          color: badgeColor,
+          size: 16,
+        ),
+      ],
+    );
   }
 
   void _showPaymentPicker() {
@@ -1377,6 +1372,7 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
         onPressed: () {
           setState(() {
             _appliedCoupon = code;
+            _appliedCouponDesc = desc;
             _discountAmount = discount;
           });
           Navigator.pop(context);

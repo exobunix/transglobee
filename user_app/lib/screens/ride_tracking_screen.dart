@@ -186,22 +186,26 @@ bool _isSheetOpen = true;
   }
 
   bool get _shouldShowOtp {
-    if ((_startOtp != null && _startOtp!.isNotEmpty) || (_endOtp != null && _endOtp!.isNotEmpty)) {
-      return true;
-    }
-    if (_driver['otp'] == '----' || _driver['otp'].toString().isEmpty) {
+    final currentOtp = _driver['otp']?.toString().trim() ?? '';
+    // If the OTP is blank or dashes, never show the OTP box
+    if (currentOtp.isEmpty || currentOtp == '----' || currentOtp.contains('-')) {
       return false;
     }
+
+    final isLogistics = _segments.isNotEmpty ||
+        widget.vehicle['name']?.toString().toLowerCase().contains('shuttle') == true ||
+        widget.vehicle['name']?.toString().toLowerCase().contains('truck') == true ||
+        widget.vehicle['name']?.toString().toLowerCase().contains('cargo') == true;
+
+    // For ongoing rides, cab rides do NOT need OTP; only multi-stop/delivery with endOtp
+    if (['ongoing', 'in_transit'].contains(_rawStatus)) {
+      return isLogistics && _endOtp != null && _endOtp!.isNotEmpty && _endOtp != '----';
+    }
+
     if (['accepted', 'on_the_way', 'arrived'].contains(_rawStatus)) {
       return true;
     }
-    if (['ongoing', 'in_transit'].contains(_rawStatus)) {
-      final isLogisticsOrShuttle = _segments.isNotEmpty ||
-          widget.vehicle['name']?.toString().toLowerCase().contains('shuttle') == true ||
-          widget.vehicle['name']?.toString().toLowerCase().contains('truck') == true ||
-          widget.vehicle['name']?.toString().toLowerCase().contains('cargo') == true;
-      return isLogisticsOrShuttle;
-    }
+
     return false;
   }
 
@@ -436,6 +440,8 @@ bool _isSheetOpen = true;
     });
   }
 
+  bool _isPaying = false;
+
   void _navigateToRating() {
     if (_hasNavigatedToRating || !mounted) return;
     _hasNavigatedToRating = true;
@@ -446,6 +452,46 @@ bool _isSheetOpen = true;
         builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
       ),
     );
+  }
+
+  Future<void> _processPayment(String method) async {
+    setState(() => _isPaying = true);
+    try {
+      final repo = ref.read(restApiRepositoryProvider);
+      await repo.payRide(widget.rideId, {
+        'paymentMethod': method,
+        'amount': _currentFare,
+      });
+
+      ref.read(socketServiceProvider).emit('ride_payment', {
+        'rideId': widget.rideId,
+        'bookingId': widget.rideId,
+        'paymentStatus': 'paid',
+        'paymentMethod': method,
+        'amount': _currentFare,
+      });
+
+      setState(() {
+        _paymentStatus = 'paid';
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment of ₹${_currentFare.toStringAsFixed(0)} via ${method.toUpperCase()} completed!'),
+            backgroundColor: const Color(0xFF0F4A2C),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Payment: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPaying = false);
+    }
   }
 
   Future<void> _fetchDriverAndRideDetails() async {
@@ -692,7 +738,34 @@ bool _isSheetOpen = true;
     controller.forward();
   }
 
+  bool get _isBusBooking {
+    final vName = widget.vehicle['name']?.toString().toLowerCase() ?? '';
+    final vType = widget.vehicle['type']?.toString().toLowerCase() ?? '';
+    final rawType = widget.vehicle['category']?.toString().toLowerCase() ?? '';
+    final bType = widget.rideMode.toLowerCase();
+    return vName.contains('bus') || vType.contains('bus') || vName.contains('shuttle') || 
+           rawType.contains('shuttle') || bType.contains('bus') || bType.contains('shuttle');
+  }
+
   String _mapStatusLabel(String status) {
+    if (_isBusBooking) {
+      switch (status.toLowerCase()) {
+        case 'pending':
+          return 'Bus Booking Confirmed (Driver Assignment)';
+        case 'accepted':
+          return 'Bus Driver Assigned (Tracking Active)';
+        case 'on_the_way':
+          return 'Bus On The Way • 30m Live Tracking';
+        case 'arrived':
+          return 'Bus Arrived at Boarding Point';
+        case 'ongoing':
+          return 'Bus Trip in Progress';
+        case 'completed':
+          return 'Bus Trip Completed';
+        case 'cancelled':
+          return 'Bus Booking Cancelled';
+      }
+    }
     switch (status.toLowerCase()) {
       case 'accepted':
         return 'Driver Accepted';
@@ -1552,15 +1625,15 @@ DraggableScrollableSheet(
                  ),
 
                 if (_segments.isEmpty) ...[
-                  const Divider(height: 48),
+                  const Divider(height: 32),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        "ESTIMATED FARE: ",
+                        "Trip Fare:",
                         style: TextStyle(
                           color: Colors.grey,
-                          fontSize: 12,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1574,9 +1647,101 @@ DraggableScrollableSheet(
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  if (_paymentStatus == 'paid')
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.shade600, width: 1.5),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            "Payment Received • ₹${_currentFare.toStringAsFixed(0)}",
+                            style: const TextStyle(
+                              color: Color(0xFF1B5E20),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: context.theme.cardColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                "Make Payment",
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  "WAITING PAYMENT",
+                                  style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _isPaying ? null : () => _processPayment('online'),
+                                  icon: const Icon(Icons.payment, size: 16),
+                                  label: const Text("Pay Online"),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF0F4A2C),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _isPaying ? null : () => _processPayment('cash'),
+                                  icon: const Icon(Icons.money, size: 16),
+                                  label: const Text("Pay Cash"),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: context.colors.textPrimary,
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
 
                 // Action Buttons

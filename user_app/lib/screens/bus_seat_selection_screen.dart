@@ -47,6 +47,12 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
   late int _totalCapacity;
   Map<String, dynamic>? _backendSeatLayout;
 
+  late String _scheduleType; // 'particular_dates', 'this_month', 'permanent'
+  late Set<String> _selectedTimings;
+  late List<String> _availableTimings;
+  int _particularDaysCount = 1;
+  final Set<DateTime> _selectedDates = {};
+
   double get effectiveFarePerSeat {
     if (widget.farePerSeat > 0) return widget.farePerSeat;
     final adminPrice = (widget.vehicle['pricePerSeat'] as num?)?.toDouble() ??
@@ -57,12 +63,74 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
     return 50.0;
   }
 
+  int get _calculatedDaysCount {
+    if (_scheduleType == 'permanent') {
+      return 26; // 26 corporate monthly contract days
+    } else if (_scheduleType == 'this_month') {
+      final now = DateTime.now();
+      final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
+      final remaining = (lastDayOfMonth - now.day + 1).clamp(1, 31);
+      return remaining;
+    } else {
+      return _selectedDates.isNotEmpty ? _selectedDates.length : _particularDaysCount;
+    }
+  }
+
+  double get calculatedTotalFare {
+    final seatCount = widget.isWholeShuttleBooking ? _totalCapacity : (_selectedSeats.isEmpty ? 1 : _selectedSeats.length);
+    final timingsCount = _selectedTimings.isEmpty ? 1 : _selectedTimings.length;
+    final days = _calculatedDaysCount;
+
+    final rawFare = effectiveFarePerSeat * seatCount * timingsCount * days;
+    if (_scheduleType == 'this_month') {
+      return (rawFare * 0.85).roundToDouble(); // 15% discount for monthly pass
+    } else if (_scheduleType == 'permanent') {
+      return (rawFare * 0.80).roundToDouble(); // 20% discount for permanent corporate contract
+    }
+    return rawFare.roundToDouble();
+  }
+
+  double get calculatedDailyFare {
+    final seatCount = widget.isWholeShuttleBooking ? _totalCapacity : (_selectedSeats.isEmpty ? 1 : _selectedSeats.length);
+    final timingsCount = _selectedTimings.isEmpty ? 1 : _selectedTimings.length;
+    return (effectiveFarePerSeat * seatCount * timingsCount).roundToDouble();
+  }
+
   @override
   void initState() {
     super.initState();
     _totalCapacity = (widget.vehicle['passengerCapacity'] as num?)?.toInt() ?? 24;
     if (_totalCapacity <= 0) _totalCapacity = 24;
     
+    _scheduleType = widget.charterType.isNotEmpty && widget.charterType != 'individual'
+        ? widget.charterType
+        : 'particular_dates';
+    if (_scheduleType == 'particular_days') _scheduleType = 'particular_dates';
+    _particularDaysCount = widget.charterDays > 0 ? widget.charterDays : 1;
+
+    final departures = (widget.vehicle['departureTimings'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [];
+    _availableTimings = departures.isNotEmpty
+        ? List<String>.from(departures)
+        : ['07:30 AM', '08:30 AM', '01:30 PM', '05:30 PM', '09:30 PM'];
+    if (!_availableTimings.contains(widget.selectedTiming)) {
+      _availableTimings.insert(0, widget.selectedTiming);
+    }
+    _selectedTimings = {widget.selectedTiming};
+
+    try {
+      final parsedDate = DateTime.tryParse(widget.selectedDate);
+      if (parsedDate != null) {
+        _selectedDates.add(parsedDate);
+      } else {
+        _selectedDates.add(DateTime.now());
+      }
+    } catch (_) {
+      _selectedDates.add(DateTime.now());
+    }
+
     if (widget.isWholeShuttleBooking) {
       for (int i = 1; i <= _totalCapacity; i++) {
         _selectedSeats.add('$i');
@@ -174,9 +242,8 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
     final sortedSeats = widget.isWholeShuttleBooking
         ? List.generate(_totalCapacity, (i) => '${i + 1}')
         : (_selectedSeats.toList()..sort());
-    final totalFare = widget.isWholeShuttleBooking
-        ? (widget.wholeShuttleFare > 0 ? widget.wholeShuttleFare : effectiveFarePerSeat * _totalCapacity)
-        : (effectiveFarePerSeat * sortedSeats.length);
+    final totalFare = calculatedTotalFare;
+    final dailyFare = calculatedDailyFare;
     final distance = (widget.route['distance'] as num?)?.toDouble() ?? 10.0;
 
     final pickup = widget.pickup ?? {
@@ -202,21 +269,22 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
         'vehicleId': widget.vehicle['_id'],
         'routeId': widget.route['_id'],
         'fare': totalFare,
-        'vehiclePrice': widget.isWholeShuttleBooking ? totalFare : effectiveFarePerSeat,
+        'vehiclePrice': dailyFare,
         'totalPrice': totalFare,
         'distance': distance,
         'distanceKm': distance,
-        'departureTime': widget.selectedTiming,
+        'departureTime': _selectedTimings.join(', '),
+        'departureTimings': _selectedTimings.toList(),
         'selectedDate': widget.selectedDate,
         'selectedSeats': sortedSeats,
         'seatCount': sortedSeats.length,
         'passengerCount': sortedSeats.length,
-        'isCharter': widget.isWholeShuttleBooking,
-        'charterType': widget.charterType,
-        'charterDays': widget.charterDays,
-        'notes': widget.isWholeShuttleBooking
-            ? 'Corporate Charter: Entire Shuttle Bus Reserved for ${widget.charterType}'
-            : 'Individual seat booking',
+        'isCharter': widget.isWholeShuttleBooking || _scheduleType != 'particular_dates',
+        'charterType': _scheduleType,
+        'charterDays': _calculatedDaysCount,
+        'daysCount': _calculatedDaysCount,
+        'selectedTimings': _selectedTimings.toList(),
+        'notes': 'Bus Shuttle Booking: ${_scheduleType.toUpperCase()} • ${sortedSeats.length} seats • ${_selectedTimings.length} departures/day • $_calculatedDaysCount days',
         'travelDate': widget.selectedDate,
         'paymentMethod': 'cash',
         'pickupLocation': {
@@ -483,6 +551,9 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
                 ],
               ),
             ),
+
+            // Schedule & Multiple Daily Timings Card
+            _buildScheduleAndTimingsCard(primaryColor, cardColor, textPrimary, textSecondary),
 
             // Seat Status Legend Bar
             Padding(
@@ -867,6 +938,265 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
     );
   }
 
+  Widget _buildScheduleAndTimingsCard(
+    Color primaryColor,
+    Color cardColor,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: primaryColor.withValues(alpha: 0.25),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.calendar_month, color: primaryColor, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Schedule & Frequency',
+                    style: TextStyle(
+                      color: textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _scheduleType == 'permanent'
+                      ? '20% Corporate OFF'
+                      : (_scheduleType == 'this_month' ? '15% Month OFF' : 'Standard'),
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          Row(
+            children: [
+              _buildScheduleChip('Particular Dates', 'particular_dates', Icons.today, primaryColor, textPrimary, textSecondary),
+              const SizedBox(width: 6),
+              _buildScheduleChip('This Month', 'this_month', Icons.date_range, primaryColor, textPrimary, textSecondary),
+              const SizedBox(width: 6),
+              _buildScheduleChip('Permanent', 'permanent', Icons.repeat, primaryColor, textPrimary, textSecondary),
+            ],
+          ),
+
+          if (_scheduleType == 'particular_dates') ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Days: ',
+                  style: TextStyle(color: textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+                ...[1, 2, 3, 5, 7, 14, 21].map((count) {
+                  final isSel = _particularDaysCount == count;
+                  return GestureDetector(
+                    onTap: () => setState(() => _particularDaysCount = count),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isSel ? primaryColor : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isSel ? primaryColor : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Text(
+                        '${count}d',
+                        style: TextStyle(
+                          color: isSel ? Colors.white : textPrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ] else if (_scheduleType == 'this_month') ...[
+            const SizedBox(height: 6),
+            Text(
+              '🗓️ Covers remaining $_calculatedDaysCount days of this month (15% Corporate Discount applied)',
+              style: TextStyle(color: Colors.green.shade700, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ] else if (_scheduleType == 'permanent') ...[
+            const SizedBox(height: 6),
+            Text(
+              '🏢 Continuous monthly contract (26 days/mo, 20% Corporate Discount)',
+              style: TextStyle(color: Colors.blue.shade700, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ],
+
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1),
+          ),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.access_time, color: primaryColor, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Daily Timings (${_selectedTimings.length} selected)',
+                    style: TextStyle(
+                      color: textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'Multiple departures daily',
+                style: TextStyle(color: textSecondary, fontSize: 10),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _availableTimings.map((timing) {
+                final isSelected = _selectedTimings.contains(timing);
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        if (_selectedTimings.length > 1) {
+                          _selectedTimings.remove(timing);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('At least one daily timing must be selected.'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        }
+                      } else {
+                        _selectedTimings.add(timing);
+                      }
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isSelected ? primaryColor.withValues(alpha: 0.12) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected ? primaryColor : Colors.grey.shade300,
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isSelected ? Icons.check_box : Icons.check_box_outline_blank,
+                          size: 13,
+                          color: isSelected ? primaryColor : Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          timing,
+                          style: TextStyle(
+                            color: isSelected ? primaryColor : textPrimary,
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleChip(
+    String label,
+    String type,
+    IconData icon,
+    Color primaryColor,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    final isSelected = _scheduleType == type;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _scheduleType = type),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? primaryColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? primaryColor : Colors.grey.shade300,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 14, color: isSelected ? Colors.white : textSecondary),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : textPrimary,
+                  fontSize: 9.5,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomCheckoutBar(
     Color primaryColor,
     Color cardColor,
@@ -874,9 +1204,8 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
     Color textSecondary,
   ) {
     final seatCount = _selectedSeats.length;
-    final totalFare = widget.isWholeShuttleBooking
-        ? (widget.wholeShuttleFare > 0 ? widget.wholeShuttleFare : effectiveFarePerSeat * _totalCapacity)
-        : (effectiveFarePerSeat * seatCount);
+    final totalFare = calculatedTotalFare;
+    final dailyFare = calculatedDailyFare;
     final sortedSeats = _selectedSeats.toList()..sort();
 
     final canBook = !_isPastDeparture && !_isBooking && (widget.isWholeShuttleBooking || seatCount > 0);
@@ -925,7 +1254,7 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
                   const SizedBox(height: 2),
                 ] else if (seatCount > 0) ...[
                   Text(
-                    'Seats: ${sortedSeats.join(", ")}',
+                    'Seats: ${sortedSeats.join(", ")} • ${_selectedTimings.length} trip/day',
                     style: TextStyle(
                       color: primaryColor,
                       fontSize: 12,
@@ -958,9 +1287,7 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
                       ),
                     ),
                     Text(
-                      widget.isWholeShuttleBooking
-                          ? ' (${widget.charterType == 'permanent' ? 'Monthly Contract' : widget.charterType == 'flexible' ? 'Shift Booking' : '${widget.charterDays} Days'})'
-                          : (seatCount > 0 ? ' ($seatCount ${seatCount == 1 ? "seat" : "seats"})' : ''),
+                      ' (₹${dailyFare.toStringAsFixed(0)}/day • $_calculatedDaysCount d)',
                       style: TextStyle(
                         color: textSecondary,
                         fontSize: 11,

@@ -461,4 +461,16 @@ class RestApiRepository {
       (data) => data as Map<String, dynamic>,
     );
   }
+
+  Future<ApiResponse<Map<String, dynamic>>> payRide(String rideId, Map<String, dynamic> body) async {
+    final response = await _api.postWithFallback(
+      '/rides/$rideId/pay',
+      '/ride/$rideId/pay',
+      body,
+    );
+    return ApiResponse<Map<String, dynamic>>.fromJson(
+      response,
+      (data) => data is Map<String, dynamic> ? data : {'result': data},
+    );
+  }
 }

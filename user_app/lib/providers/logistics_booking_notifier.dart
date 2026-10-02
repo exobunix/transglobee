@@ -75,6 +75,10 @@ class LogisticsBookingNotifier extends Notifier<LogisticsBookingState> {
     state = state.copyWith(isBooking: isBooking);
   }
 
+  void setLogisticsMode(String mode) {
+    state = state.copyWith(logisticsMode: mode);
+  }
+
   // Helper getters/computations
   double get helperCostPerPerson {
     final rate = state.selectedVehicleData?.helperCostRate;
@@ -604,6 +608,8 @@ class LogisticsBookingNotifier extends Notifier<LogisticsBookingState> {
         'discount': state.discountAmount,
         'fare': totalPrice,
         'couponCode': state.appliedCoupon,
+        'logisticsMode': state.logisticsMode,
+        'serviceType': state.logisticsMode,
         'pickupAddressDetails': pickupPayload,
         'deliveryAddressDetails': receivedPayload,
         'routeId': state.selectedRoute?.id,

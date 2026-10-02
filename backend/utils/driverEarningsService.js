@@ -59,6 +59,12 @@ async function creditDriverForCompletedBooking({
             };
         }
 
+        // Only Cab booking earnings are added to driver wallet; logistics bookings are excluded
+        if (bookingType === 'logistics' || booking.bookingCategory === 'logistics' || booking.type === 'logistics' || booking.isLogistics) {
+            console.log(`[EARNINGS] Logistics booking ${booking._id} earnings not credited to driver wallet as per policy.`);
+            return null;
+        }
+
         // Calculate fare earned
         const fareEarned = Number(
             actualFare ?? 
