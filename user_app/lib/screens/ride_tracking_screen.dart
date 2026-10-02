@@ -463,7 +463,7 @@ bool _isSheetOpen = true;
         'amount': _currentFare,
       });
 
-      ref.read(socketServiceProvider).emit('ride_payment', {
+      ref.read(socketServiceProvider).socket?.emit('ride_payment', {
         'rideId': widget.rideId,
         'bookingId': widget.rideId,
         'paymentStatus': 'paid',
@@ -742,9 +742,8 @@ bool _isSheetOpen = true;
     final vName = widget.vehicle['name']?.toString().toLowerCase() ?? '';
     final vType = widget.vehicle['type']?.toString().toLowerCase() ?? '';
     final rawType = widget.vehicle['category']?.toString().toLowerCase() ?? '';
-    final bType = widget.rideMode.toLowerCase();
     return vName.contains('bus') || vType.contains('bus') || vName.contains('shuttle') || 
-           rawType.contains('shuttle') || bType.contains('bus') || bType.contains('shuttle');
+           rawType.contains('shuttle');
   }
 
   String _mapStatusLabel(String status) {
@@ -984,21 +983,30 @@ bool _isSheetOpen = true;
               icon: Icons.money,
               title: 'Cash to Driver',
               subtitle: 'Pay directly using cash',
-              onTap: () => _processPayment('Cash'),
+              onTap: () {
+                Navigator.pop(context);
+                _processPayment('Cash');
+              },
             ),
             const Divider(height: 20),
             _paymentModeItem(
               icon: Icons.qr_code_scanner,
               title: 'UPI / QR Scan',
               subtitle: 'Pay using PhonePe, GPay, Paytm etc.',
-              onTap: () => _processPayment('UPI'),
+              onTap: () {
+                Navigator.pop(context);
+                _processPayment('UPI');
+              },
             ),
             const Divider(height: 20),
             _paymentModeItem(
               icon: Icons.credit_card,
               title: 'Credit / Debit Card',
               subtitle: 'Visa, MasterCard, Rupay etc.',
-              onTap: () => _processPayment('Card'),
+              onTap: () {
+                Navigator.pop(context);
+                _processPayment('Card');
+              },
             ),
           ],
         ),
@@ -1026,49 +1034,6 @@ bool _isSheetOpen = true;
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
-  }
-
-  Future<void> _processPayment(String mode) async {
-    Navigator.pop(context); // Close bottom sheet
-    
-    // Perform payment
-    try {
-      // Try to update ride status and notify payment to backend
-      try {
-        await ref.read(rideServiceProvider).updateRideStatus(widget.rideId, _rawStatus); 
-        await ref.read(apiServiceProvider).put('/ride/rides/${widget.rideId}/pay', {
-          'paymentMode': mode,
-        });
-      } catch (backendError) {
-        debugPrint("Backend payment API error (proceeding with offline/client success): $backendError");
-      }
-
-      if (mounted) {
-        setState(() {
-          _paymentStatus = 'paid';
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Payment of ₹${_currentFare.toStringAsFixed(0)} via $mode Successful!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // FeedBack/Rating logic
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted && !_hasNavigatedToRating) {
-            _navigateToRating();
-          }
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Payment Failed: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
   }
 
   void _showCancelDialog() {
