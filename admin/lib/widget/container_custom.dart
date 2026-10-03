@@ -11,13 +11,15 @@ class ContainerCustom extends StatelessWidget {
   final double radius;
   final Color? borderColor;
   final Color? color;
+  final double? width;
 
-  const ContainerCustom({super.key, this.alignment = Alignment.center, this.padding, this.borderColor, this.color, this.child, this.radius = 10, });
+  const ContainerCustom({super.key, this.alignment = Alignment.center, this.padding, this.borderColor, this.color, this.child, this.radius = 10, this.width});
 
   @override
   Widget build(BuildContext context) {
     final themeChange = Provider.of<DarkThemeProvider>(context);
     return Container(
+        width: width,
         alignment: alignment,
         padding: padding ?? paddingEdgeInsets(),
         decoration: BoxDecoration(

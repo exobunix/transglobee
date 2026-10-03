@@ -141,9 +141,11 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                     padding: paddingEdgeInsets(),
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.start, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                         ContainerCustom(
-                          child: Column(children: [
+                          width: double.infinity,
+                          alignment: Alignment.topLeft,
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                             ResponsiveWidget.isDesktop(context)
                                 ? Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -667,9 +669,13 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                                     ],
                                   ),
                             spaceH(height: 20),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: ClipRRect(
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                return SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                    child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: controller.isLoading.value
                                     ? Padding(
@@ -690,12 +696,12 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                                             headingRowColor: MaterialStateColor.resolveWith((states) => themeChange.isDarkTheme() ? AppThemData.greyShade800 : AppThemData.greyShade100),
                                             columns: [
                                               CommonUI.dataColumnWidget(context, columnTitle: "Profile Image".tr, width: 85),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Full Name".tr, width: ResponsiveWidget.isMobile(context) ? 130 : 150),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Password".tr, width: ResponsiveWidget.isMobile(context) ? 80 : 95),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Created At".tr, width: ResponsiveWidget.isMobile(context) ? 130 : 155),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Wallet Amount".tr, width: ResponsiveWidget.isMobile(context) ? 80 : 95),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Status".tr, width: ResponsiveWidget.isMobile(context) ? 65 : 75),
-                                              CommonUI.dataColumnWidget(context, columnTitle: "Action".tr, width: ResponsiveWidget.isMobile(context) ? 85 : 95)
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Full Name".tr, width: ResponsiveWidget.isMobile(context) ? 140 : 240),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Password".tr, width: ResponsiveWidget.isMobile(context) ? 95 : 150),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Created At".tr, width: ResponsiveWidget.isMobile(context) ? 140 : 200),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Wallet Amount".tr, width: ResponsiveWidget.isMobile(context) ? 90 : 130),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Status".tr, width: ResponsiveWidget.isMobile(context) ? 75 : 95),
+                                              CommonUI.dataColumnWidget(context, columnTitle: "Action".tr, width: ResponsiveWidget.isMobile(context) ? 90 : 110)
                                             ],
                                             rows: controller.currentPageUser
                                                 .map((userModel) => DataRow(cells: [
@@ -790,9 +796,12 @@ class CustomersScreenView extends GetView<CustomersScreenController> {
                                                     ]))
                                                 .toList()),
                               ),
+                                                              ),
+                                );
+                              },
                             ),
                             spaceH(),
-                            ResponsiveWidget.isMobile(context)
+                                                        ResponsiveWidget.isMobile(context)
                                 ? Visibility(
                                     visible: controller.totalPage.value > 1,
                                     child: SingleChildScrollView(

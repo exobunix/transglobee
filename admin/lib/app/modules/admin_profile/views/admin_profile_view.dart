@@ -144,15 +144,15 @@ class AdminProfileView extends GetView<AdminProfileController> {
                                         spaceH(height: 12),
                                         TextCustom(
                                           title:
-                                              "1. If you want to Update email, we’ll send a verification link to your new email address. Your email will only be updated after you verify through that link.",
+                                              "1. Updating name, email, contact number, or profile photo will be saved directly into the database.",
                                           fontSize: 14,
-                                          color: AppThemData.red500,
+                                          color: AppThemData.primary500,
                                         ),
                                         spaceH(height: 6),
                                         const TextCustom(
-                                          title: "2. If you want to Update password, We'll send a password reset link to your email address. Click the link to securely set a new password.",
+                                          title: "2. Enter your new password below to immediately update your admin login credentials in the database.",
                                           fontSize: 14,
-                                          color: AppThemData.red500,
+                                          color: AppThemData.primary500,
                                         ),
                                       ],
                                     ),

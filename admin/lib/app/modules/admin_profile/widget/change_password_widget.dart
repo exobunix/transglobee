@@ -44,28 +44,65 @@ class ChangePasswordWidget extends StatelessWidget {
               ],
             ),
             spaceH(height: 25),
-            CustomTextFormField(
-              // width: ScreenSize.width(30, context),
-              title: "Email *".tr,
-              hintText: "Enter Email".tr,
-              validator: (value) => Constant.validateEmail(value),
-              // validator: (value) => value != null && value.isNotEmpty ? null : 'old password required',
-              controller: adminProfileController.passwordResetController.value,
+            Obx(
+              () => CustomTextFormField(
+                title: "New Password *".tr,
+                hintText: "Enter new password".tr,
+                validator: (value) => Constant.validatePassword(value),
+                controller: adminProfileController.newPasswordController.value,
+                obscureText: adminProfileController.isNewPasswordVisible.value,
+                suffix: InkWell(
+                  onTap: () {
+                    adminProfileController.isNewPasswordVisible.value = !adminProfileController.isNewPasswordVisible.value;
+                  },
+                  child: Icon(
+                    adminProfileController.isNewPasswordVisible.value ? Icons.visibility_off : Icons.visibility,
+                    color: AppThemData.gallery500,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 20),
+            Obx(
+              () => CustomTextFormField(
+                title: "Confirm Password *".tr,
+                hintText: "Re-enter new password".tr,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please confirm your password'.tr;
+                  }
+                  if (value != adminProfileController.newPasswordController.value.text) {
+                    return 'Passwords do not match'.tr;
+                  }
+                  return null;
+                },
+                controller: adminProfileController.confirmPasswordController.value,
+                obscureText: adminProfileController.isConfirmPasswordVisible.value,
+                suffix: InkWell(
+                  onTap: () {
+                    adminProfileController.isConfirmPasswordVisible.value = !adminProfileController.isConfirmPasswordVisible.value;
+                  },
+                  child: Icon(
+                    adminProfileController.isConfirmPasswordVisible.value ? Icons.visibility_off : Icons.visibility,
+                    color: AppThemData.gallery500,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 25),
             SizedBox(
               width: ScreenSize.width(100, context),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   CustomButtonWidget(
-                    buttonTitle: "Send".tr,
+                    buttonTitle: "Update Password".tr,
                     onPress: () async {
                       if (Constant.isDemo) {
                         DialogBox.demoDialogBox();
                       } else {
                         if (adminProfileController.changePasswordFromKey.currentState!.validate()) {
-                          await adminProfileController.setAdminPassword();
+                          await adminProfileController.updateDirectPassword();
                         }
                       }
                     },

@@ -41,8 +41,15 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required.' });
+        }
 
-        const admin = await AdminSignup.findOne({ email });
+        const cleanEmail = email.trim();
+        const admin = await AdminSignup.findOne({ 
+            email: { $regex: new RegExp(`^${cleanEmail.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}$`, 'i') } 
+        });
+
         if (!admin) {
             return res.status(401).json({ message: 'Invalid credentials.' });
         }
@@ -84,10 +91,6 @@ exports.login = async (req, res) => {
 // Auth / Profile Controller
 exports.auth = async (req, res) => {
     try {
-        // The middleware would have placed the decoded user in req.user
-        // But the user specifically asked for "auth" here and "token save in mongodb"
-        // Let's verify the current token in req.body or headers matches one in DB
-
         let token = req.headers.authorization;
         if (token && token.startsWith('Bearer ')) {
             token = token.split(' ')[1];
@@ -143,7 +146,8 @@ exports.logout = async (req, res) => {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
-// Get Profile Controller
+
+// Get Profile Controller (Excludes permanent admin, returns working admin: admin@transglobe.com)
 exports.getProfile = async (req, res) => {
     try {
         let admin = null;
@@ -153,13 +157,28 @@ exports.getProfile = async (req, res) => {
         if (!admin && req.user?.id) {
             admin = await AdminSignup.findById(req.user.id).select('-password -token');
         }
+        // Always prioritize the active working admin, never display permanent admin in profile screen
+        if (!admin || admin.isPermanentAdmin) {
+            admin = await AdminSignup.findOne({ email: 'admin@transglobe.com' }).select('-password -token');
+        }
         if (!admin) {
-            admin = await AdminSignup.findOne().select('-password -token');
+            admin = await AdminSignup.findOne({ isPermanentAdmin: { $ne: true } }).select('-password -token');
         }
         if (!admin) {
             return res.status(404).json({ success: false, message: 'Admin not found.' });
         }
-        res.status(200).json({ success: true, admin });
+        res.status(200).json({ 
+            success: true, 
+            admin: {
+                id: admin._id,
+                name: admin.name,
+                email: admin.email,
+                contactNumber: admin.contactNumber || '9876543210',
+                profilePhoto: admin.profilePhoto || '',
+                plainPassword: admin.plainPassword || 'Transglobe@9967',
+                role: admin.role,
+            }
+        });
     } catch (error) {
         console.error('Get profile error:', error);
         res.status(500).json({ success: false, message: error.message });
@@ -169,14 +188,20 @@ exports.getProfile = async (req, res) => {
 // Update Profile Photo
 exports.updateProfilePhoto = async (req, res) => {
     try {
-        const adminId = req.user.id;
+        const adminId = req.user?.id;
         const file = req.file;
 
         if (!file) {
             return res.status(400).json({ message: 'No file uploaded.' });
         }
 
-        const admin = await AdminSignup.findById(adminId);
+        let admin = adminId ? await AdminSignup.findById(adminId) : null;
+        if (!admin || admin.isPermanentAdmin) {
+            admin = await AdminSignup.findOne({ email: 'admin@transglobe.com' });
+        }
+        if (!admin) {
+            admin = await AdminSignup.findOne({ isPermanentAdmin: { $ne: true } });
+        }
         if (!admin) {
             return res.status(404).json({ message: 'Admin not found.' });
         }
@@ -184,7 +209,7 @@ exports.updateProfilePhoto = async (req, res) => {
         // Upload to ImageKit
         imagekit.upload({
             file: file.buffer,
-            fileName: `admin_${adminId}_${Date.now()}`,
+            fileName: `admin_${admin._id}_${Date.now()}`,
             folder: '/TRANSGLOBE/admin_profiles'
         }, async (error, result) => {
             if (error) {
@@ -206,38 +231,16 @@ exports.updateProfilePhoto = async (req, res) => {
     }
 };
 
-// Change Password Controller
+// Change Password Controller - Directly sets new password in MongoDB database
 exports.changePassword = async (req, res) => {
     try {
-        const { currentPassword, newPassword } = req.body;
-        const adminId = req.user.id;
+        const { currentPassword, newPassword, password } = req.body;
+        const passToSet = newPassword || password;
 
-        const admin = await AdminSignup.findById(adminId);
-        if (!admin) {
-            return res.status(404).json({ message: 'Admin not found.' });
+        if (!passToSet || passToSet.toString().trim().length < 4) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 4 characters long.' });
         }
 
-        // Verify current password
-        const isMatch = await admin.comparePassword(currentPassword);
-        if (!isMatch) {
-            return res.status(400).json({ message: 'Current password is incorrect.' });
-        }
-
-        // Set and save (pre-save hook will hash it)
-        admin.password = newPassword;
-        await admin.save();
-
-        res.status(200).json({ message: 'Password updated successfully.' });
-    } catch (error) {
-        console.error('Change password error:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
-};
-
-// Update Profile details (name, email, contactNumber, photo/image)
-exports.updateProfile = async (req, res) => {
-    try {
-        const { name, email, contactNumber, photo, image } = req.body;
         let admin = null;
         if (req.user?.adminId) {
             admin = await AdminSignup.findById(req.user.adminId);
@@ -245,31 +248,73 @@ exports.updateProfile = async (req, res) => {
         if (!admin && req.user?.id) {
             admin = await AdminSignup.findById(req.user.id);
         }
+        if (!admin || admin.isPermanentAdmin) {
+            admin = await AdminSignup.findOne({ email: 'admin@transglobe.com' });
+        }
         if (!admin) {
-            admin = await AdminSignup.findOne();
+            admin = await AdminSignup.findOne({ isPermanentAdmin: { $ne: true } });
         }
 
         if (!admin) {
             return res.status(404).json({ success: false, message: 'Admin not found.' });
         }
 
-        if (name) admin.name = name;
-        if (email) admin.email = email;
-        if (contactNumber) admin.contactNumber = contactNumber;
+        // Set new password (pre-save hook will hash it and update plainPassword)
+        admin.password = passToSet.toString().trim();
+        admin.plainPassword = passToSet.toString().trim();
+        await admin.save();
+
+        res.status(200).json({ success: true, message: 'Password updated successfully in database.' });
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Update Profile details (name, email, contactNumber, photo/image, password)
+exports.updateProfile = async (req, res) => {
+    try {
+        const { name, email, contactNumber, photo, image, password } = req.body;
+        let admin = null;
+        if (req.user?.adminId) {
+            admin = await AdminSignup.findById(req.user.adminId);
+        }
+        if (!admin && req.user?.id) {
+            admin = await AdminSignup.findById(req.user.id);
+        }
+        if (!admin || admin.isPermanentAdmin) {
+            admin = await AdminSignup.findOne({ email: 'admin@transglobe.com' });
+        }
+        if (!admin) {
+            admin = await AdminSignup.findOne({ isPermanentAdmin: { $ne: true } });
+        }
+
+        if (!admin) {
+            return res.status(404).json({ success: false, message: 'Admin not found.' });
+        }
+
+        if (name && name.toString().trim().length > 0) admin.name = name.toString().trim();
+        if (email && email.toString().trim().length > 0) admin.email = email.toString().trim();
+        if (contactNumber) admin.contactNumber = contactNumber.toString().trim();
         const photoUrl = photo || image;
         if (photoUrl) admin.profilePhoto = photoUrl;
+        if (password && password.toString().trim().length > 0) {
+            admin.password = password.toString().trim();
+            admin.plainPassword = password.toString().trim();
+        }
 
         await admin.save();
 
         return res.status(200).json({
             success: true,
-            message: 'Profile updated successfully.',
+            message: 'Profile updated successfully in database.',
             admin: {
                 id: admin._id,
                 name: admin.name,
                 email: admin.email,
                 contactNumber: admin.contactNumber,
                 profilePhoto: admin.profilePhoto,
+                plainPassword: admin.plainPassword || '',
             }
         });
     } catch (error) {

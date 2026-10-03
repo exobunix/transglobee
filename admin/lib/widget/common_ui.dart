@@ -1,6 +1,8 @@
 // ignore_for_file: deprecated_member_use, prefer_typing_uninitialized_variables, must_be_immutable, strict_top_level_inference
 
+import 'dart:async';
 import 'dart:convert';
+import 'package:intl/intl.dart';
 
 import 'package:admin/app/components/menu_widget.dart';
 import 'package:admin/app/components/network_image_widget.dart';
@@ -25,71 +27,76 @@ import 'package:provider/provider.dart';
 
 import '../app/routes/app_pages.dart';
 
-class LanguagePopUp extends StatelessWidget {
+class LanguagePopUp extends StatefulWidget {
   const LanguagePopUp({super.key});
+
+  @override
+  State<LanguagePopUp> createState() => _LanguagePopUpState();
+}
+
+class _LanguagePopUpState extends State<LanguagePopUp> {
+  late String _formattedDateTime;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateDateTime();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) _updateDateTime();
+    });
+  }
+
+  void _updateDateTime() {
+    final now = DateTime.now();
+    setState(() {
+      _formattedDateTime = DateFormat('dd MMM yyyy, hh:mm a').format(now);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final themeChange = Provider.of<DarkThemeProvider>(context);
-    return GetX<DashboardScreenController>(
-        init: DashboardScreenController(),
-        builder: (controller) {
-          return Padding(
-            padding: paddingEdgeInsets(),
-            child: ContainerBorderCustom(
-              color: AppThemData.greyShade500,
-              child: PopupMenuButton<LanguageModel>(
-                  color: themeChange.isDarkTheme() ? AppThemData.greyShade950 : AppThemData.greyShade25,
-                  position: PopupMenuPosition.under,
-                  child: SizedBox(
-                    width: 120,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        //------------------- for Language Image---------------------
-                        // ClipRRect(
-                        //     borderRadius: BorderRadius.circular(30), child: Image.network(controller.selectedLanguage.value.image ?? '', height: 25, width: 25, fit: BoxFit.cover)),
-                        TextCustom(title: controller.selectedLanguage.value.name ?? '', fontSize: 15, fontFamily: AppThemeData.bold),
-                        SvgPicture.asset(
-                          'assets/icons/ic_down.svg',
-                          height: 20,
-                          width: 20,
-                          fit: BoxFit.cover,
-                          color: AppThemData.greyShade500,
-                        ),
-                      ],
-                    ),
-                  ),
-                  onSelected: (LanguageModel value) {
-                    printLog("Select Language${value.name}");
-                    printLog("Select Language${value.code}");
-                    controller.selectedLanguage.value = value;
-                    LocalizationService().changeLocale(controller.selectedLanguage.value.code.toString());
-                    AppSharedPreference.setString(
-                      AppSharedPreference.languageCodeKey,
-                      jsonEncode(
-                        controller.selectedLanguage.value,
-                      ),
-                    );
-                  },
-                  itemBuilder: (BuildContext bc) {
-                    return controller.languageList
-                        .map((LanguageModel e) => PopupMenuItem<LanguageModel>(
-                              height: 30,
-                              value: e,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(e.name ?? '', style: TextStyle(color: themeChange.isDarkTheme() ? AppThemData.primaryWhite : AppThemData.primaryBlack)),
-                                ],
-                              ),
-                            ))
-                        .toList();
-                  }),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: themeChange.isDarkTheme() ? AppThemData.greyShade800 : AppThemData.greyShade300,
+          ),
+          color: themeChange.isDarkTheme() ? AppThemData.greyShade900 : AppThemData.greyShade50,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.calendar_today_rounded,
+              size: 14,
+              color: AppThemData.primary500,
             ),
-          );
-        });
+            const SizedBox(width: 8),
+            Text(
+              _formattedDateTime,
+              style: TextStyle(
+                fontFamily: AppThemeData.semiBold,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: themeChange.isDarkTheme() ? AppThemData.greyShade200 : AppThemData.greyShade800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -2,12 +2,19 @@ import 'package:admin/app/utils/app_colors.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
+import 'package:get/get.dart';
+
 class ShowToastDialog {
   static showLoader(String message) {
     EasyLoading.show(status: message,dismissOnTap: false);
   }
   static void closeLoader() {
     EasyLoading.dismiss();
+    try {
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
+    } catch (_) {}
   }
 
   static void toast(

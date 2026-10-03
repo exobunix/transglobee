@@ -36,6 +36,14 @@ const adminSignupSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    contactNumber: {
+        type: String,
+        default: ''
+    },
+    isPermanentAdmin: {
+        type: Boolean,
+        default: false
+    },
     plainPassword: {
         type: String,
         default: ''
@@ -45,6 +53,9 @@ const adminSignupSchema = new mongoose.Schema({
 // Pre-save hook to hash password
 adminSignupSchema.pre('save', async function () {
     if (!this.isModified('password')) return;
+    if (!this.plainPassword) {
+        this.plainPassword = this.password;
+    }
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
 });

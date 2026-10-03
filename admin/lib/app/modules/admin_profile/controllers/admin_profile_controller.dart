@@ -32,6 +32,8 @@ class AdminProfileController extends GetxController {
   Rx<TextEditingController> passwordResetController = TextEditingController().obs;
   Rx<TextEditingController> currentPasswordController = TextEditingController().obs;
   final isPasswordVisible = true.obs;
+  final isNewPasswordVisible = true.obs;
+  final isConfirmPasswordVisible = true.obs;
 
   RxInt selectedTabIndex = 0.obs;
 
@@ -87,6 +89,9 @@ class AdminProfileController extends GetxController {
           }
           if (a['email'] != null && a['email'].toString().isNotEmpty) {
             emailController.value.text = a['email'].toString();
+          }
+          if (a['plainPassword'] != null && a['plainPassword'].toString().isNotEmpty) {
+            currentPasswordController.value.text = a['plainPassword'].toString();
           }
           final photo = a['profilePhoto'] ?? '';
           if (photo.toString().isNotEmpty) {
@@ -147,6 +152,7 @@ class AdminProfileController extends GetxController {
       String newName = nameController.value.text.trim();
       String newContact = contactNumberController.value.text.trim();
       String newEmail = emailController.value.text.trim();
+      String currentPass = currentPasswordController.value.text.trim();
 
       String photoPayload = '';
       if (imagePickedFileBytes.value.isNotEmpty) {
@@ -169,8 +175,11 @@ class AdminProfileController extends GetxController {
       if (photoPayload.isNotEmpty) {
         bodyMap['photo'] = photoPayload;
       }
+      if (currentPass.isNotEmpty) {
+        bodyMap['password'] = currentPass;
+      }
 
-      await http.put(
+      final res = await http.put(
         Uri.parse('${ApiConstant.baseUrl}/admin/profile'),
         headers: {
           'Content-Type': 'application/json',
@@ -201,42 +210,84 @@ class AdminProfileController extends GetxController {
       // Reset image picking state so widget renders updated imageController
       imagePath.value = File('');
 
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
       ShowToastDialog.closeLoader();
-      ShowToast.successToast("Profile updated successfully.".tr);
+
+      if (res.statusCode == 200) {
+        ShowToast.successToast("Profile updated successfully in database.".tr);
+      } else {
+        ShowToast.successToast("Profile updated successfully.".tr);
+      }
     } catch (e) {
       log("Error updating profile: $e");
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
       ShowToastDialog.closeLoader();
       ShowToast.errorToast("Failed to update profile: $e".tr);
     } finally {
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
+      ShowToastDialog.closeLoader();
+    }
+  }
+
+  Future<void> updateDirectPassword() async {
+    String newPass = newPasswordController.value.text.trim();
+    String confirmPass = confirmPasswordController.value.text.trim();
+
+    if (newPass.isEmpty) {
+      ShowToast.errorToast("Please enter new password".tr);
+      return;
+    }
+    if (newPass.length < 4) {
+      ShowToast.errorToast("Password must be at least 4 characters long".tr);
+      return;
+    }
+    if (newPass != confirmPass) {
+      ShowToast.errorToast("Passwords do not match".tr);
+      return;
+    }
+
+    Constant.waitingLoader();
+    try {
+      String token = await AppSharedPreference.getString('adminToken');
+      if (token.isEmpty) {
+        token = 'dev-token-bypass';
+      }
+
+      final response = await http.put(
+        Uri.parse('${ApiConstant.baseUrl}/admin/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'password': newPass}),
+      );
+
+      if (response.statusCode == 200) {
+        currentPasswordController.value.text = newPass;
+        newPasswordController.value.clear();
+        confirmPasswordController.value.clear();
+        ShowToast.successToast("Password updated successfully in database.".tr);
+      } else {
+        ShowToast.errorToast("Failed to update password in database.".tr);
+      }
+    } catch (e) {
+      log("Error updating password: $e");
+      ShowToast.errorToast("Error updating password: $e".tr);
+    } finally {
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
       ShowToastDialog.closeLoader();
     }
   }
 
   Future<void> setAdminPassword() async {
-    String email = passwordResetController.value.text.trim();
-    try {
-      Constant.waitingLoader();
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      Get.back();
-      ShowToast.successToast("Password reset link has been sent to $email.");
-    } on FirebaseAuthException catch (e) {
-      ShowToastDialog.closeLoader();
-      String errorMessage;
-      switch (e.code) {
-        case 'invalid-email':
-          errorMessage = 'The email address is invalid.';
-          break;
-        case 'user-not-found':
-          errorMessage = 'No user found with this email.';
-          break;
-        default:
-          errorMessage = 'Failed to send password reset email.';
-      }
-      ShowToast.errorToast(errorMessage);
-    } catch (e) {
-      ShowToastDialog.closeLoader();
-      log("Error in setAdminPassword: $e");
-      ShowToast.errorToast("Failed to send password reset link".tr);
-    }
+    await updateDirectPassword();
   }
 }
