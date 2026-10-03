@@ -27,11 +27,30 @@ class VoiceRecognitionService {
       _recognition['interimResults'] = true;
       _recognition['lang'] = 'en-IN';
 
-      _recognition['onstart'] = js.allowInterop((_) {
+      // _recognition['onstart'] = js.allowInterop((_) {
+      //   _isListening = true;
+      // });
+      _recognition['onstart'] = (_) {
         _isListening = true;
-      });
+      };
 
-      _recognition['onresult'] = js.allowInterop((event) {
+      // _recognition['onresult'] = js.allowInterop((event) {
+      //   try {
+      //     final results = event['results'];
+      //     if (results != null && results['length'] > 0) {
+      //       final first = results[0];
+      //       if (first != null && first['length'] > 0) {
+      //         final transcript = first[0]['transcript'];
+      //         if (transcript != null) {
+      //           onResult(transcript.toString());
+      //         }
+      //       }
+      //     }
+      //   } catch (e) {
+      //     debugPrint("Error reading transcript: $e");
+      //   }
+      // });
+      _recognition['onresult'] = (event) {
         try {
           final results = event['results'];
           if (results != null && results['length'] > 0) {
@@ -46,18 +65,27 @@ class VoiceRecognitionService {
         } catch (e) {
           debugPrint("Error reading transcript: $e");
         }
-      });
+      };
 
-      _recognition['onerror'] = js.allowInterop((event) {
+      // _recognition['onerror'] = js.allowInterop((event) {
+      //   _isListening = false;
+      //   final error = event['error']?.toString() ?? 'Recognition error';
+      //   onError?.call(error);
+      // });
+      _recognition['onerror'] = (event) {
         _isListening = false;
         final error = event['error']?.toString() ?? 'Recognition error';
         onError?.call(error);
-      });
+      };
 
-      _recognition['onend'] = js.allowInterop((_) {
+      // _recognition['onend'] = js.allowInterop((_) {
+      //   _isListening = false;
+      //   onDone?.call();
+      // });
+      _recognition['onend'] = (_) {
         _isListening = false;
         onDone?.call();
-      });
+      };
 
       _recognition.callMethod('start');
     } catch (e) {
