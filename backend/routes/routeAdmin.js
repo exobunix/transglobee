@@ -36,6 +36,8 @@ router.post('/logout', adminSignupController.logout);
 
 // Profile
 router.get('/profile', adminSignupController.getProfile);
+router.put('/profile', adminSignupController.updateProfile);
+router.post('/profile', adminSignupController.updateProfile);
 router.post('/profile/photo', upload.single('photo'), adminSignupController.updateProfilePhoto);
 router.post('/profile/change-password', adminSignupController.changePassword);
 

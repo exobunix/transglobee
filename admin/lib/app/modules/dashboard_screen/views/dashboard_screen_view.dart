@@ -128,6 +128,27 @@ class DashboardScreenView extends GetView<DashboardScreenController> {
 
   Widget _buildDashboardContent(BuildContext context, DashboardScreenController controller, bool isDark, {required bool isMobile}) {
     return Obx(() {
+      if (controller.isLoading.value) {
+        return Container(
+          height: 500,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: AppThemData.primary500),
+              16.height,
+              Text(
+                "Loading Dashboard Data...",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white70 : const Color(0xFF6B7280),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -769,7 +790,14 @@ class DashboardScreenView extends GetView<DashboardScreenController> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Booking Status", style: _cardTitleStyle(isDark)),
+                  Expanded(
+                    child: Text(
+                      "Booking Status",
+                      style: _cardTitleStyle(isDark),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  8.width,
                   _buildDropdownPill("This Month", isDark),
                 ],
               ),
@@ -875,7 +903,14 @@ class DashboardScreenView extends GetView<DashboardScreenController> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Service Type Wise Bookings", style: _cardTitleStyle(isDark)),
+              Expanded(
+                child: Text(
+                  "Service Type Wise",
+                  style: _cardTitleStyle(isDark),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              8.width,
               _buildDropdownPill("This Month", isDark),
             ],
           ),
@@ -943,7 +978,14 @@ class DashboardScreenView extends GetView<DashboardScreenController> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Top Cities", style: _cardTitleStyle(isDark)),
+              Expanded(
+                child: Text(
+                  "Top Cities",
+                  style: _cardTitleStyle(isDark),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              8.width,
               _buildDropdownPill("This Month", isDark),
             ],
           ),
@@ -1011,7 +1053,14 @@ class DashboardScreenView extends GetView<DashboardScreenController> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Live Bookings", style: _cardTitleStyle(isDark)),
+              Expanded(
+                child: Text(
+                  "Live Bookings",
+                  style: _cardTitleStyle(isDark),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              8.width,
               _buildOrangeViewAllButton(onTap: controller.navigateToBookings),
             ],
           ),

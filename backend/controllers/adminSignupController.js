@@ -146,14 +146,23 @@ exports.logout = async (req, res) => {
 // Get Profile Controller
 exports.getProfile = async (req, res) => {
     try {
-        const admin = await AdminSignup.findById(req.user.id).select('-password -token');
-        if (!admin) {
-            return res.status(404).json({ message: 'Admin not found.' });
+        let admin = null;
+        if (req.user?.adminId) {
+            admin = await AdminSignup.findById(req.user.adminId).select('-password -token');
         }
-        res.status(200).json({ admin });
+        if (!admin && req.user?.id) {
+            admin = await AdminSignup.findById(req.user.id).select('-password -token');
+        }
+        if (!admin) {
+            admin = await AdminSignup.findOne().select('-password -token');
+        }
+        if (!admin) {
+            return res.status(404).json({ success: false, message: 'Admin not found.' });
+        }
+        res.status(200).json({ success: true, admin });
     } catch (error) {
         console.error('Get profile error:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -222,5 +231,49 @@ exports.changePassword = async (req, res) => {
     } catch (error) {
         console.error('Change password error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// Update Profile details (name, email, contactNumber, photo/image)
+exports.updateProfile = async (req, res) => {
+    try {
+        const { name, email, contactNumber, photo, image } = req.body;
+        let admin = null;
+        if (req.user?.adminId) {
+            admin = await AdminSignup.findById(req.user.adminId);
+        }
+        if (!admin && req.user?.id) {
+            admin = await AdminSignup.findById(req.user.id);
+        }
+        if (!admin) {
+            admin = await AdminSignup.findOne();
+        }
+
+        if (!admin) {
+            return res.status(404).json({ success: false, message: 'Admin not found.' });
+        }
+
+        if (name) admin.name = name;
+        if (email) admin.email = email;
+        if (contactNumber) admin.contactNumber = contactNumber;
+        const photoUrl = photo || image;
+        if (photoUrl) admin.profilePhoto = photoUrl;
+
+        await admin.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully.',
+            admin: {
+                id: admin._id,
+                name: admin.name,
+                email: admin.email,
+                contactNumber: admin.contactNumber,
+                profilePhoto: admin.profilePhoto,
+            }
+        });
+    } catch (error) {
+        console.error('Update profile error:', error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };

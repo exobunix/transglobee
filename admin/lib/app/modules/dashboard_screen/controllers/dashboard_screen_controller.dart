@@ -134,40 +134,40 @@ class DashboardScreenController extends GetxController {
   RxBool isUserData = true.obs;
 
   // KPI 1: Total Users
-  RxInt totalUser = 2548.obs;
-  RxInt activeUsers = 1982.obs;
+  RxInt totalUser = 0.obs;
+  RxInt activeUsers = 0.obs;
   RxString usersGrowth = '+12.5%'.obs;
 
   // KPI 2: Total Drivers
-  RxInt totalDrivers = 328.obs;
-  RxInt activeDrivers = 296.obs;
+  RxInt totalDrivers = 0.obs;
+  RxInt activeDrivers = 0.obs;
   RxString driversGrowth = '+8.3%'.obs;
 
   // KPI 3: Total Vehicles
-  RxInt totalVehicles = 312.obs;
-  RxInt activeVehicles = 284.obs;
+  RxInt totalVehicles = 0.obs;
+  RxInt activeVehicles = 0.obs;
   RxString vehiclesGrowth = '+6.7%'.obs;
 
   // KPI 4: Total Bookings
-  RxInt totalBookings = 4832.obs;
-  RxInt todayBookings = 612.obs;
+  RxInt totalBookings = 0.obs;
+  RxInt todayBookings = 0.obs;
   RxString bookingsGrowth = '+18.4%'.obs;
 
   // KPI 5: Today's Earning
-  RxDouble todayTotalEarnings = 48965.0.obs;
-  RxDouble monthlyEarning = 1496655.0.obs;
+  RxDouble todayTotalEarnings = 0.0.obs;
+  RxDouble monthlyEarning = 0.0.obs;
   RxString todayGrowth = '+22.3%'.obs;
 
   // KPI 6: Total Earning
-  RxDouble totalEarnings = 1496655.0.obs;
+  RxDouble totalEarnings = 0.0.obs;
   RxString totalGrowth = '+16.8%'.obs;
 
   // Legacy compatibility bindings
-  RxInt totalCab = 328.obs;
-  RxInt totalBookingCompleted = 3642.obs;
-  RxInt totalBookingActive = 428.obs;
-  RxInt totalBookingCanceled = 432.obs;
-  RxInt totalBookingPlaced = 330.obs;
+  RxInt totalCab = 0.obs;
+  RxInt totalBookingCompleted = 0.obs;
+  RxInt totalBookingActive = 0.obs;
+  RxInt totalBookingCanceled = 0.obs;
+  RxInt totalBookingPlaced = 0.obs;
 
   // Filters
   RxString selectedBookingRange = 'Last 30 Days'.obs;
@@ -202,7 +202,6 @@ class DashboardScreenController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _initDefaultVisuals();
     getData();
   }
 
@@ -326,30 +325,29 @@ class DashboardScreenController extends GetxController {
         final statsData = jsonDecode(statsResponse.body);
         if (statsData['success'] == true) {
           final data = statsData['data'] ?? statsData;
-
           // KPIs
-          totalUser.value = statsData['totalUsers'] ?? data['users']?['total'] ?? totalUser.value;
-          activeUsers.value = statsData['activeUsers'] ?? data['users']?['active'] ?? activeUsers.value;
+          totalUser.value = statsData['totalUsers'] ?? data['users']?['total'] ?? 0;
+          activeUsers.value = statsData['activeUsers'] ?? data['users']?['active'] ?? totalUser.value;
           usersGrowth.value = statsData['usersGrowth'] ?? data['users']?['growth'] ?? '+12.5%';
 
-          totalDrivers.value = statsData['totalDrivers'] ?? data['drivers']?['total'] ?? totalDrivers.value;
-          activeDrivers.value = statsData['activeDrivers'] ?? data['drivers']?['active'] ?? activeDrivers.value;
+          totalDrivers.value = statsData['totalDrivers'] ?? data['drivers']?['total'] ?? 0;
+          activeDrivers.value = statsData['activeDrivers'] ?? data['drivers']?['active'] ?? totalDrivers.value;
           driversGrowth.value = statsData['driversGrowth'] ?? data['drivers']?['growth'] ?? '+8.3%';
           totalCab.value = totalDrivers.value;
 
-          totalVehicles.value = statsData['totalVehicles'] ?? data['vehicles']?['total'] ?? totalVehicles.value;
-          activeVehicles.value = statsData['activeVehicles'] ?? data['vehicles']?['active'] ?? activeVehicles.value;
+          totalVehicles.value = statsData['totalVehicles'] ?? data['vehicles']?['total'] ?? 0;
+          activeVehicles.value = statsData['activeVehicles'] ?? data['vehicles']?['active'] ?? totalVehicles.value;
           vehiclesGrowth.value = statsData['vehiclesGrowth'] ?? data['vehicles']?['growth'] ?? '+6.7%';
 
-          totalBookings.value = statsData['totalBookings'] ?? data['bookings']?['total'] ?? totalBookings.value;
-          todayBookings.value = statsData['todayBookings'] ?? data['bookings']?['today'] ?? todayBookings.value;
+          totalBookings.value = statsData['totalBookings'] ?? data['bookings']?['total'] ?? 0;
+          todayBookings.value = statsData['todayBookings'] ?? data['bookings']?['today'] ?? 0;
           bookingsGrowth.value = statsData['bookingsGrowth'] ?? data['bookings']?['growth'] ?? '+18.4%';
 
-          todayTotalEarnings.value = (statsData['todayRevenue'] ?? data['revenue']?['today'] ?? 48965).toDouble();
-          monthlyEarning.value = (statsData['monthRevenue'] ?? data['revenue']?['month'] ?? 1496655).toDouble();
+          todayTotalEarnings.value = (statsData['todayRevenue'] ?? data['revenue']?['today'] ?? 0).toDouble();
+          monthlyEarning.value = (statsData['monthRevenue'] ?? data['revenue']?['month'] ?? 0).toDouble();
           todayGrowth.value = statsData['todayRevenueGrowth'] ?? '+22.3%';
 
-          totalEarnings.value = (statsData['totalRevenue'] ?? data['revenue']?['allTime'] ?? 1496655).toDouble();
+          totalEarnings.value = (statsData['totalRevenue'] ?? data['revenue']?['allTime'] ?? 0).toDouble();
           totalGrowth.value = statsData['totalRevenueGrowth'] ?? '+16.8%';
 
           // Overview Multi-Bar
@@ -376,28 +374,36 @@ class DashboardScreenController extends GetxController {
           // Users Distribution
           final dist = statsData['usersDistribution'] ?? data['usersDistribution'];
           if (dist != null) {
-            final cust = dist['customers'] ?? 1642;
-            final driv = dist['drivers'] ?? 328;
-            final shut = dist['shuttleUsers'] ?? 312;
-            final logi = dist['logisticsUsers'] ?? 266;
+            final cust = dist['customers'] ?? 0;
+            final driv = dist['drivers'] ?? 0;
+            final shut = dist['shuttleUsers'] ?? 0;
+            final logi = dist['logisticsUsers'] ?? 0;
             final total = cust + driv + shut + logi;
+            final double cPct = total > 0 ? ((cust / total) * 100) : 0;
+            final double dPct = total > 0 ? ((driv / total) * 100) : 0;
+            final double sPct = total > 0 ? ((shut / total) * 100) : 0;
+            final double lPct = total > 0 ? ((logi / total) * 100) : 0;
 
             usersDistributionList.value = [
-              DonutChartData('Customers', ((cust / total) * 100).toDouble(), const Color(0xFF2F80ED), cust, ((cust / total) * 100).roundToDouble()),
-              DonutChartData('Drivers', ((driv / total) * 100).toDouble(), const Color(0xFFFF7A00), driv, ((driv / total) * 100).roundToDouble()),
-              DonutChartData('Shuttle Users', ((shut / total) * 100).toDouble(), const Color(0xFF27AE60), shut, ((shut / total) * 100).roundToDouble()),
-              DonutChartData('Logistics Users', ((logi / total) * 100).toDouble(), const Color(0xFF9B51E0), logi, ((logi / total) * 100).roundToDouble()),
+              DonutChartData('Customers', cPct, const Color(0xFF2F80ED), cust, cPct.roundToDouble()),
+              DonutChartData('Drivers', dPct, const Color(0xFFFF7A00), driv, dPct.roundToDouble()),
+              DonutChartData('Shuttle Users', sPct, const Color(0xFF27AE60), shut, sPct.roundToDouble()),
+              DonutChartData('Logistics Users', lPct, const Color(0xFF9B51E0), logi, lPct.roundToDouble()),
             ];
           }
 
           // Booking Status
           final bStatus = statsData['bookingStatus'] ?? data['bookingStatus'];
           if (bStatus != null) {
-            final comp = bStatus['completed'] ?? 3642;
-            final ongo = bStatus['ongoing'] ?? 428;
-            final canc = bStatus['cancelled'] ?? 432;
-            final sche = bStatus['scheduled'] ?? 330;
+            final comp = bStatus['completed'] ?? 0;
+            final ongo = bStatus['ongoing'] ?? 0;
+            final canc = bStatus['cancelled'] ?? 0;
+            final sche = bStatus['scheduled'] ?? 0;
             final bTotal = comp + ongo + canc + sche;
+            final double compPct = bTotal > 0 ? ((comp / bTotal) * 100) : 0;
+            final double ongoPct = bTotal > 0 ? ((ongo / bTotal) * 100) : 0;
+            final double cancPct = bTotal > 0 ? ((canc / bTotal) * 100) : 0;
+            final double schePct = bTotal > 0 ? ((sche / bTotal) * 100) : 0;
 
             totalBookingCompleted.value = comp;
             totalBookingActive.value = ongo;
@@ -405,22 +411,30 @@ class DashboardScreenController extends GetxController {
             totalBookingPlaced.value = sche;
 
             bookingStatusList.value = [
-              DonutChartData('Completed', ((comp / bTotal) * 100).toDouble(), const Color(0xFF27AE60), comp, ((comp / bTotal) * 100).roundToDouble()),
-              DonutChartData('Ongoing', ((ongo / bTotal) * 100).toDouble(), const Color(0xFF2F80ED), ongo, ((ongo / bTotal) * 100).roundToDouble()),
-              DonutChartData('Cancelled', ((canc / bTotal) * 100).toDouble(), const Color(0xFFEB5757), canc, ((canc / bTotal) * 100).roundToDouble()),
-              DonutChartData('Scheduled', ((sche / bTotal) * 100).toDouble(), const Color(0xFFF2994A), sche, ((sche / bTotal) * 100).roundToDouble()),
+              DonutChartData('Completed', compPct, const Color(0xFF27AE60), comp, compPct.roundToDouble()),
+              DonutChartData('Ongoing', ongoPct, const Color(0xFF2F80ED), ongo, ongoPct.roundToDouble()),
+              DonutChartData('Cancelled', cancPct, const Color(0xFFEB5757), canc, cancPct.roundToDouble()),
+              DonutChartData('Scheduled', schePct, const Color(0xFFF2994A), sche, schePct.roundToDouble()),
             ];
           }
 
           // Service Type Wise
           final sWise = statsData['serviceTypeWise'] ?? data['serviceTypeWise'];
           if (sWise != null) {
+            final int cabCount = sWise['cab'] ?? 0;
+            final int shutCount = sWise['shuttle'] ?? 0;
+            final int logiCount = sWise['logistics'] ?? 0;
+            final int outCount = sWise['outstation'] ?? 0;
+            final int airCount = sWise['airport'] ?? 0;
+            final int maxCount = [cabCount, shutCount, logiCount, outCount, airCount].reduce((a, b) => a > b ? a : b);
+            final double divisor = maxCount > 0 ? maxCount.toDouble() : 1.0;
+
             serviceTypeList.value = [
-              ServiceTypeItem(title: 'Cab Bookings', count: sWise['cab'] ?? 2184, progress: 0.85, color: const Color(0xFFFF9F1C), typeKey: 'cab'),
-              ServiceTypeItem(title: 'Shuttle Bookings', count: sWise['shuttle'] ?? 1226, progress: 0.55, color: const Color(0xFF2F80ED), typeKey: 'bus'),
-              ServiceTypeItem(title: 'Logistics Bookings', count: sWise['logistics'] ?? 864, progress: 0.40, color: const Color(0xFF9B51E0), typeKey: 'truck'),
-              ServiceTypeItem(title: 'Outstation Rides', count: sWise['outstation'] ?? 358, progress: 0.20, color: const Color(0xFF27AE60), typeKey: 'cab'),
-              ServiceTypeItem(title: 'Airport Transfers', count: sWise['airport'] ?? 200, progress: 0.12, color: const Color(0xFFFF6584), typeKey: 'cab'),
+              ServiceTypeItem(title: 'Cab Bookings', count: cabCount, progress: cabCount / divisor, color: const Color(0xFFFF9F1C), typeKey: 'cab'),
+              ServiceTypeItem(title: 'Shuttle Bookings', count: shutCount, progress: shutCount / divisor, color: const Color(0xFF2F80ED), typeKey: 'bus'),
+              ServiceTypeItem(title: 'Logistics Bookings', count: logiCount, progress: logiCount / divisor, color: const Color(0xFF9B51E0), typeKey: 'truck'),
+              ServiceTypeItem(title: 'Outstation Rides', count: outCount, progress: outCount / divisor, color: const Color(0xFF27AE60), typeKey: 'cab'),
+              ServiceTypeItem(title: 'Airport Transfers', count: airCount, progress: airCount / divisor, color: const Color(0xFFFF6584), typeKey: 'cab'),
             ];
           }
 

@@ -1,5 +1,6 @@
 // ignore_for_file: depend_on_referenced_packages
 
+import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:admin/app/constant/constants.dart';
@@ -27,6 +28,28 @@ class NetworkImageWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (imageUrl.startsWith('data:image') || imageUrl.contains(';base64,')) {
+      try {
+        final commaIdx = imageUrl.indexOf(',');
+        final base64Str = commaIdx != -1 ? imageUrl.substring(commaIdx + 1) : imageUrl;
+        final bytes = base64Decode(base64Str.trim());
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius ?? 60),
+          child: Image.memory(
+            bytes,
+            fit: fit ?? BoxFit.cover,
+            height: height ?? ScreenSize.height(8, context),
+            width: width ?? ScreenSize.width(15, context),
+            errorBuilder: (_, __, ___) => Image.asset(
+              Constant.userPlaceHolder,
+              height: height ?? ScreenSize.height(8, context),
+              width: width ?? ScreenSize.width(15, context),
+            ),
+          ),
+        );
+      } catch (_) {}
+    }
+
     return Container(
       decoration: BoxDecoration(
         // color: AppColors.darkGrey01,
