@@ -529,7 +529,7 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
             rideId: rideId,
             additionalAmount: amount.toDouble(),
             driverId: driverProfile?.id,
-            driverName: driverProfile?.fullName ?? 'Driver',
+            driverName: driverProfile?.name ?? 'Driver',
           );
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
