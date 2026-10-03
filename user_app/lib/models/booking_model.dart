@@ -83,9 +83,9 @@ class BookingModel {
         userId: json['userId']?.toString() ?? '',
         type: resolveType(),
         status: json['status'] ?? '',
-        fare: (json['fare'] ?? json['totalFare'] ?? json['totalPrice'])?.toDouble(),
-        estimatedFare: json['estimatedFare']?.toDouble(),
-        estimatedCost: json['estimatedCost']?.toDouble(),
+        fare: double.tryParse((json['fare'] ?? json['totalFare'] ?? json['totalPrice'] ?? json['estimatedFare'] ?? '0').toString()),
+        estimatedFare: double.tryParse((json['estimatedFare'] ?? json['fare'] ?? json['totalPrice'] ?? '0').toString()),
+        estimatedCost: double.tryParse((json['estimatedCost'] ?? '0').toString()),
         pickupLocation: pickup,
         dropLocation: drop,
         driver: json['driver'] != null

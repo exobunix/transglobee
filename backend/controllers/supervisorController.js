@@ -63,17 +63,22 @@ exports.overridePricing = async (req, res) => {
         // Build combined additionalCharges if sub-fields provided
         let finalAdditional = additionalCharges;
         if (tollCharges !== undefined || nightCharges !== undefined || handlingCharges !== undefined) {
-            finalAdditional = (tollCharges || 0) + (nightCharges || 0) + (handlingCharges || 0);
+            finalAdditional = (Number(tollCharges) || 0) + (Number(nightCharges) || 0) + (Number(handlingCharges) || 0);
         }
 
-        if (vehiclePrice !== undefined) booking.vehiclePrice = Number(vehiclePrice);
-        if (helperCost !== undefined) booking.helperCost = Number(helperCost);
-        if (finalAdditional !== undefined) booking.additionalCharges = Number(finalAdditional);
-        if (discountAmount !== undefined) booking.discountAmount = Number(discountAmount);
+        const round2 = (val) => Math.round(Number(val) * 100) / 100;
+
+        if (tollCharges !== undefined) booking.tollCharges = round2(tollCharges);
+        if (nightCharges !== undefined) booking.nightCharges = round2(nightCharges);
+        if (handlingCharges !== undefined) booking.handlingCharges = round2(handlingCharges);
+        if (vehiclePrice !== undefined) booking.vehiclePrice = round2(vehiclePrice);
+        if (helperCost !== undefined) booking.helperCost = round2(helperCost);
+        if (finalAdditional !== undefined) booking.additionalCharges = round2(finalAdditional);
+        if (discountAmount !== undefined) booking.discountAmount = round2(discountAmount);
         if (totalPrice !== undefined) {
-            booking.totalPrice = Number(totalPrice);
+            booking.totalPrice = round2(totalPrice);
         } else {
-            booking.totalPrice = booking.vehiclePrice + booking.helperCost + booking.additionalCharges - booking.discountAmount;
+            booking.totalPrice = round2((booking.vehiclePrice || 0) + (booking.helperCost || 0) + (booking.additionalCharges || 0) - (booking.discountAmount || 0));
         }
 
         await booking.save();
@@ -285,31 +290,37 @@ exports.saveRoadmap = async (req, res) => {
         }
 
         // Build segments in the schema's expected shape
-        const builtSegments = segments.map((s) => ({
-            start: {
-                name: s.from || '',
-                address: s.from || '',
-                lat: 0,
-                lng: 0,
-            },
-            end: {
-                name: s.to || '',
-                address: s.to || '',
-                lat: 0,
-                lng: 0,
-            },
-            mode: s.mode || 'Road',
-            transportName: s.transportName || '',
-            transportNumber: s.transportNumber || '',
-            estimatedDate: s.estimatedDate || '',
-            estimatedTime: s.estimatedTime || '',
-            price: parseFloat(s.segmentPrice) || 0,
-            driverId: s.assignedDriverId && s.assignedDriverId.length === 24
-                ? s.assignedDriverId
-                : null,
-            status: 'pending',
-            otp: Math.floor(1000 + Math.random() * 9000).toString(),
-        }));
+        const builtSegments = segments.map((s) => {
+            const mode = s.mode || 'Road';
+            const isRoad = mode.toLowerCase() === 'road';
+            const segPrice = Math.round((parseFloat(s.segmentPrice) || 0) * 100) / 100;
+            return {
+                start: {
+                    name: s.from || '',
+                    address: s.from || '',
+                    lat: 0,
+                    lng: 0,
+                },
+                end: {
+                    name: s.to || '',
+                    address: s.to || '',
+                    lat: 0,
+                    lng: 0,
+                },
+                mode: mode,
+                transportName: s.transportName || '',
+                transportNumber: s.transportNumber || '',
+                estimatedDate: s.estimatedDate || '',
+                estimatedTime: s.estimatedTime || '',
+                price: segPrice,
+                // Drivers can only be assigned in Road mode
+                driverId: (isRoad && s.assignedDriverId && s.assignedDriverId.length === 24)
+                    ? s.assignedDriverId
+                    : null,
+                status: 'pending',
+                otp: Math.floor(1000 + Math.random() * 9000).toString(),
+            };
+        });
 
         let existing = await LogisticsBooking.findById(bookingId);
         if (!existing) {

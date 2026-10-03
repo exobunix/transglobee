@@ -117,6 +117,10 @@ const shuttleBookingSchema = new mongoose.Schema({
         tags: [{ type: String }],
         createdAt: { type: Date, default: null }
     },
+    hasReviewed: {
+        type: Boolean,
+        default: false
+    },
 }, { timestamps: true });
 
 module.exports = mongoose.model('ShuttleBooking', shuttleBookingSchema);

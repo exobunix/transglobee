@@ -56,10 +56,14 @@ const logisticsBookingSchema = new mongoose.Schema({
     distanceKm:    { type: Number, default: 0 },
     vehiclePrice:  { type: Number, default: 0 },
     helperCost:    { type: Number, default: 0 },
+    tollCharges:   { type: Number, default: 0 },
+    nightCharges:  { type: Number, default: 0 },
+    handlingCharges: { type: Number, default: 0 },
     additionalCharges: { type: Number, default: 0 },
     discountAmount:{ type: Number, default: 0 },
     totalPrice:    { type: Number, default: 0 },
     appliedCoupon: { type: String, default: null },
+    hasReviewed:   { type: Boolean, default: false },
     
     // Estimates
     estimatedTime: { type: String, default: "" }, // e.g. "2 Days", "10:30 AM"

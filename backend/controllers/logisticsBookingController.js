@@ -624,10 +624,18 @@ exports.updateStatus = async (req, res) => {
             }
         }
 
+        let finalStatus = status;
+        if (finalStatus === 'delivered' && existing.segments && existing.segments.length > 0) {
+            const hasPendingSegments = existing.segments.some(s => s.status !== 'completed');
+            if (hasPendingSegments) {
+                finalStatus = 'in_transit';
+            }
+        }
+
         const Model = isShuttle ? ShuttleBooking : LogisticsBooking;
         const booking = await Model.findByIdAndUpdate(
             req.params.id,
-            { status, ...(cancellationCharge > 0 && { cancellationCharge }) },
+            { status: finalStatus, ...(cancellationCharge > 0 && { cancellationCharge }) },
             { new: true }
         );
         if (!booking) {
@@ -1044,6 +1052,13 @@ exports.assignSegmentDriver = async (req, res) => {
         }
 
         if (driverId) {
+            const segMode = (segment.mode || 'Road').toLowerCase();
+            if (segMode !== 'road') {
+                return res.status(400).json({
+                    success: false,
+                    message: `Drivers can only be assigned to Road segments. ${segment.mode} mode does not support driver assignment.`
+                });
+            }
             if (!segment.start || !segment.start.address || !segment.start.address.trim() ||
                 !segment.end || !segment.end.address || !segment.end.address.trim()) {
                 return res.status(400).json({

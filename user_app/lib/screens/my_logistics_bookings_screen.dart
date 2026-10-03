@@ -79,11 +79,13 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
   }
 
   String _formatCurrency(double val) {
-    // Basic comma formatting for Indian Rupee
-    final str = val.toStringAsFixed(0);
-    if (str.length <= 3) return str;
-    final lastThree = str.substring(str.length - 3);
-    final otherNumbers = str.substring(0, str.length - 3);
+    // Comma formatting for Indian Rupee with exactly 2 decimal places
+    final parts = val.toStringAsFixed(2).split('.');
+    final intPart = parts[0];
+    final decPart = parts[1];
+    if (intPart.length <= 3) return "$intPart.$decPart";
+    final lastThree = intPart.substring(intPart.length - 3);
+    final otherNumbers = intPart.substring(0, intPart.length - 3);
     var formatted = "";
     var count = 0;
     for (var i = otherNumbers.length - 1; i >= 0; i--) {
@@ -94,7 +96,7 @@ class _MyLogisticsBookingsScreenState extends ConsumerState<MyLogisticsBookingsS
         count = 0;
       }
     }
-    return "$formatted,$lastThree";
+    return "$formatted,$lastThree.$decPart";
   }
 
   @override

@@ -40,7 +40,11 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
             backgroundColor: Color(0xFF0F4A2C),
           ),
         );
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true);
+        } else {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -81,7 +85,13 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.close, color: context.colors.textPrimary),
-          onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop(false);
+            } else {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }
+          },
         ),
         title: Text(
           "Ratings & Reviews",

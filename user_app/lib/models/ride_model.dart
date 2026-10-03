@@ -246,11 +246,13 @@ class LogisticsSegment {
   final Map<String, dynamic> end;
   final String? otp;
   final double? price;
+  final String? driverId;
   final String? driverName;
   final String? driverPhone;
   final String? driverPhoto;
   final String? vehicleNumber;
   final String? vehicleModel;
+  final Map<String, dynamic> rawJson;
 
   LogisticsSegment({
     required this.id,
@@ -262,26 +264,32 @@ class LogisticsSegment {
     required this.end,
     this.otp,
     this.price,
+    this.driverId,
     this.driverName,
     this.driverPhone,
     this.driverPhoto,
     this.vehicleNumber,
     this.vehicleModel,
+    this.rawJson = const {},
   });
 
   factory LogisticsSegment.fromJson(Map<String, dynamic> json) {
     final driverData = json['driverId'];
+    String? dId;
     String? name;
     String? phone;
     String? photo;
     String? vNum;
     String? vModel;
     if (driverData is Map) {
+      dId = driverData['_id']?.toString() ?? driverData['id']?.toString();
       name = driverData['name']?.toString();
-      phone = driverData['mobileNumber']?.toString();
+      phone = driverData['mobileNumber']?.toString() ?? driverData['phone']?.toString();
       photo = driverData['photo']?.toString();
       vNum = driverData['vehicleNumberPlate']?.toString();
       vModel = driverData['vehicleModel']?.toString();
+    } else if (driverData is String) {
+      dId = driverData;
     }
     return LogisticsSegment(
       id: json['_id'] ?? json['id'] ?? '',
@@ -293,11 +301,13 @@ class LogisticsSegment {
       end: json['end'] ?? {},
       otp: json['otp']?.toString(),
       price: json['price'] != null ? (double.tryParse(json['price'].toString()) ?? 0.0) : null,
+      driverId: dId,
       driverName: name,
       driverPhone: phone,
       driverPhoto: photo,
       vehicleNumber: vNum,
       vehicleModel: vModel,
+      rawJson: json,
     );
   }
 }

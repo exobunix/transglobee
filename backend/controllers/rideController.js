@@ -1523,6 +1523,7 @@ exports.verifyRideOtp = async (req, res) => {
                     if (nextSegIndex < ride.segments.length) {
                         ride.segments[nextSegIndex].status = 'pending';
                     }
+                    ride.status = 'in_transit';
                     await ride.save();
 
                     const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
@@ -1542,13 +1543,21 @@ exports.verifyRideOtp = async (req, res) => {
                         if (targetUserRoom) {
                             req.io.to(targetUserRoom).to(ride._id.toString()).emit("roadmap_updated", {
                                 rideId: ride._id.toString(),
-                                segments: ride.segments
+                                segments: ride.segments,
+                                status: ride.status
+                            });
+                            req.io.to(targetUserRoom).to(ride._id.toString()).emit("ride_status_update", {
+                                rideId: ride._id.toString(),
+                                status: ride.status,
+                                segments: ride.segments,
+                                type: isShuttle ? 'SHUTTLE' : 'LOGISTICS'
                             });
                         }
                         req.io.to('admin').emit("ride_status_update", {
                             rideId: ride._id.toString(),
                             status: ride.status,
-                            segments: ride.segments
+                            segments: ride.segments,
+                            type: isShuttle ? 'SHUTTLE' : 'LOGISTICS'
                         });
                     }
 
@@ -1754,9 +1763,9 @@ exports.submitReview = async (req, res) => {
         const ShuttleBooking = require('../models/ShuttleBooking');
 
         if (bookingId) {
-            await History.findByIdAndUpdate(bookingId, { review: reviewData });
-            await LogisticsBooking.findByIdAndUpdate(bookingId, { review: reviewData });
-            await ShuttleBooking.findByIdAndUpdate(bookingId, { review: reviewData });
+            await History.findByIdAndUpdate(bookingId, { review: reviewData, hasReviewed: true });
+            await LogisticsBooking.findByIdAndUpdate(bookingId, { review: reviewData, hasReviewed: true });
+            await ShuttleBooking.findByIdAndUpdate(bookingId, { review: reviewData, hasReviewed: true });
         }
 
         // Update driver stats

@@ -87,40 +87,64 @@ class _SegmentCardItemViewState extends State<SegmentCardItemView> {
                 ),
                 const Spacer(),
                 Obx(() {
-                  if (seg.assignedDriverName.value.isNotEmpty) {
+                  final isRoad = seg.mode.value.toLowerCase() == 'road';
+                  if (!isRoad) {
                     return Container(
+                      margin: const EdgeInsets.only(right: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        border: Border.all(color: Colors.green.shade300),
+                        color: Colors.blueGrey.shade50,
+                        border: Border.all(color: Colors.blueGrey.shade200),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.person, size: 14, color: Colors.green),
-                          const SizedBox(width: 4),
-                          Text(
-                            seg.assignedDriverName.value,
-                            style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                      child: Text(
+                        "${seg.mode.value} Transit (No Driver)",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.blueGrey.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     );
                   }
-                  return const SizedBox.shrink();
+
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (seg.assignedDriverName.value.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            border: Border.all(color: Colors.green.shade300),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.person, size: 14, color: Colors.green),
+                              const SizedBox(width: 4),
+                              Text(
+                                seg.assignedDriverName.value,
+                                style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Tooltip(
+                        message: complete ? "Assign Driver" : "Fill all segment fields first",
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.person_add_outlined,
+                            size: 20,
+                            color: complete ? AppThemData.primary500 : Colors.grey.shade400,
+                          ),
+                          onPressed: complete ? _showAssignDriverDialog : null,
+                        ),
+                      ),
+                    ],
+                  );
                 }),
-                Tooltip(
-                  message: complete ? "Assign Driver" : "Fill all segment fields first",
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.person_add_outlined,
-                      size: 20,
-                      color: complete ? AppThemData.primary500 : Colors.grey.shade400,
-                    ),
-                    onPressed: complete ? _showAssignDriverDialog : null,
-                  ),
-                ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
                   tooltip: "Remove Segment",
@@ -177,7 +201,16 @@ class _SegmentCardItemViewState extends State<SegmentCardItemView> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     ),
                     items: modeItems.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                    onChanged: (val) { if (val != null) seg.mode.value = val; },
+                    onChanged: (val) {
+                      if (val != null) {
+                        seg.mode.value = val;
+                        if (val.toLowerCase() != 'road') {
+                          seg.assignedDriverId.value = '';
+                          seg.assignedDriverName.value = '';
+                        }
+                        setState(() {});
+                      }
+                    },
                   );
                 }),
                 
@@ -349,19 +382,42 @@ class _SegmentCardItemViewState extends State<SegmentCardItemView> {
                   ),
                 ),
 
-                if (!complete) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 14, color: Colors.orange.shade600),
-                      const SizedBox(width: 4),
-                      Text(
-                        "Fill all fields to enable driver assignment",
-                        style: TextStyle(fontSize: 11, color: Colors.orange.shade600),
+                Obx(() {
+                  final isRoad = seg.mode.value.toLowerCase() == 'road';
+                  if (!isRoad) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 14, color: Colors.blueGrey.shade600),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              "Driver assignment is only available for Road mode. ${seg.mode.value} transit does not require a driver.",
+                              style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade700),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ],
+                    );
+                  }
+                  if (!complete) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 14, color: Colors.orange.shade600),
+                          const SizedBox(width: 4),
+                          Text(
+                            "Fill all fields to enable driver assignment",
+                            style: TextStyle(fontSize: 11, color: Colors.orange.shade600),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
               ],
             ),
           ),

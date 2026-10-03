@@ -92,8 +92,8 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
         ? '${dateObj.day}/${dateObj.month}/${dateObj.year}'
         : (ride['date'] ?? 'N/A');
 
-    final rawPrice = ride['fare'] ??
-        ride['totalPrice'] ??
+    final rawPrice = ride['totalPrice'] ??
+        ride['fare'] ??
         ride['estimatedFare'] ??
         ride['price'] ??
         rideModel.fare;
@@ -109,9 +109,9 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
       }
     }
 
-    final String displayPrice = label == 'LOGISTICS'
-        ? 'Corporate Managed'
-        : '₹${parsedPrice.toStringAsFixed(0)}';
+    final String displayPrice = (label == 'LOGISTICS' && parsedPrice <= 0.0)
+        ? 'Price Pending'
+        : '₹${parsedPrice.toStringAsFixed(2)}';
 
     IconData icon = Icons.directions_car;
     Color color = Colors.blue;
@@ -167,6 +167,17 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
     } else if (status == 'in_transit') {
       statusColor = Colors.orange;
     }
+
+    final rideModel = ride['originalModel'] as BookingModel?;
+    final raw = rideModel?.rawJson ?? {};
+    final double vehiclePrice = double.tryParse((raw['vehiclePrice'] ?? raw['fare'] ?? '0').toString()) ?? 0.0;
+    final double helperCost = double.tryParse((raw['helperCost'] ?? '0').toString()) ?? 0.0;
+    final double tollCharges = double.tryParse((raw['tollCharges'] ?? '0').toString()) ?? 0.0;
+    final double nightCharges = double.tryParse((raw['nightCharges'] ?? '0').toString()) ?? 0.0;
+    final double handlingCharges = double.tryParse((raw['handlingCharges'] ?? '0').toString()) ?? 0.0;
+    final double discountAmount = double.tryParse((raw['discountAmount'] ?? raw['discount'] ?? '0').toString()) ?? 0.0;
+    final double rawPrice = ride['rawPrice'] is double ? (ride['rawPrice'] as double) : (double.tryParse(ride['rawPrice']?.toString() ?? '0') ?? 0.0);
+    final segments = rideModel?.segments ?? [];
 
     showModalBottomSheet(
       context: context,
@@ -338,22 +349,22 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F4A2C).withOpacity(0.04),
+                  color: const Color(0xFF0F4A2C).withOpacity(0.06),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      ride['type'] == 'LOGISTICS' ? "Billing Type" : "Total Fare",
+                      ride['type'] == 'LOGISTICS' ? "Total Amount" : "Total Fare",
                       style: const TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black54,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
                       ),
                     ),
                     Text(
-                      ride['price'],
+                      rawPrice > 0 ? "₹${rawPrice.toStringAsFixed(2)}" : "Price Pending",
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -363,6 +374,103 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
                   ],
                 ),
               ),
+
+              // Breakdown Card for Logistics
+              if (ride['type'] == 'LOGISTICS') ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Fare Breakdown",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDetailRow("Freight / Base Price", "₹${vehiclePrice.toStringAsFixed(2)}"),
+                      if (helperCost > 0)
+                        _buildDetailRow("Helper Cost", "₹${helperCost.toStringAsFixed(2)}"),
+                      if (tollCharges > 0)
+                        _buildDetailRow("Toll Charges", "₹${tollCharges.toStringAsFixed(2)}"),
+                      if (nightCharges > 0)
+                        _buildDetailRow("Night Charges", "₹${nightCharges.toStringAsFixed(2)}"),
+                      if (handlingCharges > 0)
+                        _buildDetailRow("Handling Charges", "₹${handlingCharges.toStringAsFixed(2)}"),
+                      if (discountAmount > 0)
+                        _buildDetailRow("Discount", "-₹${discountAmount.toStringAsFixed(2)}", isDiscount: true),
+                      const Divider(height: 16),
+                      _buildDetailRow("Total", "₹${rawPrice.toStringAsFixed(2)}", isBold: true),
+                    ],
+                  ),
+                ),
+                if (segments.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Roadmap Segments (${segments.length})",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+                        ),
+                        const SizedBox(height: 8),
+                        ...segments.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final seg = entry.value;
+                          final segFrom = seg.start['address'] ?? seg.start['name'] ?? 'Origin';
+                          final segTo = seg.end['address'] ?? seg.end['name'] ?? 'Destination';
+                          final segFare = seg.price ?? 0.0;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0F4A2C).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    "Seg ${idx + 1} • ${seg.mode}",
+                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF0F4A2C)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "$segFrom → $segTo",
+                                    style: const TextStyle(fontSize: 11, color: Colors.black87),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "₹${segFare.toStringAsFixed(2)}",
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
               const SizedBox(height: 24),
 
               // Action Buttons
@@ -493,6 +601,33 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {bool isDiscount = false, bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: isBold ? Colors.black87 : Colors.black54,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              color: isDiscount ? Colors.red : (isBold ? const Color(0xFF0F4A2C) : Colors.black87),
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

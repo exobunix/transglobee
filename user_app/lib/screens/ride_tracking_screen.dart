@@ -73,6 +73,7 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   late Map<String, dynamic> _driver;
 
   bool _hasNavigatedToRating = false;
+  bool _hasReviewed = false;
   bool _driverDetailsLoaded = false;
   String? _bookingUserId;
 
@@ -396,7 +397,8 @@ bool _isSheetOpen = true;
               }
             }
 
-            if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating) {
+            final hasRemainingSegments = _segments.isNotEmpty && _segments.any((s) => s.status.toLowerCase() != 'completed');
+            if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating && !_hasReviewed && !hasRemainingSegments) {
               _navigateToRating();
             }
           }
@@ -462,16 +464,27 @@ bool _isSheetOpen = true;
 
   bool _isPaying = false;
 
-  void _navigateToRating() {
-    if (_hasNavigatedToRating || !mounted) return;
+  void _navigateToRating({Map<String, dynamic>? customDriver}) {
+    final hasRemainingSegments = _segments.isNotEmpty && _segments.any((s) => s.status.toLowerCase() != 'completed');
+    if (_hasNavigatedToRating || _hasReviewed || (hasRemainingSegments && customDriver == null) || !mounted) return;
     _hasNavigatedToRating = true;
     ref.read(chatProvider.notifier).clearChat();
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
+        builder: (context) => RatingScreen(
+          driver: customDriver ?? _driver,
+          bookingId: widget.rideId,
+        ),
       ),
-    );
+    ).then((res) {
+      if (mounted) {
+        setState(() {
+          _hasReviewed = true;
+          _hasNavigatedToRating = false;
+        });
+      }
+    });
   }
 
   Future<void> _processPayment(String method) async {
@@ -559,7 +572,10 @@ bool _isSheetOpen = true;
         // After ride completed and payment done, redirect to home/rating
         Future.delayed(const Duration(seconds: 1), () {
           if (mounted) {
-            _navigateToRating();
+            final hasRemainingSegments = _segments.isNotEmpty && _segments.any((s) => s.status.toLowerCase() != 'completed');
+            if (!_hasNavigatedToRating && !_hasReviewed && !hasRemainingSegments) {
+              _navigateToRating();
+            }
           }
         });
       }
@@ -603,6 +619,12 @@ bool _isSheetOpen = true;
               ref.read(socketServiceProvider).registerAdditionalRoom(uidStr, name: 'Guest User');
             }
           }
+          if (booking['hasReviewed'] == true ||
+              (booking['review'] != null &&
+                  booking['review'] is Map &&
+                  booking['review']['rating'] != null)) {
+            _hasReviewed = true;
+          }
           if (booking['status'] != null) {
             final newStatus = booking['status'].toString().toLowerCase();
             final oldRawStatus = _rawStatus;
@@ -614,7 +636,8 @@ bool _isSheetOpen = true;
             if (_rawStatus != oldRawStatus) {
               _loadRoute();
             }
-            if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating) {
+            final hasRemainingSegments = _segments.isNotEmpty && _segments.any((s) => s.status.toLowerCase() != 'completed');
+            if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating && !_hasReviewed && !hasRemainingSegments) {
               _navigateToRating();
             }
           }
@@ -632,6 +655,14 @@ bool _isSheetOpen = true;
       if (rideRes.success && rideRes.data != null && mounted) {
         final ride = rideRes.data!;
         final rawDriver = ride.rawJson['driver'];
+        final rawJson = ride.rawJson;
+        if (rawJson['hasReviewed'] == true ||
+            (rawJson['review'] != null &&
+                rawJson['review'] is Map &&
+                rawJson['review']['rating'] != null)) {
+          _hasReviewed = true;
+        }
+
         if (ride.rawJson['startOtp'] != null) _startOtp = ride.rawJson['startOtp'].toString();
         if (ride.rawJson['endOtp'] != null) _endOtp = ride.rawJson['endOtp'].toString();
         if (ride.rawJson['otp'] != null && _startOtp == null) _startOtp = ride.rawJson['otp'].toString();
@@ -662,7 +693,8 @@ bool _isSheetOpen = true;
         if (_rawStatus != oldRawStatus) {
           _loadRoute();
         }
-        if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating) {
+        final hasRemainingSegments = _segments.isNotEmpty && _segments.any((s) => s.status.toLowerCase() != 'completed');
+        if ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_hasNavigatedToRating && !_hasReviewed && !hasRemainingSegments) {
           _navigateToRating();
         }
       }
@@ -991,7 +1023,7 @@ bool _isSheetOpen = true;
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Driver proposes a fare adjustment of +₹${extraFare.toStringAsFixed(0)}.",
+              "Driver proposes a fare adjustment of +₹${extraFare.toStringAsFixed(2)}.",
               style: TextStyle(color: context.colors.textPrimary, fontSize: 15),
             ),
             const SizedBox(height: 12),
@@ -1006,7 +1038,7 @@ bool _isSheetOpen = true;
                 children: [
                   const Text("New Total Fare:", style: TextStyle(fontWeight: FontWeight.w600)),
                   Text(
-                    "₹${newFare.toStringAsFixed(0)}",
+                    "₹${newFare.toStringAsFixed(2)}",
                     style: TextStyle(color: context.theme.primaryColor, fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ],
@@ -1044,7 +1076,7 @@ bool _isSheetOpen = true;
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Fare accepted: ₹${newFare.toStringAsFixed(0)}'),
+                  content: Text('Fare accepted: ₹${newFare.toStringAsFixed(2)}'),
                   backgroundColor: const Color(0xFF0F4A2C),
                 ),
               );
@@ -1811,7 +1843,7 @@ DraggableScrollableSheet(
                         ),
                       ),
                       Text(
-                        "₹${_currentFare.toStringAsFixed(0)}",
+                        "₹${_currentFare.toStringAsFixed(2)}",
                         style: TextStyle(
                           color: context.colors.textPrimary,
                           fontSize: 22,
@@ -1974,6 +2006,18 @@ DraggableScrollableSheet(
                       Navigator.pop(context);
                       return;
                     }
+                    final hasRemainingSegments = _segments.isNotEmpty &&
+                        _segments.any((s) => s.status.toLowerCase() != 'completed');
+                    if (hasRemainingSegments) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Shipment is in transit. All segment progress and updates are shown below.'),
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                      return;
+                    }
+
                     final isTripComplete = _rawStatus == 'completed' || _rawStatus == 'delivered';
                     if (!isTripComplete) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1984,13 +2028,11 @@ DraggableScrollableSheet(
                     if (_paymentStatus == 'unpaid') {
                       _showPaymentModeSelection(context);
                     } else {
-                      if (!_hasNavigatedToRating) {
-                        _hasNavigatedToRating = true;
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => RatingScreen(driver: _driver, bookingId: widget.rideId),
-                          ),
+                      if (!_hasReviewed) {
+                        _navigateToRating();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Driver review has already been submitted for this booking.')),
                         );
                       }
                     }
@@ -1998,12 +2040,12 @@ DraggableScrollableSheet(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _rawStatus == 'cancelled'
                         ? Colors.red.withOpacity(0.2)
-                        : ((_rawStatus == 'completed' || _rawStatus == 'delivered')
+                        : ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_segments.any((s) => s.status.toLowerCase() != 'completed')
                             ? (_paymentStatus == 'unpaid' ? context.theme.primaryColor : Colors.green)
                             : context.theme.cardColor),
                     foregroundColor: _rawStatus == 'cancelled'
                         ? Colors.red
-                        : ((_rawStatus == 'completed' || _rawStatus == 'delivered')
+                        : ((_rawStatus == 'completed' || _rawStatus == 'delivered') && !_segments.any((s) => s.status.toLowerCase() != 'completed')
                             ? Colors.white
                             : (context.colors.textSecondary ?? Colors.grey)),
                     minimumSize: const Size(double.infinity, 56),
@@ -2016,11 +2058,13 @@ DraggableScrollableSheet(
                   child: Text(
                     _rawStatus == 'cancelled'
                         ? "Ride Cancelled (Go Back)"
-                        : ((_rawStatus != 'completed' && _rawStatus != 'delivered')
-                            ? (_segments.isNotEmpty ? "Delivery in Progress" : "Ride in Progress - Driver Driving")
-                            : (_paymentStatus == 'unpaid'
-                                ? "Pay ₹${_currentFare.toStringAsFixed(0)}"
-                                : "Trip Completed (Rate Driver)")),
+                        : (_segments.isNotEmpty && _segments.any((s) => s.status.toLowerCase() != 'completed')
+                            ? "In Transit (Tracking Active)"
+                            : ((_rawStatus != 'completed' && _rawStatus != 'delivered')
+                                ? (_segments.isNotEmpty ? "Delivery in Progress" : "Ride in Progress - Driver Driving")
+                                : (_paymentStatus == 'unpaid'
+                                    ? "Pay ₹${_currentFare.toStringAsFixed(2)}"
+                                    : (_hasReviewed ? "Booking Completed" : "Trip Completed (Rate Driver)")))),
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -2409,18 +2453,18 @@ DraggableScrollableSheet(
                                 ),
                               ),
                             ),
-                            //  if (segment.price != null && segment.price! > 0)
-                            // Padding(
-                            //   padding: const EdgeInsets.only(top: 4),
-                            //   child: Text(
-                            //     "Price: ₹${segment.price!.toStringAsFixed(0)}",
-                            //     style: const TextStyle(
-                            //       color: Colors.green,
-                            //       fontSize: 11,
-                            //       fontWeight: FontWeight.bold,
-                            //     ),
-                            //   ),
-                            // ),
+                          if (segment.price != null && segment.price! > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                "Segment Price: ₹${segment.price!.toStringAsFixed(2)}",
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           if (segment.driverName != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 6),
@@ -2467,6 +2511,37 @@ DraggableScrollableSheet(
                                         ],
                                       ),
                                     ),
+                                    if (segment.status.toLowerCase() == 'completed' && !_hasReviewed)
+                                      InkWell(
+                                        onTap: () {
+                                          _navigateToRating(
+                                            customDriver: {
+                                              '_id': segment.driverId,
+                                              'name': segment.driverName,
+                                              'photo': segment.driverPhoto,
+                                            },
+                                          );
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: Colors.amber, width: 0.8),
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.star, size: 12, color: Colors.amber),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                "Rate",
+                                                style: TextStyle(fontSize: 10, color: Colors.amber, fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),

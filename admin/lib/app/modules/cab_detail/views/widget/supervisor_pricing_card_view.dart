@@ -60,7 +60,7 @@ class SupervisorPricingCardView extends StatelessWidget {
                 children: [
                   Text("Total:".tr, style: textStyle.copyWith(fontWeight: FontWeight.bold, fontSize: 16)),
                   Obx(() => Text(
-                    "₹${controller.totalPrice.value}",
+                    "₹${controller.totalPrice.value.toStringAsFixed(2)}",
                     style: textStyle.copyWith(fontWeight: FontWeight.bold, fontSize: 18, color: AppThemData.primary500),
                   )),
                 ],

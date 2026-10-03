@@ -48,6 +48,11 @@ class CabDetailController extends GetxController {
   final discountController = TextEditingController();
   RxDouble totalPrice = 0.0.obs;
 
+  double parseTwoDecimals(dynamic val) {
+    if (val == null) return 0.0;
+    return double.parse((double.tryParse(val.toString()) ?? 0.0).toStringAsFixed(2));
+  }
+
   // Shuttle admin actions
   final adminNotesController = TextEditingController();
   RxBool isUpdatingShuttle = false.obs;
@@ -121,16 +126,19 @@ class CabDetailController extends GetxController {
       String token = await AppSharedPreference.getString('adminToken');
       final uri = Uri.parse("${ApiConstant.baseUrl}/admin/supervisor/bookings/$bookingId/roadmap");
 
-      final segmentsJson = segments.map((s) => {
-        "from": s.fromController.text.trim(),
-        "to": s.toController.text.trim(),
-        "mode": s.mode.value,
-        "transportName": s.transportNameController.text.trim(),
-        "transportNumber": s.transportNumberController.text.trim(),
-        "estimatedDate": s.dateController.text.trim(),
-        "estimatedTime": s.timeController.text.trim(),
-        "segmentPrice": double.tryParse(s.priceController.text.trim()) ?? 0.0,
-        "assignedDriverId": s.assignedDriverId.value,
+      final segmentsJson = segments.map((s) {
+        final isRoad = s.mode.value.toLowerCase() == 'road';
+        return {
+          "from": s.fromController.text.trim(),
+          "to": s.toController.text.trim(),
+          "mode": s.mode.value,
+          "transportName": s.transportNameController.text.trim(),
+          "transportNumber": s.transportNumberController.text.trim(),
+          "estimatedDate": s.dateController.text.trim(),
+          "estimatedTime": s.timeController.text.trim(),
+          "segmentPrice": parseTwoDecimals(s.priceController.text.trim()),
+          "assignedDriverId": isRoad ? s.assignedDriverId.value : "",
+        };
       }).toList();
 
       final body = jsonEncode({"segments": segmentsJson});
@@ -244,14 +252,14 @@ class CabDetailController extends GetxController {
               transportMode.value = foundBookingMap['vehicleType']?.toString() ?? foundBookingMap['rideMode']?.toString() ?? 'Train';
               helperCount.value = foundBookingMap['helperCount'] is int ? foundBookingMap['helperCount'] : int.tryParse(foundBookingMap['helperCount']?.toString() ?? '0') ?? 0;
 
-              vehiclePriceController.text = (foundBookingMap['vehiclePrice'] ?? foundBookingMap['fare'] ?? '0').toString();
-              helperCostController.text = (foundBookingMap['helperCost'] ?? '0').toString();
-              tollChargesController.text = (foundBookingMap['tollCharges'] ?? '0').toString();
-              nightChargesController.text = (foundBookingMap['nightCharges'] ?? '0').toString();
-              handlingChargesController.text = (foundBookingMap['handlingCharges'] ?? '0').toString();
-              discountController.text = (foundBookingMap['discountAmount'] ?? foundBookingMap['discount'] ?? '0').toString();
+              vehiclePriceController.text = parseTwoDecimals(foundBookingMap['vehiclePrice'] ?? foundBookingMap['fare']).toStringAsFixed(2);
+              helperCostController.text = parseTwoDecimals(foundBookingMap['helperCost']).toStringAsFixed(2);
+              tollChargesController.text = parseTwoDecimals(foundBookingMap['tollCharges']).toStringAsFixed(2);
+              nightChargesController.text = parseTwoDecimals(foundBookingMap['nightCharges']).toStringAsFixed(2);
+              handlingChargesController.text = parseTwoDecimals(foundBookingMap['handlingCharges']).toStringAsFixed(2);
+              discountController.text = parseTwoDecimals(foundBookingMap['discountAmount'] ?? foundBookingMap['discount']).toStringAsFixed(2);
 
-              totalPrice.value = double.tryParse((foundBookingMap['totalPrice'] ?? '0').toString()) ?? 0.0;
+              totalPrice.value = parseTwoDecimals(foundBookingMap['totalPrice']);
 
               // --- Parse pickup address ---
               final pickupRaw = foundBookingMap['pickup'];
@@ -296,7 +304,8 @@ class CabDetailController extends GetxController {
                     final modeStr = s['mode']?.toString() ?? 'Road';
                     final dateStr = s['estimatedDate']?.toString() ?? '';
                     final timeStr = s['estimatedTime']?.toString() ?? '';
-                    final priceStr = (s['price'] ?? s['segmentPrice'] ?? 0).toString();
+                    final priceVal = parseTwoDecimals(s['price'] ?? s['segmentPrice']);
+                    final priceStr = priceVal.toStringAsFixed(2);
 
                     String driverIdStr = '';
                     String driverNameStr = '';
@@ -320,7 +329,8 @@ class CabDetailController extends GetxController {
                       transportNumberController: TextEditingController(text: transportNumberStr),
                       mode: modeStr.obs,
                     );
-                    if (driverIdStr.isNotEmpty) {
+                    final isRoadMode = modeStr.toLowerCase() == 'road';
+                    if (isRoadMode && driverIdStr.isNotEmpty) {
                       seg.assignedDriverId.value = driverIdStr;
                       seg.assignedDriverName.value = driverNameStr.isNotEmpty ? driverNameStr : 'Driver Assigned';
                     }
@@ -373,7 +383,7 @@ class CabDetailController extends GetxController {
     double handling = double.tryParse(handlingChargesController.text) ?? 0.0;
     double disc = double.tryParse(discountController.text) ?? 0.0;
 
-    totalPrice.value = vPrice + hCost + toll + night + handling - disc;
+    totalPrice.value = parseTwoDecimals(vPrice + hCost + toll + night + handling - disc);
   }
 
   Future<void> saveGoodsDetails() async {
@@ -411,13 +421,13 @@ class CabDetailController extends GetxController {
       final uri = Uri.parse("${ApiConstant.baseUrl}/admin/supervisor/bookings/$bookingId/pricing-override");
 
       final body = jsonEncode({
-        "vehiclePrice": double.tryParse(vehiclePriceController.text) ?? 0.0,
-        "helperCost": double.tryParse(helperCostController.text) ?? 0.0,
-        "tollCharges": double.tryParse(tollChargesController.text) ?? 0.0,
-        "nightCharges": double.tryParse(nightChargesController.text) ?? 0.0,
-        "handlingCharges": double.tryParse(handlingChargesController.text) ?? 0.0,
-        "discountAmount": double.tryParse(discountController.text) ?? 0.0,
-        "totalPrice": totalPrice.value,
+        "vehiclePrice": parseTwoDecimals(vehiclePriceController.text),
+        "helperCost": parseTwoDecimals(helperCostController.text),
+        "tollCharges": parseTwoDecimals(tollChargesController.text),
+        "nightCharges": parseTwoDecimals(nightChargesController.text),
+        "handlingCharges": parseTwoDecimals(handlingChargesController.text),
+        "discountAmount": parseTwoDecimals(discountController.text),
+        "totalPrice": parseTwoDecimals(totalPrice.value),
       });
 
       final response = await http.patch(uri, headers: ApiConstant.headers(token: token), body: body);
