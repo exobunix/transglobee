@@ -1,4 +1,10 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
+try {
+    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {
+    console.warn('DNS server override failed:', e.message);
+}
 
 let cachedConnection = null;
 let connectionPromise = null;
