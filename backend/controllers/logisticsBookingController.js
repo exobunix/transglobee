@@ -816,17 +816,16 @@ exports.approveRoadmap = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Booking not found.' });
         }
 
-        // Generate startOtp and endOtp if not present
+        // Generate startOtp and endOtp (strictly different)
         if (!booking.startOtp) {
-            booking.startOtp = booking.segments?.[0]?.otp || Math.floor(1000 + Math.random() * 9000).toString();
+            booking.startOtp = Math.floor(1000 + Math.random() * 9000).toString();
         }
-        if (!booking.endOtp) {
-            const lastSeg = booking.segments?.[booking.segments.length - 1];
-            booking.endOtp = lastSeg?.otp || booking.otp || Math.floor(1000 + Math.random() * 9000).toString();
+        if (!booking.endOtp || booking.endOtp === booking.startOtp) {
+            do {
+                booking.endOtp = Math.floor(1000 + Math.random() * 9000).toString();
+            } while (booking.endOtp === booking.startOtp);
         }
-        if (!booking.otp) {
-            booking.otp = booking.endOtp;
-        }
+        booking.otp = booking.startOtp;
         booking.roadmapStatus = 'approved';
         booking.status = 'pending_for_driver';
         await booking.save();

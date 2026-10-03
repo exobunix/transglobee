@@ -14,6 +14,7 @@ class SocketService {
   final _newRideController = StreamController<Map<String, dynamic>>.broadcast();
   final _rideAssignedController = StreamController<Map<String, dynamic>>.broadcast();
   final _fareUpdatedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _negotiateResultController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionSuccessController = StreamController<Map<String, dynamic>>.broadcast();
   final _paymentRequestedController = StreamController<Map<String, dynamic>>.broadcast();
   final _rideCancelledController = StreamController<Map<String, dynamic>>.broadcast();
@@ -28,6 +29,7 @@ class SocketService {
   Stream<Map<String, dynamic>> get newRideStream => _newRideController.stream;
   Stream<Map<String, dynamic>> get rideAssignedStream => _rideAssignedController.stream;
   Stream<Map<String, dynamic>> get fareUpdatedStream => _fareUpdatedController.stream;
+  Stream<Map<String, dynamic>> get negotiateResultStream => _negotiateResultController.stream;
   Stream<Map<String, dynamic>> get connectionSuccessStream => _connectionSuccessController.stream;
   Stream<Map<String, dynamic>> get paymentRequestedStream => _paymentRequestedController.stream;
   Stream<Map<String, dynamic>> get rideStatusStream => _rideStatusController.stream;
@@ -97,6 +99,13 @@ class SocketService {
     _socket?.on("fare_updated", (data) {
       print("Fare Updated via Socket: $data");
       _fareUpdatedController.add(Map<String, dynamic>.from(data));
+    });
+
+    _socket?.on("negotiate_fare_result", (data) {
+      print("Negotiate Fare Result via Socket: $data");
+      if (data is Map) {
+        _negotiateResultController.add(Map<String, dynamic>.from(data));
+      }
     });
 
     _socket?.on("payment_requested", (data) {
@@ -182,6 +191,20 @@ class SocketService {
     });
   }
 
+  void sendNegotiateFare({
+    required String rideId,
+    required double additionalAmount,
+    String? driverId,
+    String? driverName,
+  }) {
+    _socket?.emit("negotiate_fare", {
+      "rideId": rideId,
+      "additionalAmount": additionalAmount,
+      "driverId": driverId,
+      "driverName": driverName,
+    });
+  }
+
   void dispose() {
     _socket?.dispose();
     _messageController.close();
@@ -189,5 +212,6 @@ class SocketService {
     _newRideController.close();
     _rideStatusController.close();
     _rideCancelledController.close();
+    _negotiateResultController.close();
   }
 }

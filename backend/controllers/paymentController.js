@@ -5,14 +5,42 @@ const LogisticsBooking = require('../models/LogisticsBooking');
 const User = require('../models/User');
 const Driver = require('../models/Driver');
 const WalletRequest = require('../models/WalletRequest');
+const PaymentGatewayConfig = require('../models/PaymentGatewayConfig');
 
 const isObjectId = (value) => mongoose.Types.ObjectId.isValid(String(value || ''));
 
-const getRazorpay = () => {
+const getGatewayCredentials = async () => {
+    try {
+        const config = await PaymentGatewayConfig.findOne({ gateway: 'razorpay' });
+        if (config && config.isEnabled && config.keyId && config.keySecret) {
+            return {
+                key_id: config.keyId,
+                key_secret: config.keySecret,
+                isEnabled: true,
+                currency: config.currency || 'INR',
+                testMode: config.testMode
+            };
+        }
+    } catch (e) {
+        console.error('Error fetching dynamic payment config:', e);
+    }
+    const envKey = process.env.RAZORPAY_KEY_ID;
+    const envSecret = process.env.RAZORPAY_KEY_SECRET;
+    return {
+        key_id: envKey || '',
+        key_secret: envSecret || '',
+        isEnabled: !!(envKey && envSecret),
+        currency: 'INR',
+        testMode: true
+    };
+};
+
+const getRazorpay = async () => {
     const Razorpay = require('razorpay');
+    const creds = await getGatewayCredentials();
     return new Razorpay({
-        key_id: process.env.RAZORPAY_KEY_ID,
-        key_secret: process.env.RAZORPAY_KEY_SECRET,
+        key_id: creds.key_id,
+        key_secret: creds.key_secret,
     });
 };
 
@@ -65,14 +93,15 @@ exports.createOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'bookingId and a positive amount are required.' });
         }
 
-        if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+        const creds = await getGatewayCredentials();
+        if (!creds.isEnabled || !creds.key_id || !creds.key_secret) {
             return res.status(503).json({
                 success: false,
-                message: 'Payment gateway not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.',
+                message: 'Payment gateway not configured. Please pay in cash, online payment will be enabled soon.',
             });
         }
 
-        const razorpay = getRazorpay();
+        const razorpay = await getRazorpay();
         const order = await razorpay.orders.create({
             amount: Math.round(Number(amount) * 100),
             currency,
@@ -810,6 +839,81 @@ exports.getInvoice = async (req, res) => {
         };
 
         return res.status(200).json({ success: true, data: invoice });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.getGatewayConfig = async (req, res) => {
+    try {
+        const creds = await getGatewayCredentials();
+        return res.status(200).json({
+            success: true,
+            isConfigured: !!(creds.isEnabled && creds.key_id && creds.key_secret),
+            isEnabled: creds.isEnabled,
+            gateway: 'razorpay',
+            keyId: (creds.isEnabled && creds.key_id && creds.key_secret) ? creds.key_id : '',
+            currency: creds.currency || 'INR',
+            testMode: creds.testMode,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.getAdminGatewayConfig = async (req, res) => {
+    try {
+        let config = await PaymentGatewayConfig.findOne({ gateway: 'razorpay' });
+        if (!config) {
+            config = {
+                gateway: 'razorpay',
+                keyId: process.env.RAZORPAY_KEY_ID || '',
+                keySecret: process.env.RAZORPAY_KEY_SECRET || '',
+                webhookSecret: '',
+                isEnabled: !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+                currency: 'INR',
+                testMode: true,
+            };
+        }
+        return res.status(200).json({
+            success: true,
+            data: config,
+            isConfigured: !!(config.isEnabled && config.keyId && config.keySecret),
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.updateAdminGatewayConfig = async (req, res) => {
+    try {
+        const { keyId, keySecret, webhookSecret, isEnabled, testMode, currency } = req.body;
+
+        const hasKeys = !!(keyId && keySecret);
+        const enabled = isEnabled !== undefined ? Boolean(isEnabled) : hasKeys;
+
+        const config = await PaymentGatewayConfig.findOneAndUpdate(
+            { gateway: 'razorpay' },
+            {
+                $set: {
+                    gateway: 'razorpay',
+                    keyId: keyId ? keyId.trim() : '',
+                    keySecret: keySecret ? keySecret.trim() : '',
+                    webhookSecret: webhookSecret ? webhookSecret.trim() : '',
+                    isEnabled: enabled,
+                    testMode: testMode !== undefined ? Boolean(testMode) : true,
+                    currency: currency || 'INR',
+                },
+            },
+            { upsert: true, new: true }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Payment gateway configuration updated successfully.',
+            data: config,
+            isConfigured: !!(config.isEnabled && config.keyId && config.keySecret),
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }

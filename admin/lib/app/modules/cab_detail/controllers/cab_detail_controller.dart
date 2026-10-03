@@ -48,6 +48,10 @@ class CabDetailController extends GetxController {
   final discountController = TextEditingController();
   RxDouble totalPrice = 0.0.obs;
 
+  // Shuttle admin actions
+  final adminNotesController = TextEditingController();
+  RxBool isUpdatingShuttle = false.obs;
+
   // Roadmap Segments
   RxList<RoadmapSegment> segments = <RoadmapSegment>[].obs;
 
@@ -59,6 +63,8 @@ class CabDetailController extends GetxController {
       dateController: TextEditingController(),
       timeController: TextEditingController(),
       priceController: TextEditingController(text: '0'),
+      transportNameController: TextEditingController(),
+      transportNumberController: TextEditingController(),
       mode: 'Road'.obs,
     ));
   }
@@ -72,7 +78,35 @@ class CabDetailController extends GetxController {
       seg.dateController.dispose();
       seg.timeController.dispose();
       seg.priceController.dispose();
+      seg.transportNameController.dispose();
+      seg.transportNumberController.dispose();
       segments.removeAt(index);
+    }
+  }
+
+  Future<void> updateShuttleStatus(String status) async {
+    isUpdatingShuttle.value = true;
+    try {
+      String? bookingId = bookingModel.value.id;
+      String token = await AppSharedPreference.getString('adminToken');
+      final uri = Uri.parse("${ApiConstant.baseUrl}/shuttle/$bookingId/status");
+      final body = jsonEncode({
+        "status": status,
+        "notes": adminNotesController.text.trim(),
+        "adminNotes": adminNotesController.text.trim(),
+      });
+      final response = await http.post(uri, headers: ApiConstant.headers(token: token), body: body);
+      if (response.statusCode == 200) {
+        Get.snackbar("Success", "Shuttle booking marked as $status.", backgroundColor: Colors.green, colorText: Colors.white);
+        await getArgument(showLoading: false);
+      } else {
+        final err = jsonDecode(response.body);
+        Get.snackbar("Error", err['message'] ?? "Failed to update shuttle status.", backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    } catch (e) {
+      Get.snackbar("Error", "An error occurred: $e", backgroundColor: Colors.red, colorText: Colors.white);
+    } finally {
+      isUpdatingShuttle.value = false;
     }
   }
 
@@ -88,12 +122,14 @@ class CabDetailController extends GetxController {
       final uri = Uri.parse("${ApiConstant.baseUrl}/admin/supervisor/bookings/$bookingId/roadmap");
 
       final segmentsJson = segments.map((s) => {
-        "from": s.fromController.text,
-        "to": s.toController.text,
+        "from": s.fromController.text.trim(),
+        "to": s.toController.text.trim(),
         "mode": s.mode.value,
-        "estimatedDate": s.dateController.text,
-        "estimatedTime": s.timeController.text,
-        "segmentPrice": double.tryParse(s.priceController.text) ?? 0.0,
+        "transportName": s.transportNameController.text.trim(),
+        "transportNumber": s.transportNumberController.text.trim(),
+        "estimatedDate": s.dateController.text.trim(),
+        "estimatedTime": s.timeController.text.trim(),
+        "segmentPrice": double.tryParse(s.priceController.text.trim()) ?? 0.0,
         "assignedDriverId": s.assignedDriverId.value,
       }).toList();
 
@@ -271,12 +307,17 @@ class CabDetailController extends GetxController {
                       driverIdStr = s['driverId'].toString();
                     }
 
+                    final transportNameStr = s['transportName']?.toString() ?? '';
+                    final transportNumberStr = s['transportNumber']?.toString() ?? '';
+
                     final seg = RoadmapSegment(
                       fromController: TextEditingController(text: fromStr),
                       toController: TextEditingController(text: toStr),
                       dateController: TextEditingController(text: dateStr),
                       timeController: TextEditingController(text: timeStr),
                       priceController: TextEditingController(text: priceStr),
+                      transportNameController: TextEditingController(text: transportNameStr),
+                      transportNumberController: TextEditingController(text: transportNumberStr),
                       mode: modeStr.obs,
                     );
                     if (driverIdStr.isNotEmpty) {
@@ -469,6 +510,8 @@ class RoadmapSegment {
   final TextEditingController dateController;
   final TextEditingController timeController;
   final TextEditingController priceController;
+  final TextEditingController transportNameController;
+  final TextEditingController transportNumberController;
   final RxString mode;
   final Rx<DateTime?> selectedDate = Rx<DateTime?>(null);
   final Rx<TimeOfDay?> selectedTime = Rx<TimeOfDay?>(null);
@@ -481,6 +524,8 @@ class RoadmapSegment {
     required this.dateController,
     required this.timeController,
     required this.priceController,
+    required this.transportNameController,
+    required this.transportNumberController,
     required this.mode,
   });
 }

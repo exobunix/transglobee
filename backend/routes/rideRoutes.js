@@ -74,5 +74,13 @@ router.put('/rides/:rideId/verify-otp', verifyToken, rideController.verifyRideOt
 router.post('/review', optionalVerifyToken, rideController.submitReview);
 router.put('/rides/:rideId/pay', optionalVerifyToken, rideController.payRide);
 router.put('/:rideId/pay', optionalVerifyToken, rideController.payRide);
+router.post('/rides/:rideId/pay', optionalVerifyToken, rideController.payRide);
+router.post('/:rideId/pay', optionalVerifyToken, rideController.payRide);
+
+// Negotiation routes
+router.post('/rides/:rideId/negotiate', optionalVerifyToken, rideController.negotiateFare);
+router.post('/:rideId/negotiate', optionalVerifyToken, rideController.negotiateFare);
+router.post('/rides/:rideId/negotiate-response', optionalVerifyToken, rideController.respondNegotiateFare);
+router.post('/:rideId/negotiate-response', optionalVerifyToken, rideController.respondNegotiateFare);
 
 module.exports = router;

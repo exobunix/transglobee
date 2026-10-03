@@ -299,6 +299,8 @@ exports.saveRoadmap = async (req, res) => {
                 lng: 0,
             },
             mode: s.mode || 'Road',
+            transportName: s.transportName || '',
+            transportNumber: s.transportNumber || '',
             estimatedDate: s.estimatedDate || '',
             estimatedTime: s.estimatedTime || '',
             price: parseFloat(s.segmentPrice) || 0,
@@ -306,23 +308,60 @@ exports.saveRoadmap = async (req, res) => {
                 ? s.assignedDriverId
                 : null,
             status: 'pending',
+            otp: Math.floor(1000 + Math.random() * 9000).toString(),
         }));
 
-        const booking = await LogisticsBooking.findByIdAndUpdate(
-            bookingId,
-            { $set: { segments: builtSegments, roadmapStatus: 'draft' } },
-            { new: true }
-        );
-
-        if (!booking) {
+        let existing = await LogisticsBooking.findById(bookingId);
+        if (!existing) {
             return res.status(404).json({ success: false, message: 'Booking not found.' });
         }
 
+        // Generate distinct start and end OTPs
+        let startOtp = existing.startOtp || builtSegments[0]?.otp || Math.floor(1000 + Math.random() * 9000).toString();
+        let endOtp = existing.endOtp;
+        if (!endOtp || endOtp === startOtp) {
+            do {
+                endOtp = Math.floor(1000 + Math.random() * 9000).toString();
+            } while (endOtp === startOtp);
+        }
+
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            bookingId,
+            { 
+                $set: { 
+                    segments: builtSegments, 
+                    roadmapStatus: 'draft',
+                    startOtp,
+                    endOtp,
+                    otp: startOtp
+                } 
+            },
+            { new: true }
+        );
+
         // Notify user via socket
         if (req.io) {
-            req.io.to(booking.userId.toString()).emit('booking_updated', {
+            const targetUserRoom = booking.userId?.toString();
+            if (targetUserRoom) {
+                req.io.to(targetUserRoom).emit('booking_updated', {
+                    bookingId: booking._id.toString(),
+                    type: 'ROADMAP_SAVED',
+                    segments: booking.segments,
+                    startOtp,
+                    endOtp
+                });
+                req.io.to(targetUserRoom).emit('roadmap_updated', {
+                    bookingId: booking._id.toString(),
+                    segments: booking.segments,
+                    startOtp,
+                    endOtp
+                });
+            }
+            req.io.to(booking._id.toString()).emit('roadmap_updated', {
                 bookingId: booking._id.toString(),
-                type: 'ROADMAP_SAVED',
+                segments: booking.segments,
+                startOtp,
+                endOtp
             });
         }
 
@@ -339,15 +378,32 @@ exports.approveRoadmap = async (req, res) => {
     try {
         const { bookingId } = req.params;
 
-        const booking = await LogisticsBooking.findByIdAndUpdate(
-            bookingId,
-            { $set: { roadmapStatus: 'approved', status: 'pending_for_driver' } },
-            { new: true }
-        ).populate('segments.driverId', 'fullName phoneNumber fcmToken');
-
-        if (!booking) {
+        let existing = await LogisticsBooking.findById(bookingId);
+        if (!existing) {
             return res.status(404).json({ success: false, message: 'Booking not found.' });
         }
+
+        let startOtp = existing.startOtp || Math.floor(1000 + Math.random() * 9000).toString();
+        let endOtp = existing.endOtp;
+        if (!endOtp || endOtp === startOtp) {
+            do {
+                endOtp = Math.floor(1000 + Math.random() * 9000).toString();
+            } while (endOtp === startOtp);
+        }
+
+        const booking = await LogisticsBooking.findByIdAndUpdate(
+            bookingId,
+            { 
+                $set: { 
+                    roadmapStatus: 'approved', 
+                    status: 'pending_for_driver',
+                    startOtp,
+                    endOtp,
+                    otp: startOtp
+                } 
+            },
+            { new: true }
+        ).populate('segments.driverId', 'fullName phoneNumber fcmToken');
 
         // Notify each assigned driver via socket
         if (req.io) {
@@ -360,11 +416,31 @@ exports.approveRoadmap = async (req, res) => {
                         from: seg.start?.address,
                         to: seg.end?.address,
                         mode: seg.mode,
+                        transportName: seg.transportName,
+                        transportNumber: seg.transportNumber,
                         estimatedDate: seg.estimatedDate,
                         estimatedTime: seg.estimatedTime,
                         price: seg.price,
+                        startOtp: i === 0 ? startOtp : seg.otp,
                     });
                 }
+            });
+            const targetUserRoom = booking.userId?.toString();
+            if (targetUserRoom) {
+                req.io.to(targetUserRoom).emit('roadmap_updated', {
+                    bookingId: booking._id.toString(),
+                    segments: booking.segments,
+                    roadmapStatus: 'approved',
+                    startOtp,
+                    endOtp
+                });
+            }
+            req.io.to(booking._id.toString()).emit('roadmap_updated', {
+                bookingId: booking._id.toString(),
+                segments: booking.segments,
+                roadmapStatus: 'approved',
+                startOtp,
+                endOtp
             });
         }
 

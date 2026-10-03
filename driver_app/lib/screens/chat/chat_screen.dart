@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../services/voice_recognition_service.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String receiverId;
@@ -28,11 +29,13 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _voiceService = VoiceRecognitionService();
   
   bool _isRecording = false;
   int _recordSeconds = 0;
   bool _isCancelled = false;
   double _dragOffset = 0;
+  bool _isVoiceTranscribing = false;
 
   @override
   void initState() {
@@ -48,7 +51,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   @override
-  void dispose() { _msgCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _voiceService.stopListening();
+    _msgCtrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toggleVoiceRecognition() {
+    if (_isVoiceTranscribing) {
+      _voiceService.stopListening();
+      setState(() => _isVoiceTranscribing = false);
+    } else {
+      setState(() => _isVoiceTranscribing = true);
+      _voiceService.startListening(
+        onResult: (transcript) {
+          setState(() {
+            _msgCtrl.text = transcript;
+            _msgCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _msgCtrl.text.length));
+          });
+        },
+        onDone: () {
+          setState(() => _isVoiceTranscribing = false);
+        },
+        onError: (err) {
+          setState(() => _isVoiceTranscribing = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Voice input: $err')),
+            );
+          }
+        },
+      );
+    }
+  }
 
   void _send() {
     final txt = _msgCtrl.text.trim();
@@ -325,17 +361,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 if (_dragOffset < -100) _isCancelled = true;
               });
             },
-            onTap: _send,
+            onTap: () {
+              if (_msgCtrl.text.trim().isNotEmpty) {
+                _send();
+              } else {
+                _toggleVoiceRecognition();
+              }
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: EdgeInsets.all(_isRecording ? 18 : 14),
+              padding: EdgeInsets.all((_isRecording || _isVoiceTranscribing) ? 18 : 14),
               decoration: BoxDecoration(
-                gradient: _isRecording ? const LinearGradient(colors: [AppTheme.offlineRed, Color(0xFFFF5252)]) : AppTheme.onlineGradient,
+                gradient: (_isRecording || _isVoiceTranscribing)
+                    ? const LinearGradient(colors: [AppTheme.offlineRed, Color(0xFFFF5252)])
+                    : AppTheme.onlineGradient,
                 shape: BoxShape.circle,
-                boxShadow: _isRecording ? [BoxShadow(color: AppTheme.offlineRed.withOpacity(0.4), blurRadius: 15, spreadRadius: 2)] : [],
+                boxShadow: (_isRecording || _isVoiceTranscribing)
+                    ? [BoxShadow(color: AppTheme.offlineRed.withOpacity(0.4), blurRadius: 15, spreadRadius: 2)]
+                    : [],
               ),
               child: Icon(
-                _isRecording ? Icons.mic : (_msgCtrl.text.isEmpty ? Icons.mic : Icons.send),
+                _isRecording
+                    ? Icons.mic
+                    : (_msgCtrl.text.trim().isNotEmpty
+                        ? Icons.send
+                        : (_isVoiceTranscribing ? Icons.mic : Icons.mic_none)),
                 color: Colors.white,
                 size: 20,
               ),

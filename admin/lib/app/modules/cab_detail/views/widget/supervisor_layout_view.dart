@@ -9,6 +9,7 @@ import 'supervisor_overview_card.dart';
 import 'supervisor_goods_card_view.dart';
 import 'supervisor_roadmap_card_view.dart';
 import 'supervisor_pricing_card_view.dart';
+import 'shuttle_management_card_view.dart';
 
 class SupervisorLayoutView extends StatelessWidget {
   final CabDetailController controller;
@@ -22,6 +23,7 @@ class SupervisorLayoutView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isShuttle = controller.bookingModel.value.type == 'shuttle';
     final isPending = controller.bookingModel.value.bookingStatus?.toLowerCase() == 'placed' ||
                       controller.bookingModel.value.bookingStatus?.toLowerCase() == 'pending' ||
                       controller.bookingModel.value.bookingStatus?.toLowerCase() == 'booking_placed';
@@ -44,13 +46,13 @@ class SupervisorLayoutView extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     TextCustom(
-                      title: "Manage: ${controller.userModel.value.fullName ?? ''}",
+                      title: isShuttle ? "Shuttle Booking Details".tr : "Manage: ${controller.userModel.value.fullName ?? ''}",
                       fontSize: 20,
                       fontFamily: AppThemeData.bold,
                     ),
                   ],
                 ),
-                if (isPending)
+                if (!isShuttle && isPending)
                   ElevatedButton.icon(
                     onPressed: () => controller.approveBooking(),
                     icon: const Icon(Icons.check_circle_outline, color: Colors.green),
@@ -66,50 +68,54 @@ class SupervisorLayoutView extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth > 900) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 1,
-                        child: Column(
-                          children: [
-                            SupervisorOverviewCard(controller: controller, themeChange: themeChange),
-                            const SizedBox(height: 20),
-                            SupervisorGoodsCardView(controller: controller, themeChange: themeChange),
-                          ],
+            if (isShuttle) ...[
+              ShuttleManagementCardView(controller: controller, themeChange: themeChange),
+            ] else ...[
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 900) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: Column(
+                            children: [
+                              SupervisorOverviewCard(controller: controller, themeChange: themeChange),
+                              const SizedBox(height: 20),
+                              SupervisorGoodsCardView(controller: controller, themeChange: themeChange),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        flex: 2,
-                        child: Column(
-                          children: [
-                            SupervisorRoadmapCardView(controller: controller, themeChange: themeChange),
-                            const SizedBox(height: 20),
-                            SupervisorPricingCardView(controller: controller, themeChange: themeChange),
-                          ],
+                        const SizedBox(width: 20),
+                        Expanded(
+                          flex: 2,
+                          child: Column(
+                            children: [
+                              SupervisorRoadmapCardView(controller: controller, themeChange: themeChange),
+                              const SizedBox(height: 20),
+                              SupervisorPricingCardView(controller: controller, themeChange: themeChange),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                } else {
-                  return Column(
-                    children: [
-                      SupervisorOverviewCard(controller: controller, themeChange: themeChange),
-                      const SizedBox(height: 20),
-                      SupervisorGoodsCardView(controller: controller, themeChange: themeChange),
-                      const SizedBox(height: 20),
-                      SupervisorRoadmapCardView(controller: controller, themeChange: themeChange),
-                      const SizedBox(height: 20),
-                      SupervisorPricingCardView(controller: controller, themeChange: themeChange),
-                    ],
-                  );
-                }
-              },
-            ),
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        SupervisorOverviewCard(controller: controller, themeChange: themeChange),
+                        const SizedBox(height: 20),
+                        SupervisorGoodsCardView(controller: controller, themeChange: themeChange),
+                        const SizedBox(height: 20),
+                        SupervisorRoadmapCardView(controller: controller, themeChange: themeChange),
+                        const SizedBox(height: 20),
+                        SupervisorPricingCardView(controller: controller, themeChange: themeChange),
+                      ],
+                    );
+                  }
+                },
+              ),
+            ],
           ],
         ),
       ),

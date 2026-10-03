@@ -39,7 +39,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           _scaffoldKey.currentState?.openDrawer();
         },
       ),
-      const ActivityTab(),
+      ActivityTab(
+        onBackToHome: () {
+          setState(() => _currentIndex = 0);
+        },
+      ),
       if (isLoggedIn) const WalletScreen(),
       AccountTab(
         onTabChange: (index) {

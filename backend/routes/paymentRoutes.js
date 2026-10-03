@@ -23,4 +23,9 @@ router.get('/history', verifyToken, paymentController.getWalletHistory); // Alia
 router.get('/driver/earnings/:driverId', verifyToken, paymentController.getDriverEarnings);
 router.get('/invoice/:bookingId', verifyToken, paymentController.getInvoice);
 
+// Gateway configuration endpoints
+router.get('/gateway-config', paymentController.getGatewayConfig);
+router.get('/admin/gateway-config', paymentController.getAdminGatewayConfig);
+router.post('/admin/gateway-config', paymentController.updateAdminGatewayConfig);
+
 module.exports = router;

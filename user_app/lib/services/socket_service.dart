@@ -17,6 +17,8 @@ class SocketService {
   final _fareIncreasedController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionSuccessController = StreamController<Map<String, dynamic>>.broadcast();
   final _roadmapUpdatedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _negotiateReceivedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _rideCancelledByDriverController = StreamController<Map<String, dynamic>>.broadcast();
 
   String? _pendingRideId;
   final Set<String> _registeredRooms = {};
@@ -32,6 +34,8 @@ class SocketService {
   Stream<Map<String, dynamic>> get fareIncreasedStream => _fareIncreasedController.stream;
   Stream<Map<String, dynamic>> get connectionSuccessStream => _connectionSuccessController.stream;
   Stream<Map<String, dynamic>> get roadmapUpdatedStream => _roadmapUpdatedController.stream;
+  Stream<Map<String, dynamic>> get negotiateReceivedStream => _negotiateReceivedController.stream;
+  Stream<Map<String, dynamic>> get rideCancelledByDriverStream => _rideCancelledByDriverController.stream;
 
   void connect(String userId, {String? name, List<String> additionalUserIds = const []}) {
     final roomIds = <String>{
@@ -120,6 +124,20 @@ class SocketService {
       }
     });
 
+    _socket?.on("negotiate_fare_received", (data) {
+      print("Negotiate Fare Received: $data");
+      if (data is Map) {
+        _negotiateReceivedController.add(Map<String, dynamic>.from(data));
+      }
+    });
+
+    _socket?.on("ride_cancelled_by_driver", (data) {
+      print("Ride Cancelled By Driver: $data");
+      if (data is Map) {
+        _rideCancelledByDriverController.add(Map<String, dynamic>.from(data));
+      }
+    });
+
     _socket?.on("roadmap_updated", (data) {
       print("Roadmap Updated Received: $data");
       if (data is Map) {
@@ -163,6 +181,18 @@ class SocketService {
     _pendingRideId = null;
   }
 
+  void sendNegotiateResponse({
+    required String rideId,
+    required bool accept,
+    double? additionalAmount,
+  }) {
+    _socket?.emit("negotiate_fare_response", {
+      "rideId": rideId,
+      "accept": accept,
+      "additionalAmount": additionalAmount,
+    });
+  }
+
   void sendMessage(String senderId, String receiverId, String message,
       {String senderRole = 'user', String? senderName, String? bookingId}) {
     _socket?.emit("send_message", {
@@ -190,5 +220,7 @@ class SocketService {
     _rideStatusController.close();
     _driverLocationController.close();
     _roadmapUpdatedController.close();
+    _negotiateReceivedController.close();
+    _rideCancelledByDriverController.close();
   }
 }

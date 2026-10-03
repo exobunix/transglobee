@@ -7,7 +7,8 @@ import '../services/rest_api_repository.dart';
 import 'home_screen.dart'; // import navigateToRideTracking
 
 class ActivityTab extends ConsumerStatefulWidget {
-  const ActivityTab({super.key});
+  final VoidCallback? onBackToHome;
+  const ActivityTab({super.key, this.onBackToHome});
 
   @override
   ConsumerState<ActivityTab> createState() => _ActivityTabState();
@@ -503,6 +504,20 @@ class _ActivityTabState extends ConsumerState<ActivityTab>
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black87,
+            size: 18,
+          ),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else if (widget.onBackToHome != null) {
+              widget.onBackToHome!();
+            }
+          },
+        ),
         title: const Text(
           "Activity",
           style: TextStyle(

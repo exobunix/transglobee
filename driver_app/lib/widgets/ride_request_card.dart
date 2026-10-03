@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../providers/vehicle_type_provider.dart';
+import '../services/socket_service.dart';
+import '../features/driver/controllers/driver_providers.dart';
 
 class RideRequestCard extends ConsumerStatefulWidget {
   final Function(double)? onAccept;
@@ -45,6 +47,35 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
     _controller.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(socketServiceProvider).negotiateResultStream.listen((data) {
+        if (!mounted) return;
+        final rideId = (widget.rideData?['id'] ?? widget.rideData?['_id'])?.toString();
+        if (data['rideId']?.toString() == rideId) {
+          final accepted = data['accepted'] == true;
+          final extra = data['additionalAmount'] ?? _additionalFare;
+          if (accepted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Passenger accepted +₹$extra fare!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            setState(() {
+              _additionalFare = 0;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Passenger declined extra fare negotiation.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      });
+    });
   }
 
   @override
@@ -214,24 +245,33 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
                   ),
                   const SizedBox(width: 8),
                   if (showFare)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.earningsAmber.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          '₹${widget.rideData?['fare'] ?? '0'}',
-                          style: const TextStyle(
-                            color: AppTheme.earningsAmber,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
+                    InkWell(
+                      onTap: () => _showFareBreakdown(context),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.earningsAmber.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.earningsAmber.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '₹${((double.tryParse((widget.rideData?['fare'] ?? '0').toString()) ?? 0.0) + _additionalFare).toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: AppTheme.earningsAmber,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.info_outline, size: 14, color: AppTheme.earningsAmber),
+                          ],
                         ),
                       ),
                     )
@@ -481,6 +521,22 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
         setState(() {
           _additionalFare += amount;
         });
+        final rideId = (widget.rideData?['id'] ?? widget.rideData?['_id'])?.toString();
+        if (rideId != null && rideId.isNotEmpty) {
+          final driverProfile = ref.read(driverProfileProvider).value;
+          ref.read(socketServiceProvider).sendNegotiateFare(
+            rideId: rideId,
+            additionalAmount: amount.toDouble(),
+            driverId: driverProfile?.id,
+            driverName: driverProfile?.fullName ?? 'Driver',
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Negotiation sent: +₹$amount. Waiting for passenger response...'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -494,6 +550,82 @@ class _RideRequestCardState extends ConsumerState<RideRequestCard>
           style: const TextStyle(color: AppTheme.neonGreen, fontSize: 13, fontWeight: FontWeight.bold),
         ),
       ),
+    );
+  }
+
+  void _showFareBreakdown(BuildContext context) {
+    final baseFare = double.tryParse((widget.rideData?['fare'] ?? '0').toString()) ?? 0.0;
+    final totalFare = baseFare + _additionalFare;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Fare Summary Breakdown',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const Divider(color: AppTheme.darkDivider),
+            const SizedBox(height: 12),
+            _breakdownRow('Base & Distance Fare', '₹${baseFare.toStringAsFixed(0)}'),
+            if (_additionalFare > 0) ...[
+              const SizedBox(height: 8),
+              _breakdownRow('Negotiated Extra Fare', '+₹$_additionalFare', color: AppTheme.neonGreen),
+            ],
+            const SizedBox(height: 8),
+            _breakdownRow('Taxes & Convenience Fees', 'Included'),
+            const SizedBox(height: 14),
+            const Divider(color: AppTheme.darkDivider),
+            const SizedBox(height: 8),
+            _breakdownRow('Total Booking Fare', '₹${totalFare.toStringAsFixed(0)}', isTotal: true),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _breakdownRow(String title, String val, {Color? color, bool isTotal = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: isTotal ? Colors.white : AppTheme.darkTextSecondary,
+            fontSize: isTotal ? 16 : 14,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+        Text(
+          val,
+          style: TextStyle(
+            color: color ?? (isTotal ? AppTheme.earningsAmber : Colors.white),
+            fontSize: isTotal ? 18 : 14,
+            fontWeight: isTotal ? FontWeight.w900 : FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 

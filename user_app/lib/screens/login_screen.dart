@@ -161,8 +161,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 child: FadeTransition(
                   opacity: _fadeAnimation,
                   child: SlideTransition(
@@ -176,40 +176,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           // Top decorative branding header
                           Center(
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(16),
                               child: Image.asset(
                                 'assets/images/login_hero.png',
-                                height: 160,
+                                height: 85,
                                 fit: BoxFit.contain,
                               ),
                             ),
                           ),
                           
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 12),
 
                           Text(
                             _isLogin ? 'Welcome Back' : 'Create Account',
                             style: GoogleFonts.lexend(
-                              fontSize: 28,
+                              fontSize: 22,
                               fontWeight: FontWeight.bold,
                               color: context.colors.textPrimary,
                               letterSpacing: -0.5,
                             ),
                             textAlign: TextAlign.center,
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
                           Text(
                             _isLogin
                                 ? 'Log in to continue managing your travels'
                                 : 'Sign up to start your journey with us',
                             style: GoogleFonts.notoSans(
-                              fontSize: 14,
+                              fontSize: 13,
                               color: context.colors.textSecondary,
-                              height: 1.5,
+                              height: 1.3,
                             ),
                             textAlign: TextAlign.center,
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 16),
 
                           // Login Card
                           Form(

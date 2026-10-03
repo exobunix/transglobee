@@ -86,6 +86,7 @@ void navigateToRideTracking(BuildContext context, dynamic booking) {
   Navigator.push(
     context,
     MaterialPageRoute(
+      settings: const RouteSettings(name: '/tracking'),
       builder: (context) => RideTrackingScreen(
         pickup: pickupMap,
         dropoff: dropoffMap,

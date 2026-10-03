@@ -33,9 +33,7 @@ class _SegmentCardItemViewState extends State<SegmentCardItemView> {
     return seg.fromController.text.trim().isNotEmpty &&
         seg.toController.text.trim().isNotEmpty &&
         seg.dateController.text.trim().isNotEmpty &&
-        seg.timeController.text.trim().isNotEmpty &&
-        seg.priceController.text.trim().isNotEmpty &&
-        (double.tryParse(seg.priceController.text.trim()) ?? 0) > 0;
+        seg.timeController.text.trim().isNotEmpty;
   }
   @override
   Widget build(BuildContext context) {
@@ -182,6 +180,72 @@ class _SegmentCardItemViewState extends State<SegmentCardItemView> {
                     onChanged: (val) { if (val != null) seg.mode.value = val; },
                   );
                 }),
+                
+                Obx(() {
+                  final mode = seg.mode.value.toLowerCase();
+                  final isNonRoad = mode.contains('rail') || mode.contains('train') ||
+                                    mode.contains('air') || mode.contains('flight') ||
+                                    mode.contains('sea');
+                  if (!isNonRoad) return const SizedBox.shrink();
+
+                  String nameLabel = "Train Name";
+                  String nameHint = "e.g. Vande Bharat";
+                  String numLabel = "Train Number";
+                  String numHint = "e.g. 98984";
+
+                  if (mode.contains('air') || mode.contains('flight')) {
+                    nameLabel = "Flight Name";
+                    nameHint = "e.g. IndiGo";
+                    numLabel = "Flight Number";
+                    numHint = "e.g. 6E-204";
+                  } else if (mode.contains('sea')) {
+                    nameLabel = "Sea Cargo / Vessel Name";
+                    nameHint = "e.g. Ocean Cargo Liner";
+                    numLabel = "Sea Cargo / Container No.";
+                    numHint = "e.g. SC-9821";
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: seg.transportNameController,
+                            decoration: InputDecoration(
+                              labelText: nameLabel,
+                              hintText: nameHint,
+                              labelStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                              hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+                              filled: true,
+                              fillColor: fieldFill,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: seg.transportNumberController,
+                            decoration: InputDecoration(
+                              labelText: numLabel,
+                              hintText: numHint,
+                              labelStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+                              hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+                              filled: true,
+                              fillColor: fieldFill,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
                 const SizedBox(height: 10),
 
                 Row(
@@ -189,11 +253,15 @@ class _SegmentCardItemViewState extends State<SegmentCardItemView> {
                     Expanded(
                       child: InkWell(
                         onTap: () async {
+                          final now = DateTime.now();
+                          final today = DateTime(now.year, now.month, now.day);
                           final picked = await showDatePicker(
                             context: context,
-                            initialDate: seg.selectedDate.value ?? DateTime.now(),
-                            firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                            lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+                            initialDate: (seg.selectedDate.value != null && !seg.selectedDate.value!.isBefore(today))
+                                ? seg.selectedDate.value!
+                                : today,
+                            firstDate: today,
+                            lastDate: today.add(const Duration(days: 365 * 3)),
                           );
                           if (picked != null) {
                             seg.selectedDate.value = picked;
@@ -227,6 +295,20 @@ class _SegmentCardItemViewState extends State<SegmentCardItemView> {
                             initialTime: seg.selectedTime.value ?? TimeOfDay.now(),
                           );
                           if (picked != null) {
+                            final now = DateTime.now();
+                            final isToday = seg.selectedDate.value == null ||
+                                (seg.selectedDate.value!.year == now.year &&
+                                 seg.selectedDate.value!.month == now.month &&
+                                 seg.selectedDate.value!.day == now.day);
+                            if (isToday) {
+                              final pickedMinutes = picked.hour * 60 + picked.minute;
+                              final nowMinutes = now.hour * 60 + now.minute;
+                              if (pickedMinutes < nowMinutes) {
+                                Get.snackbar("Invalid Time", "Cannot select a past time for today.",
+                                    backgroundColor: Colors.red, colorText: Colors.white);
+                                return;
+                              }
+                            }
                             seg.selectedTime.value = picked;
                             seg.timeController.text =
                                 "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}";

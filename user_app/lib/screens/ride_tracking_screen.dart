@@ -58,6 +58,8 @@ class _RideTrackingScreenState extends ConsumerState<RideTrackingScreen> with Ti
   StreamSubscription? _fareSubscription;
   StreamSubscription? _roadmapSubscription;
   StreamSubscription? _acceptedSubscription;
+  StreamSubscription? _negotiateSubscription;
+  StreamSubscription? _cancelByDriverSubscription;
   Timer? _driverPollTimer;
   List<LogisticsSegment> _segments = [];
   String? _startOtp;
@@ -384,9 +386,13 @@ bool _isSheetOpen = true;
               _loadRoute();
             }
 
-            if (_rawStatus == 'cancelled' && (oldRawStatus == 'ongoing' || oldRawStatus == 'in_transit')) {
-              if (data['ride'] != null && data['ride'] is Map) {
-                _showCancellationSummaryDialog(Map<String, dynamic>.from(data['ride']));
+            if (_rawStatus == 'cancelled') {
+              if (data['cancelledBy'] == 'driver' || (data['reason'] != null && data['reason'].toString().toLowerCase().contains('driver'))) {
+                _showDriverCancelledDialog(data['message']?.toString());
+              } else if (oldRawStatus == 'ongoing' || oldRawStatus == 'in_transit') {
+                if (data['ride'] != null && data['ride'] is Map) {
+                  _showCancellationSummaryDialog(Map<String, dynamic>.from(data['ride']));
+                }
               }
             }
 
@@ -394,6 +400,20 @@ bool _isSheetOpen = true;
               _navigateToRating();
             }
           }
+        }
+      });
+
+      _negotiateSubscription = ref.read(socketServiceProvider).negotiateReceivedStream.listen((data) {
+        final rId = (data['rideId'] ?? data['bookingId'])?.toString();
+        if (rId == widget.rideId.toString() && mounted) {
+          _showNegotiationPopup(Map<String, dynamic>.from(data));
+        }
+      });
+
+      _cancelByDriverSubscription = ref.read(socketServiceProvider).rideCancelledByDriverStream.listen((data) {
+        final rId = (data['rideId'] ?? data['bookingId'])?.toString();
+        if (rId == widget.rideId.toString() && mounted) {
+          _showDriverCancelledDialog(data['message']?.toString());
         }
       });
 
@@ -455,6 +475,60 @@ bool _isSheetOpen = true;
   }
 
   Future<void> _processPayment(String method) async {
+    final cleanMethod = method.toLowerCase();
+    if (cleanMethod == 'online' || cleanMethod == 'card' || cleanMethod == 'upi') {
+      try {
+        final repo = ref.read(restApiRepositoryProvider);
+        final cfgRes = await repo.getPaymentGatewayConfig();
+        final isConfigured = cfgRes.success && cfgRes.data != null && 
+          ((cfgRes.data!['configured'] == true) || 
+           (cfgRes.data!['keyId'] != null && cfgRes.data!['keyId'].toString().trim().isNotEmpty));
+
+        if (!isConfigured) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: context.theme.cardColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                title: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.orange),
+                    const SizedBox(width: 8),
+                    Text("Pay in Cash", style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+                  ],
+                ),
+                content: Text(
+                  "Online payment gateway is not yet enabled. Please pay in cash to the driver. We will enable online payment soon.",
+                  style: TextStyle(color: context.colors.textSecondary, fontSize: 15),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text("Cancel", style: TextStyle(color: context.colors.textSecondary)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _processPayment('cash');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F4A2C),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text("Pay Cash", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error verifying gateway config: $e');
+      }
+    }
+
     setState(() => _isPaying = true);
     try {
       final repo = ref.read(restApiRepositoryProvider);
@@ -482,6 +556,12 @@ bool _isSheetOpen = true;
             backgroundColor: const Color(0xFF0F4A2C),
           ),
         );
+        // After ride completed and payment done, redirect to home/rating
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            _navigateToRating();
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -598,6 +678,8 @@ bool _isSheetOpen = true;
     _fareSubscription?.cancel();
     _roadmapSubscription?.cancel();
     _acceptedSubscription?.cancel();
+    _negotiateSubscription?.cancel();
+    _cancelByDriverSubscription?.cancel();
     _driverPollTimer?.cancel();
     _driverMarkerAnimController?.dispose();
     _mapController.dispose();
@@ -846,6 +928,132 @@ bool _isSheetOpen = true;
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text("OK", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDriverCancelledDialog([String? customMessage]) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.theme.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.cancel, color: Colors.red),
+            const SizedBox(width: 8),
+            Text("Ride Cancelled", style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          customMessage ?? "Driver cancelled the ride. Please make a booking again.",
+          style: TextStyle(color: context.colors.textSecondary, fontSize: 15),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: context.theme.primaryColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Make a Booking Again", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNegotiationPopup(Map<String, dynamic> data) {
+    final extraFare = _parseDouble(data['extraFare'] ?? data['amount'] ?? 0);
+    final newFare = _parseDouble(data['newFare'] ?? (_currentFare + extraFare));
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.theme.cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.monetization_on_outlined, color: Colors.green),
+            const SizedBox(width: 8),
+            Text("Driver Fare Offer", style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Driver proposes a fare adjustment of +₹${extraFare.toStringAsFixed(0)}.",
+              style: TextStyle(color: context.colors.textPrimary, fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: context.theme.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("New Total Fare:", style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    "₹${newFare.toStringAsFixed(0)}",
+                    style: TextStyle(color: context.theme.primaryColor, fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(socketServiceProvider).sendNegotiateResponse(
+                widget.rideId,
+                false,
+                extraFare: extraFare,
+                newFare: _currentFare,
+              );
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Negotiation declined.')),
+              );
+            },
+            child: const Text("Deny", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(socketServiceProvider).sendNegotiateResponse(
+                widget.rideId,
+                true,
+                extraFare: extraFare,
+                newFare: newFare,
+              );
+              setState(() {
+                _currentFare = newFare;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Fare accepted: ₹${newFare.toStringAsFixed(0)}'),
+                  backgroundColor: const Color(0xFF0F4A2C),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F4A2C),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Accept", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1727,6 +1935,7 @@ DraggableScrollableSheet(
                             Navigator.push(
                               context,
                               MaterialPageRoute(
+                                settings: const RouteSettings(name: '/chat'),
                                 builder: (_) => ChatScreen(
                                   receiverId: driverId.toString(),
                                   receiverName: _driver['name'] ?? 'Driver',
@@ -1889,6 +2098,7 @@ DraggableScrollableSheet(
           Navigator.push(
             context,
             MaterialPageRoute(
+              settings: const RouteSettings(name: '/chat'),
               builder: (_) => ChatScreen(
                 receiverId: driverId.toString(),
                 receiverName: _driver['name'] ?? 'Driver',

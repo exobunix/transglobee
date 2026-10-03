@@ -304,25 +304,93 @@ class _BusSeatSelectionScreenState extends ConsumerState<BusSeatSelectionScreen>
       if (!mounted) return;
 
       if (response.success && response.data != null) {
-        final booking = response.data!;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SearchingRideScreen(
-              pickup: pickup,
-              dropoff: dropoff,
-              distance: '${distance.toStringAsFixed(1)} km',
-              rideMode: '${widget.vehicle['vehicleName'] ?? "Bus"} (Seats: ${sortedSeats.join(", ")})',
-              price: '₹${totalFare.toStringAsFixed(0)}',
-              otp: null,
-              rideId: booking.bookingId,
-              vehicle: {
-                'name': widget.vehicle['vehicleName'] ?? 'Shuttle Bus',
-                'type': 'Bus',
-                'price': totalFare,
-                'seats': sortedSeats,
-              },
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: context.theme.cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_circle_outline, color: Colors.teal, size: 28),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    "Request Sent to Admin",
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Your shuttle request has been received with complete details.",
+                  style: TextStyle(color: context.colors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Admin will review and accept or decline your request, and add notes. You will receive an instant notification once confirmed.",
+                  style: TextStyle(color: context.colors.textSecondary, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: context.theme.scaffoldBackgroundColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: context.theme.dividerColor.withOpacity(0.1)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Seats Booked:", style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+                          Text(sortedSeats.join(", "), style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Total Fare:", style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+                          Text("₹${totalFare.toStringAsFixed(0)}", style: TextStyle(color: context.theme.primaryColor, fontWeight: FontWeight.bold, fontSize: 13)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F4A2C),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 45),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text("OK, Done", style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
         );
       } else {

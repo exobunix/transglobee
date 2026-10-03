@@ -99,32 +99,36 @@ class DashboardScreenController extends GetxController {
           totalBookingActive.value = data['bookings']?['active'] ?? 0;
           totalBookingCompleted.value = data['bookings']?['completed'] ?? 0;
           totalBookingCanceled.value = data['bookings']?['cancelled'] ?? 0;
+
+          // Parse recent bookings
+          final recent = statsData['recentBookings'] ?? data['recentBookings'];
+          if (recent is List) {
+            recentBookingList.value = recent.map((e) => BookingModel.fromJson(Map<String, dynamic>.from(e))).toList();
+          }
+
+          // Parse monthly series
+          final List? monthlyEarn = statsData['monthlyEarnings'] ?? data['trends']?['monthlyEarnings'];
+          final List? monthlyBk = statsData['monthlyBookings'] ?? data['trends']?['monthlyBookings'];
+
+          final months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+          bookingChartData = List.generate(12, (i) {
+            final val = (monthlyEarn != null && i < monthlyEarn.length) ? (monthlyEarn[i] is num ? monthlyEarn[i].toDouble() : 0.0) : 0.0;
+            return ChartData(months[i], val);
+          });
+
+          usersChartData = List.generate(12, (i) {
+            final val = (monthlyBk != null && i < monthlyBk.length) ? (monthlyBk[i] is num ? monthlyBk[i].toDouble() : 0.0) : 0.0;
+            return ChartData(months[i], val);
+          });
         }
       }
-
-      // 2. Fetch Recent Bookings from MongoDB Backend API (Commented out)
-      /*
-      final bookingsResponse = await http.get(
-        Uri.parse("${ApiConstant.adminBookings}?type=ride"),
-        headers: ApiConstant.headers(token: token),
-      );
-
-      if (bookingsResponse.statusCode == 200) {
-        final bookingsData = jsonDecode(bookingsResponse.body);
-        if (bookingsData['success'] == true && bookingsData['bookings'] != null) {
-          List list = bookingsData['bookings'];
-          bookingList.value = list.map((e) => BookingModel.fromJson(e)).toList();
-          recentBookingList.value = bookingList.take(5).toList();
-        }
-      }
-      */
     } catch (e) {
       log('Error fetching dashboard statistics from REST API: $e');
     }
 
-    // Initialize chart data structures
-    bookingChartData = List.filled(12, ChartData("", 0));
-    usersChartData = List.filled(12, ChartData("", 0));
+    // Initialize chart data structures fallback if not populated
+    bookingChartData ??= List.filled(12, ChartData("", 0));
+    usersChartData ??= List.filled(12, ChartData("", 0));
     usersCircleChartData = List.filled(12, ChartDataCircle("", 0, Colors.amber));
 
     // Populate chart structures and custom chart lists locally
@@ -133,25 +137,14 @@ class DashboardScreenController extends GetxController {
     ];
 
     chartDataCircle = [
-      ChartDataCircle('Total Service', totalService.value, Colors.blue),
-      ChartDataCircle('Total Booking', totalBookings.value, Colors.purple),
-      ChartDataCircle('Total Users', totalCab.value, Colors.green),
-      ChartDataCircle('Booking Placed', totalBookingPlaced.value, Colors.yellow),
-      ChartDataCircle('Booking Active', totalBookingActive.value, Colors.brown),
-      ChartDataCircle('Booking Completed', totalBookingCompleted.value, Colors.deepOrange),
-      ChartDataCircle('Booking Canceled', totalBookingCanceled.value, Colors.red),
+      ChartDataCircle('Completed', totalBookingCompleted.value, Colors.deepOrange),
+      ChartDataCircle('Active', totalBookingActive.value, Colors.brown),
+      ChartDataCircle('Pending', totalBookingPlaced.value, Colors.yellow),
+      ChartDataCircle('Canceled', totalBookingCanceled.value, Colors.red),
+      ChartDataCircle('Total Bookings', totalBookings.value, Colors.purple),
+      ChartDataCircle('Total Users', totalUser.value, Colors.green),
+      ChartDataCircle('Active Drivers', totalCab.value, Colors.blue),
     ];
-
-    // Populate bookingChartData using current monthly revenue
-    int currentMonth = DateTime.now().month;
-    final months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    for (int i = 0; i < 12; i++) {
-      double val = 0.0;
-      if (i == currentMonth - 1) {
-        val = totalEarnings.value;
-      }
-      bookingChartData![i] = ChartData(months[i], val);
-    }
 
     isLoadingBookingChart.value = false;
     isLoadingUserChart.value = false;

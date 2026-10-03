@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/chat_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
+import '../services/voice_recognition_service.dart';
 import '../core/theme.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -32,6 +33,8 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _voiceService = VoiceRecognitionService();
+  bool _isVoiceTranscribing = false;
 
   @override
   void initState() {
@@ -61,6 +64,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _voiceService.stopListening();
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -219,6 +223,48 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  void _toggleVoiceRecognition() {
+    if (_voiceService.isListening || _isVoiceTranscribing) {
+      _voiceService.stopListening();
+      setState(() => _isVoiceTranscribing = false);
+      return;
+    }
+
+    setState(() => _isVoiceTranscribing = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Listening... speak now'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    _voiceService.startListening(
+      onResult: (text) {
+        if (mounted) {
+          setState(() {
+            _msgCtrl.text = text;
+            _msgCtrl.selection = TextSelection.fromPosition(
+              TextPosition(offset: _msgCtrl.text.length),
+            );
+          });
+        }
+      },
+      onDone: () {
+        if (mounted) {
+          setState(() => _isVoiceTranscribing = false);
+        }
+      },
+      onError: (err) {
+        if (mounted) {
+          setState(() => _isVoiceTranscribing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Voice input: $err')),
+          );
+        }
+      },
+    );
+  }
+
   Widget _buildInput() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -244,6 +290,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
                 onSubmitted: (_) => _send(),
               ),
+            ),
+            IconButton(
+              icon: Icon(
+                _isVoiceTranscribing ? Icons.mic : Icons.mic_none,
+                color: _isVoiceTranscribing ? Colors.red : context.theme.primaryColor,
+              ),
+              onPressed: _toggleVoiceRecognition,
+              tooltip: 'Speak message',
             ),
             IconButton(
               icon: Icon(Icons.send, color: context.theme.primaryColor),

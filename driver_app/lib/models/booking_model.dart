@@ -289,7 +289,15 @@ class BookingModel {
       estimatedDate: json['estimatedDate']?.toString(),
       startOtp: json['startOtp']?.toString(),
       endOtp: json['endOtp']?.toString(),
-      review: json['review'] is Map ? Map<String, dynamic>.from(json['review']) : null,
+      review: json['review'] is Map
+          ? Map<String, dynamic>.from(json['review'])
+          : (json['rating'] != null || json['comment'] != null || json['feedback'] != null)
+              ? {
+                  'rating': json['rating'] ?? 5,
+                  'comment': (json['comment'] ?? json['feedback'] ?? '').toString(),
+                  'tags': json['tags'] is List ? json['tags'] : [],
+                }
+              : null,
       segments: (json['segments'] as List?)?.map((s) => BookingSegment.fromJson(s)).toList() ?? [],
     );
   }

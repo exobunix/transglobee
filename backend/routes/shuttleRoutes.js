@@ -12,4 +12,10 @@ router.get('/:bookingId', verifyToken, ctrl.getBooking);
 router.post('/:bookingId/cancel', verifyToken, ctrl.cancelBooking);
 router.get('/:bookingId/track', verifyToken, ctrl.trackShuttle);
 
+// Admin / Supervisor actions for shuttle booking
+router.post('/:bookingId/status', ctrl.updateShuttleStatus);
+router.patch('/:bookingId/status', ctrl.updateShuttleStatus);
+router.put('/:bookingId/status', ctrl.updateShuttleStatus);
+router.post('/:bookingId/action', ctrl.updateShuttleStatus);
+
 module.exports = router;

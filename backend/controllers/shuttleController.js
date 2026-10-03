@@ -182,3 +182,81 @@ exports.createRoute = async (req, res) => {
         return res.status(500).json({ success: false, message: err.message });
     }
 };
+
+exports.updateShuttleStatus = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const { status, notes, adminNotes } = req.body;
+
+        const effectiveNotes = notes || adminNotes || '';
+        let booking = await ShuttleBooking.findById(bookingId);
+        let isLogistics = false;
+        if (!booking) {
+            const LogisticsBooking = require('../models/LogisticsBooking');
+            booking = await LogisticsBooking.findById(bookingId);
+            isLogistics = !!booking;
+        }
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Shuttle booking not found.' });
+        }
+
+        if (status) {
+            booking.status = status;
+            if (status === 'confirmed' || status === 'accepted') {
+                booking.roadmapStatus = 'approved';
+            } else if (status === 'rejected' || status === 'declined') {
+                booking.roadmapStatus = 'rejected';
+            }
+        }
+        if (effectiveNotes !== undefined) {
+            booking.adminNotes = effectiveNotes;
+        }
+
+        await booking.save();
+
+        if (req.io) {
+            const targetUserRoom = booking.userId?.toString();
+            const payload = {
+                bookingId: booking._id.toString(),
+                status: booking.status,
+                adminNotes: booking.adminNotes,
+                type: 'SHUTTLE_STATUS_UPDATED',
+                message: `Your shuttle booking has been ${booking.status}. ${effectiveNotes ? 'Note: ' + effectiveNotes : ''}`
+            };
+            if (targetUserRoom) {
+                req.io.to(targetUserRoom).emit('shuttle_booking_updated', payload);
+                req.io.to(targetUserRoom).emit('booking_updated', payload);
+            }
+            req.io.to(booking._id.toString()).emit('shuttle_booking_updated', payload);
+        }
+
+        // Send push notification to user
+        const { notifyUser } = require('../utils/notificationService');
+        const notifTitle = booking.status === 'confirmed' || booking.status === 'accepted'
+            ? 'Shuttle Booking Accepted'
+            : (booking.status === 'rejected' || booking.status === 'declined' ? 'Shuttle Booking Declined' : 'Shuttle Booking Updated');
+        const notifBody = effectiveNotes
+            ? `Status: ${booking.status.toUpperCase()}. Admin note: ${effectiveNotes}`
+            : `Your shuttle booking request has been ${booking.status}.`;
+
+        notifyUser(booking.userId?.toString(), {
+            title: notifTitle,
+            body: notifBody,
+            data: {
+                bookingId: booking._id.toString(),
+                status: booking.status,
+                adminNotes: booking.adminNotes,
+                type: 'SHUTTLE_UPDATE'
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: `Shuttle booking updated to ${booking.status}.`,
+            booking
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+};

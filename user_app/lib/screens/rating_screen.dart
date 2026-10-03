@@ -40,7 +40,7 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
             backgroundColor: Color(0xFF0F4A2C),
           ),
         );
-        Navigator.pop(context);
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
       if (mounted) {
@@ -81,7 +81,7 @@ class _RatingScreenState extends ConsumerState<RatingScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.close, color: context.colors.textPrimary),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
         ),
         title: Text(
           "Ratings & Reviews",

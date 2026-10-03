@@ -561,6 +561,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
+                                      settings: const RouteSettings(name: '/chat'),
                                       builder: (context) => ChatScreen(
                                         receiverId: widget.booking.userId ?? '',
                                         receiverName: widget.booking.userName,

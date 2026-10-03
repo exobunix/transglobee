@@ -13,6 +13,7 @@ const upload = require('../middlewares/uploadMiddleware');
 const vehicleController = require('../controllers/vehicleController'); // add this for vechile management
 
 const subAdminController = require('../controllers/subAdminController');
+const paymentController = require('../controllers/paymentController');
 
 // Unprotected routes
 router.post('/login', adminSignupController.login);
@@ -201,5 +202,8 @@ router.patch('/drivers/:driverId/online', requireStrictAdmin, supervisorControll
 router.patch('/supervisor/bookings/:bookingId/roadmap', requireSupervisorRole, supervisorController.saveRoadmap);
 // Approve the roadmap and notify assigned segment drivers
 router.patch('/supervisor/bookings/:bookingId/roadmap/approve', requireSupervisorRole, supervisorController.approveRoadmap);
+// Payment Gateway Configuration
+router.get('/payment-gateway', paymentController.getAdminGatewayConfig);
+router.post('/payment-gateway', paymentController.updateAdminGatewayConfig);
 
 module.exports = router;

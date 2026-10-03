@@ -55,7 +55,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        physics: const BouncingScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         children: [
           // ── Profile Card Section ──
           userAsync.when(

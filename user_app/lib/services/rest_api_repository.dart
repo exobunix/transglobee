@@ -473,4 +473,19 @@ class RestApiRepository {
       (data) => data is Map<String, dynamic> ? data : {'result': data},
     );
   }
+
+  Future<ApiResponse<Map<String, dynamic>>> getPaymentGatewayConfig() async {
+    try {
+      final response = await _api.get('/payments/gateway-config');
+      return ApiResponse<Map<String, dynamic>>.fromJson(
+        response,
+        (data) => data is Map<String, dynamic> ? data : {'configured': false},
+      );
+    } catch (_) {
+      return ApiResponse<Map<String, dynamic>>(
+        success: true,
+        data: {'configured': false},
+      );
+    }
+  }
 }

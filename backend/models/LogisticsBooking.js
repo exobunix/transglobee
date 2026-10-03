@@ -133,7 +133,7 @@ const logisticsBookingSchema = new mongoose.Schema({
     segments: [{
         start:           { type: locationSchema },
         end:             { type: locationSchema },
-        mode:            { type: String, enum: ['Road', 'Train', 'Flight', 'Sea Cargo'], default: 'Road' },
+        mode:            { type: String, enum: ['Road', 'Train', 'Rail', 'By Rail', 'Flight', 'Air', 'By Air', 'Sea Cargo', 'Sea', 'By Sea Cargo', 'Shuttle', 'Bus'], default: 'Road' },
         distanceKm:      { type: Number, default: 0 },
         driverId:        { type: mongoose.Schema.Types.Mixed, ref: 'Driver', default: null },
         transportName:   { type: String },   // e.g. Train Name

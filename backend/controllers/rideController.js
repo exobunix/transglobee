@@ -1258,17 +1258,24 @@ exports.updateRideStatus = async (req, res) => {
                 distanceTravelled = totalDistance;
             }
 
-            const fraction = totalDistance > 0 ? (distanceTravelled / totalDistance) : 0;
-            const cancellationFare = Math.round(totalFare * Math.min(1.0, fraction));
-
-            ride.cancelReason = req.body.reason || req.body.cancelReason || "User cancelled";
-            ride.distanceTravelled = distanceTravelled;
-            ride.cancelledMidRide = isMidRide;
-
-            if (isLogistics) {
-                ride.cancellationCharge = cancellationFare;
+            const isDriver = (req.user?.role === 'driver') || req.body.cancelledBy === 'driver';
+            if (isDriver) {
+                ride.cancelledBy = 'driver';
+                ride.cancelReason = req.body.reason || req.body.cancelReason || "Driver cancelled the ride";
+                // If driver accepted and arrived (or cancelled after accepting), driver gets NO amount!
+                ride.cancellationFare = 0;
+                ride.cancellationCharge = 0;
+                ride.actualFare = 0;
             } else {
-                ride.cancellationFare = cancellationFare;
+                ride.cancelledBy = 'user';
+                ride.cancelReason = req.body.reason || req.body.cancelReason || "User cancelled";
+                ride.distanceTravelled = distanceTravelled;
+                ride.cancelledMidRide = isMidRide;
+                if (isLogistics) {
+                    ride.cancellationCharge = cancellationFare;
+                } else {
+                    ride.cancellationFare = cancellationFare;
+                }
             }
         }
 
@@ -1293,7 +1300,7 @@ exports.updateRideStatus = async (req, res) => {
 
         await ride.save();
 
-        // Credit driver wallet & create Transaction record if completed/delivered
+        // Credit driver wallet & create Transaction record if completed/delivered (never if cancelled)
         if ((ride.status === 'completed' || ride.status === 'delivered') && oldStatus !== 'completed' && oldStatus !== 'delivered') {
             const { creditDriverForCompletedBooking } = require('../utils/driverEarningsService');
             await creditDriverForCompletedBooking({
@@ -1312,13 +1319,30 @@ exports.updateRideStatus = async (req, res) => {
                     rideId: ride._id.toString(),
                     status: ride.status,
                     driver: ride.driverSnapshot,
-                    ride: ride
+                    ride: ride,
+                    cancelledBy: ride.cancelledBy
                 });
             }
             if (status === 'cancelled' || ride.status === 'cancelled') {
+                const isDriverCancelled = ride.cancelledBy === 'driver' || (req.user?.role === 'driver') || req.body.cancelledBy === 'driver';
+                if (isDriverCancelled) {
+                    if (targetUserRoom) {
+                        req.io.to(targetUserRoom).emit("ride_cancelled_by_driver", {
+                            rideId: ride._id.toString(),
+                            cancelledBy: 'driver',
+                            message: "Driver cancelled the ride. Please make a booking again."
+                        });
+                    }
+                    req.io.to(ride._id.toString()).emit("ride_cancelled_by_driver", {
+                        rideId: ride._id.toString(),
+                        cancelledBy: 'driver',
+                        message: "Driver cancelled the ride. Please make a booking again."
+                    });
+                }
                 req.io.emit("ride_cancelled", { 
                     rideId: ride._id.toString(),
-                    ride: ride
+                    ride: ride,
+                    cancelledBy: ride.cancelledBy
                 });
                 req.io.emit("ride_assigned", { rideId: ride._id.toString() }); // fallback generic removal
             }
@@ -1329,7 +1353,11 @@ exports.updateRideStatus = async (req, res) => {
         let bodyText = `Your ride status is now: ${ride.status.toUpperCase()}`;
         if (status === 'arrived') bodyText = "Your driver has arrived at the pickup location!";
         if (status === 'completed') bodyText = "Your ride is complete. Thank you for riding with Transglobe!";
-        if (status === 'cancelled') bodyText = "Your ride has been cancelled.";
+        if (status === 'cancelled') {
+            bodyText = (ride.cancelledBy === 'driver' || req.user?.role === 'driver')
+                ? "Driver cancelled the ride. Please make a booking again."
+                : "Your ride has been cancelled.";
+        }
 
         notifyUser(resolveDocId(ride.userId), {
             title: "Ride Update",
@@ -1392,11 +1420,35 @@ exports.verifyRideOtp = async (req, res) => {
             }
 
             // Find the segment assigned to this driver that is pending or processing
-            const activeSegIndex = ride.segments.findIndex(seg => 
+            let activeSegIndex = ride.segments.findIndex(seg => 
                 seg.driverId && 
                 seg.driverId.toString() === driverId && 
                 (seg.status === 'pending' || seg.status === 'processing')
             );
+
+            // Fallback 1: If driver is assigned to booking or accepted, find first pending/processing segment
+            if (activeSegIndex === -1) {
+                const assignedDriverStr = ride.driverId?._id?.toString() || ride.driverId?.toString() || '';
+                const isDriverAssignedToBooking = (assignedDriverStr === driverId) ||
+                    (ride.driverSnapshot && (ride.driverSnapshot.driver_id === driverId || ride.driverSnapshot.id === driverId)) ||
+                    !ride.segments.some(s => s.driverId);
+
+                if (isDriverAssignedToBooking) {
+                    activeSegIndex = ride.segments.findIndex(seg => seg.status === 'pending' || seg.status === 'processing');
+                    if (activeSegIndex === -1 && ride.segments.length > 0) {
+                        activeSegIndex = 0;
+                    }
+                    if (activeSegIndex !== -1 && !ride.segments[activeSegIndex].driverId) {
+                        ride.segments[activeSegIndex].driverId = driverId;
+                    }
+                }
+            }
+
+            // Fallback 2: Any pending or processing segment if only 1 segment exists
+            if (activeSegIndex === -1 && ride.segments.length === 1) {
+                activeSegIndex = 0;
+                ride.segments[0].driverId = driverId;
+            }
 
             if (activeSegIndex === -1) {
                 return res.status(400).json({ success: false, message: "No active segment found assigned to this driver." });
@@ -1530,9 +1582,10 @@ exports.verifyRideOtp = async (req, res) => {
             } else {
                 // Starting the segment (status is pending)
                 const startOtpValid = (activeSegment.otp === otp) || 
-                                     (activeSegIndex === 0 && (ride.startOtp === otp || ride.otp === otp));
+                                     (ride.startOtp === otp) || 
+                                     (ride.otp === otp);
                 if (!startOtpValid) {
-                    return res.status(400).json({ success: false, message: "Invalid Segment Start OTP" });
+                    return res.status(400).json({ success: false, message: "Wrong OTP entered. Please enter valid start OTP." });
                 }
 
                 ride.status = 'in_transit';
@@ -1768,6 +1821,115 @@ exports.payRide = async (req, res) => {
         }
 
         res.json({ success: true, message: "Payment successful", ride, paymentStatus: 'paid' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.negotiateFare = async (req, res) => {
+    try {
+        const rideId = req.params.rideId || req.body.rideId;
+        const { extraAmount, driverName } = req.body;
+        const extra = parseFloat(extraAmount) || 0;
+
+        let ride = await History.findById(rideId);
+        let isLogistics = false;
+        if (!ride) {
+            const LogisticsBooking = require('../models/LogisticsBooking');
+            ride = await LogisticsBooking.findById(rideId);
+            isLogistics = !!ride;
+        }
+        if (!ride) return res.status(404).json({ success: false, message: "Booking not found" });
+
+        const currentFare = isLogistics ? (ride.totalPrice || 0) : (ride.fare || 0);
+        const proposedFare = currentFare + extra;
+
+        if (req.io) {
+            const targetUserRoom = resolveDocId(ride.userId);
+            const payload = {
+                rideId: ride._id.toString(),
+                extraAmount: extra,
+                originalFare: currentFare,
+                proposedFare: proposedFare,
+                driverName: driverName || ride.driverSnapshot?.name || 'Driver',
+            };
+            if (targetUserRoom) {
+                req.io.to(targetUserRoom).emit("negotiate_fare_received", payload);
+            }
+            req.io.to(ride._id.toString()).emit("negotiate_fare_received", payload);
+        }
+
+        return res.json({
+            success: true,
+            message: "Fare negotiation proposal sent to passenger",
+            proposedFare,
+            extraAmount: extra
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.respondNegotiateFare = async (req, res) => {
+    try {
+        const rideId = req.params.rideId || req.body.rideId;
+        const { accepted, extraAmount, proposedFare } = req.body;
+
+        let ride = await History.findById(rideId);
+        let isLogistics = false;
+        if (!ride) {
+            const LogisticsBooking = require('../models/LogisticsBooking');
+            ride = await LogisticsBooking.findById(rideId);
+            isLogistics = !!ride;
+        }
+        if (!ride) return res.status(404).json({ success: false, message: "Booking not found" });
+
+        if (accepted) {
+            const newFare = proposedFare ? parseFloat(proposedFare) : ((ride.fare || ride.totalPrice || 0) + (parseFloat(extraAmount) || 0));
+            if (isLogistics) {
+                ride.totalPrice = newFare;
+            } else {
+                ride.fare = newFare;
+            }
+            ride.negotiatedAmount = (ride.negotiatedAmount || 0) + (parseFloat(extraAmount) || 0);
+            await ride.save();
+
+            if (req.io) {
+                const driverRoom = ride.driverId ? ride.driverId.toString() : null;
+                const targetUserRoom = resolveDocId(ride.userId);
+                const payload = {
+                    rideId: ride._id.toString(),
+                    accepted: true,
+                    newFare: newFare,
+                    extraAmount: parseFloat(extraAmount) || 0,
+                    message: "Passenger accepted the negotiated fare!"
+                };
+
+                if (driverRoom) req.io.to(driverRoom).emit("negotiate_fare_result", payload);
+                if (targetUserRoom) req.io.to(targetUserRoom).emit("negotiate_fare_result", payload);
+                req.io.to(ride._id.toString()).emit("negotiate_fare_result", payload);
+                req.io.to(ride._id.toString()).emit("ride_status_update", {
+                    rideId: ride._id.toString(),
+                    fare: newFare,
+                    totalPrice: newFare,
+                    ride: ride
+                });
+            }
+
+            return res.json({ success: true, accepted: true, newFare, message: "Negotiated fare accepted." });
+        } else {
+            if (req.io) {
+                const driverRoom = ride.driverId ? ride.driverId.toString() : null;
+                const payload = {
+                    rideId: ride._id.toString(),
+                    accepted: false,
+                    message: "Passenger declined the fare negotiation."
+                };
+                if (driverRoom) req.io.to(driverRoom).emit("negotiate_fare_result", payload);
+                req.io.to(ride._id.toString()).emit("negotiate_fare_result", payload);
+            }
+            return res.json({ success: true, accepted: false, message: "Negotiated fare declined." });
+        }
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

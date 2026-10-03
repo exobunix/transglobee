@@ -395,6 +395,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
+                    settings: const RouteSettings(name: '/chat'),
                     builder: (_) => ChatScreen(
                       receiverId: booking.userId ?? '',
                       receiverName: booking.userName,

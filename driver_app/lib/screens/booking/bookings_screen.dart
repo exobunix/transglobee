@@ -487,6 +487,7 @@ class _ActiveBookingCard extends ConsumerWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
+                            settings: const RouteSettings(name: '/chat'),
                             builder: (_) => ChatScreen(
                               receiverId: b.userId ?? '',
                               receiverName: b.userName,
@@ -523,6 +524,7 @@ class _ActiveBookingCard extends ConsumerWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
+                              settings: const RouteSettings(name: '/active-ride'),
                               builder: (_) => ActiveRideScreen(booking: b),
                             ),
                           );
@@ -654,80 +656,127 @@ class _HistoryBookingCard extends ConsumerWidget {
       statusIcon = Icons.info_outline;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.darkCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.darkDivider.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              statusIcon,
-              color: statusColor,
-              size: 24,
-            ),
+    final userReviewText = b.review != null
+        ? (b.review!['comment'] ?? b.review!['feedback'] ?? b.review!['review'] ?? '')
+        : '';
+
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            settings: RouteSettings(name: '/booking-detail/${b.id}'),
+            builder: (_) => BookingDetailScreen(bookingId: b.id),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        );
+      },
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.darkCard,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppTheme.darkDivider.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Text(b.userName, style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    statusIcon,
+                    color: statusColor,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(b.userName, style: const TextStyle(color: AppTheme.darkTextPrimary, fontWeight: FontWeight.w700, fontSize: 14)),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              b.status.toUpperCase(),
+                              style: TextStyle(
+                                color: statusColor,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 4),
+                      Text('${displayPickup.split(',').first} → ${displayDrop.split(',').first}', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      if (b.railwayStation != null) ...[
+                        const SizedBox(height: 2),
+                        Text('Via: ${b.railwayStation}', style: const TextStyle(color: AppTheme.neonGreen, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                      const SizedBox(height: 4),
+                      Text(_formatTime(b.createdAt), style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('₹${displayFare.toStringAsFixed(0)}', style: TextStyle(color: isCompleted ? AppTheme.earningsAmber : AppTheme.offlineRed, fontWeight: FontWeight.w800, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    if (b.userRating != null)
+                      Row(children: [
+                        const Icon(Icons.star, size: 12, color: AppTheme.earningsAmber),
+                        const SizedBox(width: 2),
+                        Text(b.userRating!.toString(), style: const TextStyle(color: AppTheme.earningsAmber, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ]),
+                  ],
+                ),
+              ],
+            ),
+            if (userReviewText.toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.format_quote, size: 14, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Expanded(
                       child: Text(
-                        b.status.toUpperCase(),
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                        ),
+                        userReviewText.toString(),
+                        style: const TextStyle(color: Colors.amber, fontSize: 11, fontStyle: FontStyle.italic),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text('${displayPickup.split(',').first} → ${displayDrop.split(',').first}', style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (b.railwayStation != null) ...[
-                  const SizedBox(height: 2),
-                  Text('Via: ${b.railwayStation}', style: const TextStyle(color: AppTheme.neonGreen, fontSize: 10, fontWeight: FontWeight.bold)),
-                ],
-                const SizedBox(height: 4),
-                Text(_formatTime(b.createdAt), style: const TextStyle(color: AppTheme.darkTextSecondary, fontSize: 11)),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('₹${displayFare.toStringAsFixed(0)}', style: TextStyle(color: isCompleted ? AppTheme.earningsAmber : AppTheme.offlineRed, fontWeight: FontWeight.w800, fontSize: 16)),
-              const SizedBox(height: 4),
-              if (b.userRating != null)
-                Row(children: [
-                  const Icon(Icons.star, size: 12, color: AppTheme.earningsAmber),
-                  const SizedBox(width: 2),
-                  Text(b.userRating!.toString(), style: const TextStyle(color: AppTheme.earningsAmber, fontSize: 12, fontWeight: FontWeight.w600)),
-                ]),
+              ),
             ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

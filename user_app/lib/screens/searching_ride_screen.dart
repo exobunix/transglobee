@@ -186,6 +186,7 @@ class _SearchingRideScreenState extends ConsumerState<SearchingRideScreen>
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/tracking'),
         builder: (context) => RideTrackingScreen(
           pickup: widget.pickup,
           dropoff: widget.dropoff,
