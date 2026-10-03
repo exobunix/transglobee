@@ -1,29 +1,39 @@
+import 'package:flutter/foundation.dart';
+
 class ApiConstant {
-  // Centralized Base URL for backend API
-  static const String baseUrl = 
-  'https://api.transgloble.com/api';
-  // "http://localhost:8082/api";
+  // Centralized Base URL for backend API: auto-switches between localhost and live
+  static String get baseUrl {
+    if (kIsWeb) {
+      try {
+        final host = Uri.base.host;
+        if (host == 'localhost' || host == '127.0.0.1' || host.isEmpty) {
+          return 'http://localhost:8082/api';
+        }
+      } catch (_) {}
+    }
+    return 'https://api.transgloble.com/api';
+  }
 
   // Admin Authentication Endpoints
-  static const String adminLogin = "$baseUrl/auth/admin/login";
-  static const String adminRegister = "$baseUrl/auth/admin/register";
-  static const String adminProfile = "$baseUrl/auth/admin/profile";
-  static const String adminLogout = "$baseUrl/auth/admin/logout";
+  static String get adminLogin => "$baseUrl/auth/admin/login";
+  static String get adminRegister => "$baseUrl/auth/admin/register";
+  static String get adminProfile => "$baseUrl/auth/admin/profile";
+  static String get adminLogout => "$baseUrl/auth/admin/logout";
 
   // Admin Booking Endpoints
-  static const String adminBookings = "$baseUrl/admin/bookings";
-  static const String adminDashboard = "$baseUrl/admin/dashboard";
-  static const String adminUsers = "$baseUrl/admin/users";
-  static const String adminUsersCreate = "$baseUrl/admin/users/create";
-  static const String adminDrivers = "$baseUrl/admin/drivers";
-  static const String adminDriverCreate = "$baseUrl/driver/register";
+  static String get adminBookings => "$baseUrl/admin/bookings";
+  static String get adminDashboard => "$baseUrl/admin/dashboard";
+  static String get adminUsers => "$baseUrl/admin/users";
+  static String get adminUsersCreate => "$baseUrl/admin/users/create";
+  static String get adminDrivers => "$baseUrl/admin/drivers";
+  static String get adminDriverCreate => "$baseUrl/driver/register";
 
   // Admin Banner, Coupon, CMS & Upload Endpoints
-  static const String adminCms = "$baseUrl/admin/cms";
-  static const String adminUpload = "$baseUrl/admin/upload";
+  static String get adminCms => "$baseUrl/admin/cms";
+  static String get adminUpload => "$baseUrl/admin/upload";
 
   // Admin Wallet Requests
-  static const String adminWalletRequests = "$baseUrl/admin/wallet-requests";
+  static String get adminWalletRequests => "$baseUrl/admin/wallet-requests";
 
   // Common Headers
   static Map<String, String> headers({String? token}) {

@@ -25,7 +25,7 @@ import 'package:admin/app/utils/app_them_data.dart';
 import 'package:admin/app/utils/dark_theme_provider.dart';
 
 class CustomersScreenController extends GetxController {
-  RxString title = "Customers".tr.obs;
+  RxString title = "Users".tr.obs;
   RxBool isLoading = true.obs;
   RxInt selectedGender = 1.obs;
   RxBool isSearchEnable = true.obs;
@@ -82,7 +82,7 @@ class CustomersScreenController extends GetxController {
         headers: ApiConstant.headers(token: token),
       );
       if (response.statusCode == 200) {
-        ShowToastDialog.toast("Passengers deleted...!".tr);
+        ShowToastDialog.toast("User deleted...!".tr);
         getUser();
       } else {
         ShowToastDialog.toast("Something went wrong".tr);
