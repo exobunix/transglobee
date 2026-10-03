@@ -181,15 +181,19 @@ class SocketService {
     _pendingRideId = null;
   }
 
-  void sendNegotiateResponse({
-    required String rideId,
-    required bool accept,
+  void sendNegotiateResponse(
+    String rideId,
+    bool accept, {
+    double? extraFare,
+    double? newFare,
     double? additionalAmount,
   }) {
     _socket?.emit("negotiate_fare_response", {
       "rideId": rideId,
+      "bookingId": rideId,
       "accept": accept,
-      "additionalAmount": additionalAmount,
+      "extraFare": extraFare ?? additionalAmount ?? 0,
+      "newFare": newFare,
     });
   }
 

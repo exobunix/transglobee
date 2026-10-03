@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../providers/vehicle_type_provider.dart';
 import '../services/socket_service.dart';
+import '../services/driver_service.dart';
 import '../features/driver/controllers/driver_providers.dart';
 
 class RideRequestCard extends ConsumerStatefulWidget {

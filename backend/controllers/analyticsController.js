@@ -298,3 +298,33 @@ exports.getRevenueBreakdown = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
+
+exports.getRevenueReport = exports.getRevenueBreakdown;
+
+exports.logDelay = async (req, res) => {
+    try {
+        const { bookingId, reason, delayMinutes, notes } = req.body;
+        const delay = new DelayLog({
+            bookingId,
+            reason,
+            delayMinutes,
+            notes
+        });
+        await delay.save();
+        res.status(201).json({ success: true, message: 'Delay logged successfully', delay });
+    } catch (error) {
+        console.error('Error logging delay:', error);
+        res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};
+
+exports.getDelayLogs = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const delays = await DelayLog.find({ bookingId }).sort({ createdAt: -1 });
+        res.status(200).json({ success: true, data: delays });
+    } catch (error) {
+        console.error('Error fetching delay logs:', error);
+        res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+};

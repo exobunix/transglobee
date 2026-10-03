@@ -111,7 +111,7 @@ class ShuttleManagementCardView extends StatelessWidget {
             const SizedBox(height: 12),
             _buildDetailRow(Icons.person_outline, "Passenger Details", controller.customerText.value),
             const SizedBox(height: 12),
-            _buildDetailRow(Icons.payments_outlined, "Fare", "₹${booking.finalRate ?? booking.subTotal ?? '0'}"),
+            _buildDetailRow(Icons.payments_outlined, "Fare", "₹${booking.subTotal ?? '0'}"),
 
             const SizedBox(height: 20),
             TextCustom(
